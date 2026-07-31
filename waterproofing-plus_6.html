@@ -1,0 +1,1528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0b3d61">
+<title>Waterproofing+ · Warehouse & Crew Ops</title>
+<style>
+  :root{
+    --bg:#0e1726;            /* app shell */
+    --surface:#ffffff;
+    --surface-2:#f4f7fb;
+    --surface-3:#e9eef5;
+    --ink:#132135;
+    --ink-2:#5a6b82;
+    --ink-3:#8a99ad;
+    --line:#e2e8f1;
+    --primary:#0b6ea8;       /* water blue */
+    --primary-d:#0b3d61;     /* deep below-grade */
+    --accent:#12b3a6;        /* teal */
+    --good:#1f9d63;
+    --good-bg:#e4f6ec;
+    --warn:#c9820a;
+    --warn-bg:#fdf2dc;
+    --bad:#d0453b;
+    --bad-bg:#fbe7e5;
+    --purple:#6b57d4;
+    --radius:16px;
+    --shadow:0 2px 10px rgba(19,33,53,.07);
+    --shadow-lg:0 10px 30px rgba(11,61,97,.16);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);
+    -webkit-font-smoothing:antialiased;line-height:1.45;
+    overscroll-behavior-y:none;
+  }
+  .app{
+    max-width:480px;margin:0 auto;min-height:100vh;
+    background:var(--surface-2);position:relative;
+    display:flex;flex-direction:column;
+  }
+  /* ---------- Header ---------- */
+  header.top{
+    background:linear-gradient(135deg,var(--primary-d),var(--primary));
+    color:#fff;padding:14px 18px 16px;position:sticky;top:0;z-index:40;
+    box-shadow:0 4px 14px rgba(11,61,97,.28);
+  }
+  .brandrow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px}
+  .logo{width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.16);
+    display:grid;place-items:center;flex:0 0 auto}
+  .logo svg{width:18px;height:18px}
+  .brand small{display:block;font-weight:500;font-size:11px;opacity:.8;letter-spacing:.3px}
+  .whoami{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.14);
+    border:0;color:#fff;padding:6px 10px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer}
+  .whoami .av{width:22px;height:22px;border-radius:50%;background:var(--accent);
+    display:grid;place-items:center;font-size:11px;font-weight:700;color:#04302c}
+  .htitle{font-size:20px;font-weight:800;margin:12px 2px 2px}
+  .hsub{font-size:12.5px;opacity:.82;margin:0 2px}
+  /* ---------- Scroll area ---------- */
+  main{flex:1;overflow-y:auto;padding:16px 16px calc(96px + var(--safe-b));-webkit-overflow-scrolling:touch}
+  .view{display:none;animation:fade .22s ease}
+  .view.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  /* ---------- Cards / generic ---------- */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:14px;margin-bottom:14px}
+  .card h3{margin:0 0 2px;font-size:15px}
+  .sec-h{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 10px}
+  .sec-h h2{font-size:16px;margin:0;font-weight:800;letter-spacing:.2px}
+  .sec-h .link{color:var(--primary);font-size:13px;font-weight:600;background:0;border:0;cursor:pointer}
+  .muted{color:var(--ink-2)}
+  .tiny{font-size:12px}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;
+    padding:3px 9px;border-radius:999px;line-height:1.4}
+  .pill.good{background:var(--good-bg);color:var(--good)}
+  .pill.warn{background:var(--warn-bg);color:var(--warn)}
+  .pill.bad{background:var(--bad-bg);color:var(--bad)}
+  .pill.neu{background:var(--surface-3);color:var(--ink-2)}
+  /* ---------- KPI grid ---------- */
+  .kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 13px;box-shadow:var(--shadow)}
+  .kpi .k-lab{font-size:11.5px;color:var(--ink-2);font-weight:600;display:flex;align-items:center;gap:6px}
+  .kpi .k-val{font-size:24px;font-weight:800;margin-top:4px;letter-spacing:-.5px}
+  .kpi .k-sub{font-size:11px;color:var(--ink-3);margin-top:1px}
+  .kpi.alert .k-val{color:var(--bad)}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  /* ---------- Buttons ---------- */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    border:0;border-radius:12px;padding:12px 16px;font-size:15px;font-weight:700;
+    cursor:pointer;font-family:inherit;transition:transform .06s ease,filter .15s}
+  .btn:active{transform:scale(.97)}
+  .btn.primary{background:var(--primary);color:#fff}
+  .btn.dark{background:var(--primary-d);color:#fff}
+  .btn.ghost{background:var(--surface-3);color:var(--ink)}
+  .btn.line{background:#fff;border:1.5px solid var(--line);color:var(--ink)}
+  .btn.block{width:100%}
+  .btn.sm{padding:8px 12px;font-size:13px;border-radius:10px}
+  .btn.good{background:var(--good);color:#fff}
+  .btn.danger{background:var(--bad);color:#fff}
+  .btn[disabled]{opacity:.5;pointer-events:none}
+  .fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + var(--safe-b));
+    z-index:45;background:var(--accent);color:#04302c;box-shadow:var(--shadow-lg);
+    max-width:480px;width:calc(100% - 32px)}
+  /* ---------- Inventory list ---------- */
+  .search{display:flex;gap:8px;margin-bottom:12px}
+  .search input{flex:1;border:1px solid var(--line);border-radius:12px;padding:11px 13px;
+    font-size:15px;font-family:inherit;background:#fff}
+  .search input:focus{outline:2px solid var(--primary);border-color:transparent}
+  .chips{display:flex;gap:7px;overflow-x:auto;padding-bottom:8px;margin-bottom:6px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:0 0 auto;background:#fff;border:1.5px solid var(--line);border-radius:999px;
+    padding:7px 13px;font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+  .chip.on{background:var(--primary-d);border-color:var(--primary-d);color:#fff}
+  .inv{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line)}
+  .inv:last-child{border-bottom:0}
+  .inv .ic{width:42px;height:42px;border-radius:11px;background:var(--surface-2);
+    display:grid;place-items:center;flex:0 0 auto;font-size:18px}
+  .inv .mid{flex:1;min-width:0}
+  .inv .nm{font-weight:700;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .inv .meta{font-size:11.5px;color:var(--ink-3);margin-top:1px}
+  .inv .qtywrap{text-align:right;flex:0 0 auto}
+  .inv .qty{font-weight:800;font-size:16px}
+  .bar{height:6px;border-radius:99px;background:var(--surface-3);margin-top:6px;overflow:hidden;width:100%}
+  .bar > i{display:block;height:100%;border-radius:99px}
+  /* ---------- Cart / log ---------- */
+  .line-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .line-item:last-child{border-bottom:0}
+  .qtybox{display:flex;align-items:center;gap:0;border:1.5px solid var(--line);border-radius:10px;overflow:hidden}
+  .qtybox button{width:34px;height:34px;border:0;background:var(--surface-2);font-size:19px;font-weight:700;color:var(--primary);cursor:pointer}
+  .qtybox input{width:44px;height:34px;border:0;text-align:center;font-size:15px;font-weight:700;font-family:inherit;background:#fff}
+  .qtybox input:focus{outline:none}
+  /* ---------- Checklist ---------- */
+  .seg{display:flex;background:var(--surface-3);border-radius:12px;padding:4px;margin-bottom:14px}
+  .seg button{flex:1;border:0;background:0;padding:10px;border-radius:9px;font-size:14px;font-weight:700;color:var(--ink-2);cursor:pointer;font-family:inherit}
+  .seg button.on{background:#fff;color:var(--primary-d);box-shadow:var(--shadow)}
+  .task{display:flex;align-items:center;gap:13px;padding:14px 4px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none}
+  .task:last-child{border-bottom:0}
+  .cbx{width:26px;height:26px;border-radius:8px;border:2px solid var(--ink-3);flex:0 0 auto;
+    display:grid;place-items:center;transition:.15s}
+  .cbx svg{width:15px;height:15px;stroke:#fff;opacity:0}
+  .task.done .cbx{background:var(--good);border-color:var(--good)}
+  .task.done .cbx svg{opacity:1}
+  .task.done .tk-txt{color:var(--ink-3);text-decoration:line-through}
+  .tk-txt{font-size:14.5px;font-weight:600}
+  .ring-wrap{display:flex;align-items:center;gap:16px}
+  .ring{--p:0;width:78px;height:78px;border-radius:50%;flex:0 0 auto;
+    background:conic-gradient(var(--good) calc(var(--p)*1%),var(--surface-3) 0);
+    display:grid;place-items:center;position:relative}
+  .ring::after{content:"";position:absolute;inset:8px;border-radius:50%;background:#fff}
+  .ring b{position:relative;z-index:1;font-size:19px;font-weight:800}
+  /* ---------- Leaderboard ---------- */
+  .lb{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line)}
+  .lb:last-child{border-bottom:0}
+  .rank{width:26px;text-align:center;font-weight:800;color:var(--ink-3)}
+  .rank.top{color:var(--warn)}
+  .av-lg{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#fff;flex:0 0 auto}
+  .pts{margin-left:auto;text-align:right}
+  .pts b{font-size:16px}
+  /* ---------- Activity ---------- */
+  .act{display:flex;gap:11px;padding:10px 2px;border-bottom:1px solid var(--line)}
+  .act:last-child{border-bottom:0}
+  .act .ai{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto;font-size:14px}
+  .act .atxt{font-size:13px;flex:1}
+  .act .atime{font-size:11px;color:var(--ink-3);white-space:nowrap}
+  /* ---------- Bottom nav ---------- */
+  nav.tabs{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;
+    background:rgba(255,255,255,.94);backdrop-filter:blur(12px);border-top:1px solid var(--line);
+    display:flex;justify-content:space-around;padding:8px 6px calc(8px + var(--safe-b));z-index:50}
+  nav.tabs button{background:0;border:0;display:flex;flex-direction:column;align-items:center;gap:3px;
+    color:var(--ink-3);font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;padding:2px 8px;flex:1}
+  nav.tabs button svg{width:23px;height:23px;stroke-width:2}
+  nav.tabs button.on{color:var(--primary)}
+  /* ---------- Modal / sheet ---------- */
+  .sheet-bg{position:fixed;inset:0;background:rgba(10,18,30,.5);z-index:60;opacity:0;pointer-events:none;transition:.2s}
+  .sheet-bg.open{opacity:1;pointer-events:auto}
+  .sheet{position:fixed;left:50%;transform:translateX(-50%) translateY(100%);bottom:0;width:100%;max-width:480px;
+    background:var(--surface-2);border-radius:22px 22px 0 0;z-index:61;transition:transform .26s cubic-bezier(.2,.8,.2,1);
+    max-height:92vh;display:flex;flex-direction:column;padding-bottom:var(--safe-b)}
+  .sheet.open{transform:translateX(-50%) translateY(0)}
+  .sheet .grip{width:40px;height:4px;border-radius:99px;background:var(--surface-3);margin:10px auto 4px}
+  .sheet .sh-head{display:flex;align-items:center;justify-content:space-between;padding:6px 18px 10px}
+  .sheet .sh-head h3{margin:0;font-size:17px}
+  .sheet .sh-body{overflow-y:auto;padding:4px 18px 18px}
+  .sheet .x{background:var(--surface-3);border:0;width:32px;height:32px;border-radius:50%;font-size:17px;cursor:pointer;color:var(--ink-2)}
+  label.fld{display:block;margin:12px 0 6px;font-size:12.5px;font-weight:700;color:var(--ink-2)}
+  input.in,select.in,textarea.in{width:100%;border:1.5px solid var(--line);border-radius:11px;padding:12px;
+    font-size:15px;font-family:inherit;background:#fff;color:var(--ink)}
+  input.in:focus,select.in:focus,textarea.in:focus{outline:2px solid var(--primary);border-color:transparent}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(150px + var(--safe-b));
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:12px;font-size:13.5px;font-weight:600;
+    z-index:80;opacity:0;transition:.25s;box-shadow:var(--shadow-lg);max-width:90%;text-align:center;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px)}
+  .empty{text-align:center;color:var(--ink-3);padding:34px 20px;font-size:14px}
+  .empty .big{font-size:34px;margin-bottom:8px}
+  .selrow{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
+  .selrow::-webkit-scrollbar{display:none}
+  .selrow .sopt{flex:0 0 auto;border:1.5px solid var(--line);background:#fff;border-radius:11px;
+    padding:9px 13px;font-size:13.5px;font-weight:600;cursor:pointer;color:var(--ink-2);white-space:nowrap}
+  .selrow .sopt.on{border-color:var(--primary);background:#eef7fc;color:var(--primary-d)}
+  /* confetti */
+  .confetti{position:fixed;inset:0;pointer-events:none;z-index:90;overflow:hidden}
+  .confetti i{position:absolute;top:-12px;width:9px;height:14px;opacity:.9;animation:fall linear forwards}
+  @keyframes fall{to{transform:translateY(105vh) rotate(540deg)}}
+  .banner{background:linear-gradient(120deg,#12b3a6,#0b6ea8);color:#fff;border-radius:14px;padding:14px;margin-bottom:14px;
+    display:flex;align-items:center;gap:12px}
+  .banner .bi{font-size:26px}
+  .streakflame{font-size:15px}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top">
+    <div class="brandrow">
+      <div class="brand">
+        <span class="logo">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 2.5c3.5 4.2 6 7.4 6 10.6a6 6 0 1 1-12 0c0-3.2 2.5-6.4 6-10.6Z" fill="#8fd8ff"/><path d="M9.5 13.5a2.5 2.5 0 0 0 2.5 2.5" stroke="#0b3d61" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </span>
+        <div>Waterproofing+<small>Warehouse &amp; Crew Ops</small></div>
+      </div>
+      <button class="whoami" id="whoBtn"><span class="av" id="whoAv">Y</span><span id="whoName">You</span></button>
+    </div>
+    <div class="htitle" id="hTitle">Today</div>
+    <div class="hsub" id="hSub">Thursday · truck ready, stock in check</div>
+  </header>
+
+  <main id="main">
+    <!-- ============ HOME / DASHBOARD ============ -->
+    <section class="view active" id="view-home"></section>
+    <!-- ============ INVENTORY ============ -->
+    <section class="view" id="view-inv"></section>
+    <!-- ============ LOG USAGE (reached via button) ============ -->
+    <section class="view" id="view-log"></section>
+    <!-- ============ TOOLS / EQUIPMENT ============ -->
+    <section class="view" id="view-tools"></section>
+    <!-- ============ TRUCKS / DAILY TASKS ============ -->
+    <section class="view" id="view-trucks"></section>
+    <!-- ============ CREW / POINTS ============ -->
+    <section class="view" id="view-crew"></section>
+  </main>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="home" class="on">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>Home</button>
+    <button data-tab="inv">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4Z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>Inventory</button>
+    <button data-tab="tools">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6 6a1.5 1.5 0 0 0 2 2l6-6a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3Z"/></svg>Tools</button>
+    <button data-tab="trucks">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h11v9H3z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg>Trucks</button>
+    <button data-tab="crew">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M2 21a6 6 0 0 1 12 0"/><path d="M16 4a4 4 0 0 1 0 8M22 21a6 6 0 0 0-6-6"/></svg>Crew</button>
+  </nav>
+</div>
+
+<!-- Sheet / modal -->
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet">
+  <div class="grip"></div>
+  <div class="sh-head"><h3 id="sheetTitle">Title</h3><button class="x" id="sheetX">✕</button></div>
+  <div class="sh-body" id="sheetBody"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   Waterproofing+  — single-file prototype
+   Data model + storage (localStorage w/ in-memory fallback)
+   ============================================================ */
+const CATS = [
+  {id:'wp',  name:'Waterproofing', icon:'🛢️'},
+  {id:'drn', name:'Drainage & Protection', icon:'🧱'},
+  {id:'clk', name:'Caulking & Sealants', icon:'🧴'},
+  {id:'ins', name:'Insulation', icon:'🟨'},
+  {id:'inj', name:'Crack Injection', icon:'💉'},
+  {id:'trf', name:'Traffic Coatings', icon:'🛣️'},
+  {id:'acc', name:'Termination & Fasteners', icon:'🔩'},
+  {id:'con', name:'Consumables & Prep', icon:'🧰'},
+];
+const SEED = {
+  v: 6,
+  // unit = the ONE locked unit crew logs in · step = increment (0.5 = halves allowed)
+  // pack = how it's bought · perPallet + cost feed the pallet-based reorder estimate
+  materials: [
+    // ---- Waterproofing ----
+    {id:'m1',  name:'Tremproof 260 (TP260)', cat:'wp', unit:'barrel', step:0.5, pack:'52 gal drum · 4/pallet', perPallet:4, cost:905.56, qty:6, reorder:6, bin:'Yard'},
+    {id:'m2',  name:'Tremproof Amphibia (blindside)', cat:'wp', unit:'roll', step:0.5, pack:"5.91'×65.62' · 20/pallet", perPallet:20, cost:1460, qty:9, reorder:8, bin:'Rack A'},
+    {id:'m3',  name:'BSWV Membrane', cat:'wp', unit:'roll', step:0.5, pack:'blind wall rolls', perPallet:0, cost:0, qty:5, reorder:6, bin:'Rack A'},
+    {id:'m4',  name:'Vulkem 350 SL', cat:'wp', unit:'pail', step:1, pack:'36 pails/pallet', perPallet:36, cost:0, qty:7, reorder:6, bin:'Shelf B'},
+    {id:'m5',  name:'Vulkem 360 SL', cat:'wp', unit:'pail', step:1, pack:'36 pails/pallet', perPallet:36, cost:0, qty:12, reorder:8, bin:'Shelf B'},
+    {id:'m6',  name:'Vulkem 950 NF', cat:'wp', unit:'pail', step:1, pack:'36 pails/pallet', perPallet:36, cost:0, qty:6, reorder:6, bin:'Shelf B'},
+    {id:'m7',  name:'Vulkem 951 NF', cat:'wp', unit:'pail', step:1, pack:'36 pails/pallet', perPallet:36, cost:0, qty:4, reorder:4, bin:'Shelf B'},
+    {id:'m8',  name:'191 Primer', cat:'wp', unit:'pail', step:1, pack:'', perPallet:0, cost:0, qty:8, reorder:6, bin:'Shelf B'},
+    {id:'m9',  name:'Watchdog Waterproofing', cat:'wp', unit:'pail', step:1, pack:'Gablecraft', perPallet:0, cost:0, qty:5, reorder:4, bin:'Shelf C'},
+    // ---- Drainage & Protection ----
+    {id:'m10', name:'Tremdrain 6000 (conventional)', cat:'drn', unit:'roll', step:0.5, pack:"6'×50' · 8/pallet", perPallet:8, cost:180, qty:16, reorder:12, bin:'Rack D'},
+    {id:'m11', name:'Tremdrain 6000x (blind wall)', cat:'drn', unit:'roll', step:0.5, pack:'8/pallet', perPallet:8, cost:264.26, qty:3, reorder:6, bin:'Rack D'},
+    {id:'m12', name:'Tremco Drainstar (dimple)', cat:'drn', unit:'roll', step:0.5, pack:'300 sq ft/roll', perPallet:0, cost:0, qty:31, reorder:20, bin:'Rack D'},
+    {id:'m13', name:'NaturaSeal Drainmat (backup)', cat:'drn', unit:'roll', step:0.5, pack:'', perPallet:0, cost:0, qty:10, reorder:6, bin:'Rack D'},
+    {id:'m14', name:'Soprema G10 Drainmat', cat:'drn', unit:'roll', step:0.5, pack:'', perPallet:0, cost:0, qty:4, reorder:4, bin:'Rack D'},
+    {id:'m15', name:'Delta MS Drainmat', cat:'drn', unit:'roll', step:0.5, pack:'Gablecraft', perPallet:0, cost:0, qty:6, reorder:4, bin:'Rack D'},
+    {id:'m16', name:'Warm & Dri Board', cat:'drn', unit:'board', step:1, pack:'', perPallet:0, cost:0, qty:40, reorder:24, bin:'Rack E'},
+    {id:'m17', name:'Drain Boots', cat:'drn', unit:'boot', step:1, pack:'', perPallet:0, cost:0, qty:60, reorder:40, bin:'Bin E2'},
+    // ---- Caulking & Sealants ----
+    {id:'m18', name:'Dymonic 100 (Black)', cat:'clk', unit:'tube', step:1, pack:'15/case · 66 cases/pallet', perPallet:990, cost:8.67, qty:45, reorder:30, bin:'Shelf F'},
+    {id:'m19', name:'Dymonic 100 FC (White)', cat:'clk', unit:'tube', step:1, pack:'15/case', perPallet:0, cost:0, qty:30, reorder:30, bin:'Shelf F'},
+    {id:'m20', name:'Dow CWS (White)', cat:'clk', unit:'sausage', step:1, pack:'EllisDon', perPallet:0, cost:0, qty:24, reorder:15, bin:'Shelf F'},
+    {id:'m21', name:'Dow CWS (Grey)', cat:'clk', unit:'sausage', step:1, pack:'AssaAbloy', perPallet:0, cost:0, qty:12, reorder:15, bin:'Shelf F'},
+    {id:'m22', name:'Pekora Dynafex', cat:'clk', unit:'sausage', step:1, pack:'', perPallet:0, cost:0, qty:18, reorder:12, bin:'Shelf F'},
+    {id:'m23', name:'Backer Rod', cat:'clk', unit:'roll', step:1, pack:'', perPallet:0, cost:0, qty:8, reorder:6, bin:'Shelf F'},
+    // ---- Insulation ----
+    {id:'m24', name:'XPS 2" Insulation', cat:'ins', unit:'sheet', step:1, pack:'', perPallet:0, cost:0, qty:24, reorder:20, bin:'Rack G'},
+    {id:'m25', name:'CFI 2" Panel', cat:'ins', unit:'panel', step:1, pack:'', perPallet:0, cost:0, qty:30, reorder:20, bin:'Rack G'},
+    {id:'m26', name:'CFI 4" Panel', cat:'ins', unit:'panel', step:1, pack:'', perPallet:0, cost:0, qty:12, reorder:12, bin:'Rack G'},
+    {id:'m27', name:'PL300 CFI Glue', cat:'ins', unit:'tube', step:1, pack:'', perPallet:0, cost:0, qty:20, reorder:12, bin:'Shelf H'},
+    // ---- Crack Injection ----
+    {id:'m28', name:'Injection Ports', cat:'inj', unit:'each', step:1, pack:'', perPallet:0, cost:0, qty:200, reorder:100, bin:'Bin I1'},
+    {id:'m29', name:'Injection Resin', cat:'inj', unit:'litre', step:0.5, pack:'', perPallet:0, cost:0, qty:24, reorder:15, bin:'Shelf I'},
+    {id:'m30', name:'Accelerator / Catalyst', cat:'inj', unit:'cup', step:1, pack:'', perPallet:0, cost:0, qty:18, reorder:12, bin:'Shelf I'},
+    {id:'m31', name:'Xypex Patch & Plug', cat:'inj', unit:'lb', step:1, pack:'', perPallet:0, cost:0, qty:25, reorder:20, bin:'Shelf I'},
+    {id:'m32', name:'Xypex Concentrate', cat:'inj', unit:'lb', step:1, pack:'', perPallet:0, cost:0, qty:20, reorder:15, bin:'Shelf I'},
+    {id:'m33', name:'Kryton T1', cat:'inj', unit:'gallon', step:0.5, pack:'', perPallet:0, cost:0, qty:6, reorder:4, bin:'Shelf I'},
+    // ---- Traffic Coatings ----
+    {id:'m34', name:'Vulkem 346 TC', cat:'trf', unit:'pail', step:1, pack:'', perPallet:0, cost:0, qty:7, reorder:6, bin:'Shelf J'},
+    {id:'m35', name:'Alsan Traffic Coating', cat:'trf', unit:'gallon', step:0.5, pack:'', perPallet:0, cost:0, qty:5, reorder:4, bin:'Shelf J'},
+    {id:'m36', name:'16-Grit Sand', cat:'trf', unit:'bag', step:1, pack:'', perPallet:0, cost:0, qty:20, reorder:15, bin:'Yard'},
+    // ---- Termination & Fasteners ----
+    {id:'m37', name:'Term Bar', cat:'acc', unit:'unit', step:1, pack:'33/case', perPallet:0, cost:0, qty:90, reorder:60, bin:'Rack K'},
+    {id:'m38', name:'Universal T', cat:'acc', unit:'unit', step:1, pack:'10/case', perPallet:0, cost:26.32, qty:60, reorder:40, bin:'Rack K'},
+    {id:'m39', name:'UCAN Shot Nails/Pins', cat:'acc', unit:'each', step:1, pack:'100/case', perPallet:0, cost:0, qty:1200, reorder:800, bin:'Bin K2'},
+    {id:'m40', name:'Fender Washers', cat:'acc', unit:'each', step:1, pack:'', perPallet:0, cost:0, qty:600, reorder:400, bin:'Bin K3'},
+    // ---- Consumables & Prep ----
+    {id:'m41', name:'BG Grip Tape 6"×75\'', cat:'con', unit:'roll', step:1, pack:'8/case', perPallet:0, cost:42.6, qty:24, reorder:16, bin:'Shelf L'},
+    {id:'m42', name:'White Rags', cat:'con', unit:'bag', step:1, pack:'', perPallet:0, cost:0, qty:10, reorder:8, bin:'Shelf L'},
+    {id:'m43', name:'Roller Sleeves', cat:'con', unit:'each', step:1, pack:'', perPallet:0, cost:0, qty:24, reorder:20, bin:'Shelf L'},
+    {id:'m44', name:'Propane 20 lb', cat:'con', unit:'tank', step:1, pack:'', perPallet:0, cost:0, qty:4, reorder:3, bin:'Yard'},
+    {id:'m45', name:'Xylene', cat:'con', unit:'gallon', step:0.5, pack:'', perPallet:0, cost:0, qty:6, reorder:4, bin:'Flammables'},
+  ],
+  sites: [
+    {id:'s1', name:'Blackcrete — 814 Hockley Ave', addr:'814 Hockley Ave'},
+    {id:'s2', name:'EllisDon — Cow Bay Hospital', addr:'6775 Bell McKinnon Rd'},
+    {id:'s3', name:'ARYZE — 450 Dallas Rd', addr:'450 Dallas Rd'},
+    {id:'s4', name:'Orion — Aura', addr:'875 Citation Road'},
+    {id:'s5', name:'Spire — 2300 Douglas St', addr:'2300 Douglas Street'},
+    {id:'s6', name:'IronClad — Bear Mountain', addr:'2106 Bear Mtn Pkwy'},
+  ],
+  crew: [
+    {id:'c0', name:'You', color:'#12b3a6', points:220},
+    {id:'c1', name:'Mike R.', color:'#0b6ea8', points:410},
+    {id:'c2', name:'Dave L.', color:'#6b57d4', points:355},
+    {id:'c3', name:'Sam T.', color:'#c9820a', points:180},
+    {id:'c4', name:'Carlos M.', color:'#1f9d63', points:290},
+  ],
+  tx: [],           // transactions
+  // ---- services (used by tools + truck tasks) ----
+  services: [
+    {id:'wp', name:'Waterproofing', icon:'🛢️'},
+    {id:'ins', name:'Insulation', icon:'🟨'},
+    {id:'inj', name:'Crack Injection', icon:'💉'},
+    {id:'trf', name:'Traffic Coatings', icon:'🛣️'},
+    {id:'veh', name:'Vehicle / General', icon:'🚚'},
+  ],
+  // ---- tools / equipment (goal 2) ----
+  tools: [
+    {id:'t1', name:'Propane Torch Kit', service:'wp', battery:false, status:'in', condition:'good', lastCharged:null},
+    {id:'t2', name:'Hot Air Welder', service:'wp', battery:false, status:'out', condition:'good', lastCharged:null, outBy:'c1', outJob:'s1', outService:'wp'},
+    {id:'t3', name:'Seam Roller Set', service:'wp', battery:false, status:'in', condition:'good', lastCharged:null},
+    {id:'t4', name:'Cordless Impact Driver', service:'ins', battery:true, status:'in', condition:'good', lastCharged:0},
+    {id:'t5', name:'Hot Knife', service:'ins', battery:false, status:'in', condition:'repair', lastCharged:null, note:'Element intermittent'},
+    {id:'t6', name:'Foam Applicator Gun', service:'ins', battery:false, status:'in', condition:'good', lastCharged:null},
+    {id:'t7', name:'Injection Pump', service:'inj', battery:false, status:'out', condition:'good', lastCharged:null, outBy:'c0', outJob:'s5', outService:'inj'},
+    {id:'t8', name:'Cordless Hammer Drill', service:'inj', battery:true, status:'out', condition:'good', lastCharged:1, outBy:'c0', outJob:'s5', outService:'inj'},
+    {id:'t9', name:'Airless Sprayer', service:'trf', battery:false, status:'in', condition:'damaged', lastCharged:null, note:'Tip guard cracked'},
+    {id:'t10', name:'Cordless Angle Grinder', service:'trf', battery:true, status:'in', condition:'good', lastCharged:3},
+    {id:'t11', name:'Spike Shoes (pair)', service:'trf', battery:false, status:'in', condition:'good', lastCharged:null},
+    {id:'t12', name:'Generator 3500W', service:'veh', battery:false, status:'in', condition:'good', lastCharged:null},
+    {id:'t13', name:'Pressure Washer', service:'veh', battery:false, status:'in', condition:'good', lastCharged:null},
+    {id:'t14', name:'Cordless Drill #1', service:'veh', battery:true, status:'in', condition:'good', lastCharged:0},
+    {id:'t15', name:'Cordless Drill #2', service:'veh', battery:true, status:'out', condition:'good', lastCharged:2, outBy:'c1', outJob:'s1', outService:'wp'},
+    {id:'t16', name:'LED Work Lights', service:'veh', battery:true, status:'in', condition:'good', lastCharged:4},
+    {id:'t17', name:'Extension Ladder 24\'', service:'veh', battery:false, status:'in', condition:'good', lastCharged:null},
+    {id:'t18', name:'Wet/Dry Vac', service:'veh', battery:false, status:'in', condition:'good', lastCharged:null},
+  ],
+  // ---- trucks (goal 3) ----
+  trucks: [
+    {id:'tr1', name:'Truck 1 — Ford F-350', km:184250, lastServiced:'2026-06-20', lastOil:184000},
+    {id:'tr2', name:'Truck 2 — RAM 2500', km:97430, lastServiced:'2026-05-02', lastOil:96800},
+    {id:'tr3', name:'Van 3 — Transit', km:61200, lastServiced:'2026-07-01', lastOil:60900},
+  ],
+  truckLogs: [],   // end-of-day trip logs
+  // ---- truck / loading tasks by service + recurrence (goal 3) ----
+  truckTasks: [
+    // vehicle checks
+    {id:'k1', text:'Check oil level', service:'veh', freq:'daily'},
+    {id:'k2', text:'Top up fuel for tomorrow', service:'veh', freq:'daily'},
+    {id:'k3', text:'Record odometer / KM', service:'veh', freq:'daily'},
+    {id:'k4', text:'Tire pressure & lights walk-around', service:'veh', freq:'daily'},
+    {id:'k5', text:'Coolant & washer fluid check', service:'veh', freq:'weekly'},
+    {id:'k6', text:'Wash truck', service:'veh', freq:'weekly'},
+    {id:'k7', text:'Oil-change / service due check', service:'veh', freq:'monthly'},
+    {id:'k8', text:'Fire extinguisher & first-aid check', service:'veh', freq:'monthly'},
+    // loading by service (daily)
+    {id:'k9', text:'Load membranes & primers per job list', service:'wp', freq:'daily'},
+    {id:'k10', text:'Secure Tremproof barrels / Vulkem pails', service:'wp', freq:'daily'},
+    {id:'k11', text:'Torch, propane & rollers loaded', service:'wp', freq:'daily'},
+    {id:'k12', text:'Load CFI / XPS panels per job', service:'ins', freq:'daily'},
+    {id:'k13', text:'PL glue, fasteners & drill bits loaded', service:'ins', freq:'daily'},
+    {id:'k14', text:'Load injection pump, ports & resin', service:'inj', freq:'daily'},
+    {id:'k15', text:'Xypex / Kryton & catalyst loaded', service:'inj', freq:'daily'},
+    {id:'k16', text:'Load Vulkem / Alsan & sand', service:'trf', freq:'daily'},
+    {id:'k17', text:'Sprayer, spike shoes & rollers loaded', service:'trf', freq:'daily'},
+    // unloading / wrap-up (daily, general)
+    {id:'k18', text:'Log all materials used / delivered', service:'veh', freq:'daily'},
+    {id:'k19', text:'Return unused materials to warehouse', service:'veh', freq:'daily'},
+    {id:'k20', text:'Check in tools & put cordless on charge', service:'veh', freq:'daily'},
+    {id:'k21', text:'Note repairs needed & lock up', service:'veh', freq:'daily'},
+  ],
+  taskState: {},   // { crewId: { taskId: 'periodKeyWhenCompleted' } }
+  streaks: {},     // { crewId: {count, last} }
+  me: 'c0',
+};
+
+/* ---------- storage layer ---------- */
+const KEY='wpplus_v6';
+let mem=null;
+function hasLS(){try{const k='__t';localStorage.setItem(k,'1');localStorage.removeItem(k);return true}catch(e){return false}}
+const LS=hasLS();
+function load(){
+  if(LS){
+    try{const r=localStorage.getItem(KEY); if(r) return JSON.parse(r);}catch(e){}
+  } else if(mem){ return mem; }
+  return null;
+}
+function persist(){
+  if(LS){ try{localStorage.setItem(KEY, JSON.stringify(DB));}catch(e){} }
+  else { mem=DB; }
+}
+let DB = load();
+if(!DB || DB.v !== SEED.v){ DB = JSON.parse(JSON.stringify(SEED)); seedHistory(); persist(); }
+
+/* seed a little usage history so dashboards aren't empty */
+function seedHistory(){
+  const mk=(daysAgo,mid,qty,type,sid,cid,note)=>({
+    id:'tx'+Math.round(rnd()*1e9), ts: Date.now()-daysAgo*86400000 - Math.round(rnd()*5e7),
+    mid,qty,type,sid,cid,note:note||''
+  });
+  // deterministic-ish pseudo random for seeding only
+  let s=42; function rr(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff}
+  window.__rr=rr;
+  DB.tx = [
+    mk(0,'m11',1.5,'use','s1','c1'),      // Tremdrain 6000x @ Blackcrete
+    mk(0,'m18',2,'use','s1','c1'),        // Dymonic 100 Black
+    mk(0,'m39',100,'use','s1','c1'),      // UCAN nails
+    mk(0,'m20',1,'use','s2','c2'),        // Dow CWS White @ Cow Bay
+    mk(1,'m1',0.5,'use','s1','c0'),       // TP260 half barrel @ Blackcrete
+    mk(1,'m2',10,'use','s1','c0'),        // Amphibia rolls
+    mk(1,'m17',69,'use','s1','c3'),       // Drain boots
+    mk(1,'m22',5,'loss','s3','c3','Spilled sausages on ramp'),
+    mk(2,'m34',20,'deliver','s4','c4'),   // Vulkem 346 buckets @ Aura traffic
+    mk(2,'m35',1,'use','s4','c4'),        // Alsan
+    mk(2,'m36',5,'use','s4','c4'),        // sand bags
+    mk(3,'m29',2,'use','s5','c0'),        // injection resin
+    mk(3,'m31',5,'use','s5','c0'),        // Xypex P&P
+    mk(3,'m11',0.5,'loss','s1','c2','Torn edge, unusable'),
+    mk(4,'m24',6,'use','s3','c2'),        // XPS insulation
+    mk(4,'m25',12,'deliver','s3','c2'),   // CFI 2" panels
+    mk(5,'m10',2.5,'use','s1','c1'),      // Tremdrain 6000 conventional
+  ].sort((a,b)=>b.ts-a.ts);
+}
+function rnd(){ return (window.__rr? window.__rr(): Math.abs(Math.sin(Date.now()))) ; }
+
+/* ---------- date helpers (America/Vancouver-ish, uses device local) ---------- */
+function todayKey(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+/* ---- recurrence period keys: task auto-resets when its period rolls over ---- */
+function weekKey(){
+  const d=new Date(); const day=(d.getDay()+6)%7;         // Mon=0
+  const monday=new Date(d); monday.setDate(d.getDate()-day);
+  return monday.getFullYear()+'-W'+String(Math.ceil(((monday-new Date(monday.getFullYear(),0,1))/86400000+1)/7)).padStart(2,'0');
+}
+function monthKey(){const d=new Date();return d.getFullYear()+'-M'+String(d.getMonth()+1).padStart(2,'0');}
+function periodKey(freq){return freq==='weekly'?weekKey():freq==='monthly'?monthKey():todayKey();}
+function taskDone(cid,task){return (DB.taskState[cid]||{})[task.id]===periodKey(task.freq);}
+function dailyTasks(){return DB.truckTasks.filter(t=>t.freq==='daily');}
+function myAllDailyDone(cid){return dailyTasks().every(t=>taskDone(cid,t));}
+
+/* ---------- util ---------- */
+const $ = (s,el=document)=>el.querySelector(s);
+const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
+const esc = s => (s+'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = n => '$'+(Math.round(n)).toLocaleString();
+const fmtQty = n => (Math.round(n*100)/100).toString();   // 3 -> "3", 2.5 -> "2.5"
+const stepOf = m => (m&&m.step)||1;
+const cat = id => CATS.find(c=>c.id===id)||{name:'—',icon:'📦'};
+const mat = id => DB.materials.find(m=>m.id===id);
+const site = id => DB.sites.find(s=>s.id===id);
+const member = id => DB.crew.find(c=>c.id===id);
+const me = () => member(DB.me);
+const svc = id => (DB.services||[]).find(s=>s.id===id)||{name:'—',icon:'🔧'};
+const JOB_SERVICES = () => (DB.services||[]).filter(s=>s.id!=='veh');   // services a job can be
+// fallback service for demo/older logs without one, based on material category
+function guessService(mid){const m=mat(mid);const map={wp:'wp',drn:'wp',clk:'wp',acc:'wp',con:'wp',ins:'ins',inj:'inj',trf:'trf'};return (m&&map[m.cat])||'wp';}
+const tool = id => DB.tools.find(t=>t.id===id);
+const truck = id => DB.trucks.find(t=>t.id===id);
+const DAY=86400000;
+// battery charge state: lastCharged stored as "days ago" number in seed, or a real ts once charged
+function chargeInfo(t){
+  if(!t.battery) return null;
+  if(t.lastCharged==null) return {k:'bad', lab:'never charged'};
+  const ts = t.lastCharged>1e11 ? t.lastCharged : Date.now()-t.lastCharged*DAY; // seed uses small day-count
+  const days=(Date.now()-ts)/DAY;
+  if(days>=2) return {k:'bad', lab:'charge due', ago:timeAgo(ts)};
+  if(days>=1) return {k:'warn', lab:'charge soon', ago:timeAgo(ts)};
+  return {k:'good', lab:'charged', ago:timeAgo(ts)};
+}
+function chargeDueCount(){return DB.tools.filter(t=>t.battery&&(()=>{const c=chargeInfo(t);return c&&c.k==='bad';})()).length;}
+function toolsOutCount(){return DB.tools.filter(t=>t.status==='out').length;}
+function toolsRepairCount(){return DB.tools.filter(t=>t.condition!=='good').length;}
+function timeAgo(ts){
+  const s=(Date.now()-ts)/1000;
+  if(s<60)return 'just now';
+  if(s<3600)return Math.floor(s/60)+'m ago';
+  if(s<86400)return Math.floor(s/3600)+'h ago';
+  const d=Math.floor(s/86400); return d===1?'yesterday':d+'d ago';
+}
+function initials(n){return n.split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();}
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
+function copyText(txt){
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).catch(()=>fallbackCopy(txt)); return;
+    }
+  }catch(e){}
+  fallbackCopy(txt);
+}
+function fallbackCopy(txt){
+  try{const ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();}catch(e){}
+}
+
+const TYPE_META={
+  use:{lab:'Used on site', icon:'🔧', color:'var(--primary)', sign:-1},
+  deliver:{lab:'Delivered to site', icon:'🚚', color:'var(--accent)', sign:-1},
+  loss:{lab:'Loss / damaged', icon:'⚠️', color:'var(--bad)', sign:-1},
+  receive:{lab:'Received stock', icon:'📥', color:'var(--good)', sign:+1},
+  return:{lab:'Returned to warehouse', icon:'↩️', color:'var(--good)', sign:+1},
+  adjust:{lab:'Count adjusted', icon:'✏️', color:'var(--ink-2)', sign:0},
+};
+
+/* ---------- stock status ---------- */
+function stockStatus(m){
+  if(m.qty<=0) return {k:'bad', lab:'Out'};
+  if(m.qty<m.reorder) return {k:'bad', lab:'Reorder'};
+  if(m.qty<=m.reorder*1.15) return {k:'warn', lab:'Low'};
+  return {k:'good', lab:'OK'};
+}
+function barColor(k){return k==='bad'?'var(--bad)':k==='warn'?'var(--warn)':'var(--good)';}
+
+/* ============================================================
+   RENDERERS
+   ============================================================ */
+function render(){ renderHome(); renderInv(); renderLog(); renderTools(); renderTrucks(); renderCrew(); renderHeader(); }
+
+function renderHeader(){
+  const m=me();
+  $('#whoName').textContent=m.name;
+  $('#whoAv').textContent=initials(m.name);
+  $('#whoAv').style.background=m.color;
+}
+
+/* ---------- HOME ---------- */
+function renderHome(){
+  const lows=DB.materials.filter(m=>stockStatus(m).k!=='good').sort((a,b)=>(a.qty/a.reorder)-(b.qty/b.reorder));
+  const tk=todayKey();
+  const usedToday=DB.tx.filter(t=>t.ts> Date.now()-86400000 && (t.type==='use'||t.type==='deliver'))
+                       .reduce((s,t)=>s+t.qty,0);
+  const monthAgo=Date.now()-30*86400000;
+  const lossVal=DB.tx.filter(t=>t.type==='loss'&&t.ts>monthAgo)
+                     .reduce((s,t)=>s+t.qty*(mat(t.mid)?.cost||0),0);
+  // today's daily-task completion for current crew member
+  const dTasks=dailyTasks();
+  const dDone=dTasks.filter(t=>taskDone(DB.me,t)).length;
+  const dTot=dTasks.length;
+  const crewDone=DB.crew.filter(c=>myAllDailyDone(c.id)).length;
+  const myStreak=(DB.streaks[DB.me]?.count)||0;
+  const chargeDue=chargeDueCount(), toolsOut=toolsOutCount(), toolsRep=toolsRepairCount();
+
+  const recent=DB.tx.slice(0,6);
+  $('#view-home').innerHTML=`
+    ${myStreak>0?`<div class="banner"><span class="bi">🔥</span><div><b>${myStreak}-day streak</b><div class="tiny" style="opacity:.9">Finish today's checklist to keep it alive</div></div></div>`:''}
+    <div class="kpis">
+      <div class="kpi"><div class="k-lab"><span class="dot" style="background:var(--primary)"></span>SKUs tracked</div><div class="k-val">${DB.materials.length}</div><div class="k-sub">across ${CATS.length} categories</div></div>
+      <div class="kpi ${lows.length?'alert':''}"><div class="k-lab"><span class="dot" style="background:${lows.length?'var(--bad)':'var(--good)'}"></span>Need reorder</div><div class="k-val">${lows.length}</div><div class="k-sub">${lows.length?'below threshold':'all stocked'}</div></div>
+      <div class="kpi"><div class="k-lab"><span class="dot" style="background:var(--accent)"></span>Units out today</div><div class="k-val">${usedToday}</div><div class="k-sub">used + delivered</div></div>
+      <div class="kpi ${lossVal>0?'alert':''}"><div class="k-lab"><span class="dot" style="background:var(--warn)"></span>Losses (30d)</div><div class="k-val">${money(lossVal)}</div><div class="k-sub">damaged / spilled</div></div>
+    </div>
+
+    <div class="card">
+      <div class="sec-h"><h2>Reorder now</h2><button class="link" data-go="inv">Inventory ›</button></div>
+      ${lows.length? lows.slice(0,5).map(m=>{
+        const ss=stockStatus(m);
+        return `<div class="inv" data-open-mat="${m.id}">
+          <div class="ic">${cat(m.cat).icon}</div>
+          <div class="mid"><div class="nm">${esc(m.name)}</div>
+            <div class="meta">Bin ${m.bin} · need ${Math.max(0,m.reorder-m.qty+2)} more ${m.unit}s</div></div>
+          <div class="qtywrap"><div class="qty" style="color:${barColor(ss.k)}">${m.qty}</div><span class="pill ${ss.k}">${ss.lab}</span></div>
+        </div>`;}).join('')
+        : `<div class="empty"><div class="big">✅</div>Everything is above its reorder point.</div>`}
+      ${lows.length?`<button class="btn line block sm" style="margin-top:12px" id="ordReport">📋 Build reorder list (${lows.length})</button>`:''}
+    </div>
+
+    <div class="card">
+      <div class="sec-h"><h2>Tools &amp; equipment</h2><button class="link" data-go="tools">Manage ›</button></div>
+      <div class="kpis" style="margin-bottom:0">
+        <div class="kpi"><div class="k-lab"><span class="dot" style="background:var(--warn)"></span>Checked out</div><div class="k-val">${toolsOut}</div><div class="k-sub">of ${DB.tools.length} tools</div></div>
+        <div class="kpi ${chargeDue?'alert':''}"><div class="k-lab"><span class="dot" style="background:${chargeDue?'var(--bad)':'var(--good)'}"></span>Charge due</div><div class="k-val">${chargeDue}</div><div class="k-sub">cordless batteries</div></div>
+      </div>
+      ${(chargeDue||toolsRep)?`<div class="tiny muted" style="margin-top:10px">${chargeDue?`🔋 ${chargeDue} need charging before next job. `:''}${toolsRep?`🛠 ${toolsRep} flagged damaged / in repair.`:''}</div>`:''}
+    </div>
+
+    <div class="card">
+      <div class="sec-h"><h2>Today's truck tasks</h2><button class="link" data-go="trucks">Open ›</button></div>
+      <div class="ring-wrap">
+        <div class="ring" style="--p:${dTot?Math.round(dDone/dTot*100):0}"><b>${dTot?Math.round(dDone/dTot*100):0}%</b></div>
+        <div>
+          <div style="font-weight:700">${dDone} of ${dTot} daily tasks done</div>
+          <div class="tiny muted">Loading, oil, fuel & KM · by service · resets daily</div>
+          <div style="margin-top:6px" class="tiny">${crewDone} crew finished 100% today</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec-h"><h2>Recent activity</h2><button class="link" data-go="log">Log usage ›</button></div>
+      ${recent.length? recent.map(actRow).join('') : `<div class="empty">No activity yet — log some usage.</div>`}
+    </div>
+
+    <div class="card">
+      <div class="sec-h"><h2>Reports &amp; export</h2></div>
+      <div class="tiny muted" style="margin-bottom:12px">Turn logged usage into a cost report for your CFO, or push it to BuilderTrend.</div>
+      <div class="row2">
+        <button class="btn dark" id="exportPdf">📄 Cost report (PDF)</button>
+        <button class="btn line" id="syncBt">🔁 Sync BuilderTrend</button>
+      </div>
+    </div>
+  `;
+}
+function actRow(t){
+  const tm=TYPE_META[t.type]||TYPE_META.adjust;
+  const m=mat(t.mid); const s=site(t.sid); const c=member(t.cid);
+  return `<div class="act">
+    <div class="ai" style="background:var(--surface-2)">${tm.icon}</div>
+    <div class="atxt"><b>${tm.sign<0?'−':tm.sign>0?'+':''}${fmtQty(t.qty)} ${m?esc(m.unit)+(t.qty===1?'':'s')+' · ':''}${esc(m?m.name:'item')}</b><br>
+      <span class="muted tiny">${tm.lab}${s?' · '+esc(s.name.split('—')[0].trim()):''}${(t.sid)?' · '+esc(svc(t.svc||guessService(t.mid)).name):''}${c?' · '+esc(c.name):''}</span></div>
+    <div class="atime">${timeAgo(t.ts)}</div>
+  </div>`;
+}
+
+/* ---------- INVENTORY ---------- */
+let invFilter='all', invSearch='';
+function renderInv(){
+  const q=invSearch.toLowerCase();
+  let list=DB.materials.filter(m=>(invFilter==='all'||m.cat===invFilter||(invFilter==='low'&&stockStatus(m).k!=='good'))
+    && (!q||m.name.toLowerCase().includes(q)||m.bin.toLowerCase().includes(q)));
+  list=list.sort((a,b)=>a.name.localeCompare(b.name));
+  const totVal=DB.materials.reduce((s,m)=>s+m.qty*m.cost,0);
+  const chips=[`<button class="chip ${invFilter==='all'?'on':''}" data-f="all">All ${DB.materials.length}</button>`,
+    `<button class="chip ${invFilter==='low'?'on':''}" data-f="low">⚠ Reorder</button>`,
+    ...CATS.map(c=>`<button class="chip ${invFilter===c.id?'on':''}" data-f="${c.id}">${c.icon} ${c.name}</button>`)].join('');
+  $('#view-inv').innerHTML=`
+    <button class="btn dark block" data-go="log" style="margin-bottom:12px">🚚 Log materials used / delivered</button>
+    <div class="search"><input id="invSearch" placeholder="Search material or bin…" value="${esc(invSearch)}"></div>
+    <div class="chips">${chips}</div>
+    <div class="tiny muted" style="margin:2px 2px 10px">${list.length} items · inventory value ${money(totVal)}</div>
+    <div class="card" style="padding:6px 14px">
+      ${list.length? list.map(invRow).join('') : `<div class="empty"><div class="big">🔍</div>No materials match.</div>`}
+    </div>
+    <button class="btn line block" id="addMat" style="margin-bottom:8px">＋ Add new material</button>
+  `;
+  const si=$('#invSearch'); if(si){si.oninput=e=>{invSearch=e.target.value;const p=si.selectionStart;renderInv();const n=$('#invSearch');n.focus();n.setSelectionRange(p,p);};}
+}
+function invRow(m){
+  const ss=stockStatus(m);
+  const pct=Math.max(6,Math.min(100, m.qty/(Math.max(m.reorder,1)*1.6)*100));
+  return `<div class="inv" data-open-mat="${m.id}">
+    <div class="ic">${cat(m.cat).icon}</div>
+    <div class="mid">
+      <div class="nm">${esc(m.name)}</div>
+      <div class="meta">${m.bin} · reorder at ${m.reorder} ${m.unit}s${m.cost?' · '+money(m.cost)+'/'+m.unit:''}${m.pack?' · '+esc(m.pack):''}</div>
+      <div class="bar"><i style="width:${pct}%;background:${barColor(ss.k)}"></i></div>
+    </div>
+    <div class="qtywrap">
+      <div class="qty">${fmtQty(m.qty)}</div>
+      <div class="tiny muted">${m.unit}${m.qty===1?'':'s'}</div>
+      <span class="pill ${ss.k}" style="margin-top:3px">${ss.lab}</span>
+    </div>
+  </div>`;
+}
+
+/* ---------- LOG USAGE (cart) ---------- */
+let cart=[]; // {mid, qty, type}
+let logSite=null, logType='use', logService=null;
+function renderLog(){
+  const sites=DB.sites.map(s=>`<button class="sopt ${logSite===s.id?'on':''}" data-site="${s.id}">${esc(s.name)}</button>`).join('');
+  const svcs=JOB_SERVICES().map(s=>`<button class="sopt ${logService===s.id?'on':''}" data-lsvc="${s.id}">${s.icon} ${s.name}</button>`).join('');
+  const types=[['use','🔧 Used'],['deliver','🚚 Delivered'],['return','↩️ Returned'],['loss','⚠️ Loss']]
+    .map(([k,l])=>`<button class="sopt ${logType===k?'on':''}" data-ltype="${k}">${l}</button>`).join('');
+  const total=cart.reduce((s,i)=>s+i.qty,0);
+  $('#view-log').innerHTML=`
+    <div class="card">
+      <h3>Log materials <span class="tiny muted">— fast entry, updates stock</span></h3>
+      <label class="fld">Job site <span style="color:var(--bad)">*</span></label>
+      <div class="selrow">${sites}<button class="sopt" data-site="__new">＋ Site</button></div>
+      <label class="fld">Service <span style="color:var(--bad)">*</span></label>
+      <div class="selrow">${svcs}</div>
+      <label class="fld">What happened</label>
+      <div class="selrow">${types}</div>
+    </div>
+
+    <div class="card">
+      <div class="sec-h"><h2>Items ${cart.length?`(${cart.length})`:''}</h2>
+        <button class="link" id="addLine">＋ Add material</button></div>
+      ${cart.length? cart.map((i,idx)=>{
+        const m=mat(i.mid);
+        return `<div class="line-item">
+          <div class="ic" style="width:38px;height:38px;border-radius:10px;background:var(--surface-2);display:grid;place-items:center">${cat(m.cat).icon}</div>
+          <div style="flex:1;min-width:0">
+            <div class="nm" style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.name)}</div>
+            <div class="tiny muted">${fmtQty(m.qty)} ${m.unit}${m.qty===1?'':'s'} in stock · logs in <b>${m.unit}s</b></div>
+          </div>
+          <div class="qtybox">
+            <button data-dec="${idx}">−</button>
+            <input type="number" value="${fmtQty(i.qty)}" data-qi="${idx}" inputmode="decimal" step="${stepOf(m)}">
+            <button data-inc="${idx}">＋</button>
+          </div>
+          <button class="btn ghost sm" data-rm="${idx}" style="padding:6px 9px">✕</button>
+        </div>`;}).join('')
+        : `<div class="empty"><div class="big">📦</div>No items yet.<br>Tap <b>Add material</b> to start logging.</div>`}
+    </div>
+    ${cart.length?`<div class="tiny muted" style="text-align:center;margin:-4px 0 90px">${total} units · ${TYPE_META[logType].lab.toLowerCase()}${logSite?' · '+esc(site(logSite).name.split('—')[0].trim()):''}${logService?' · '+esc(svc(logService).name):''}</div>`:''}
+  `;
+  // bind qty inputs
+  $$('[data-qi]').forEach(inp=>inp.onchange=e=>{const i=+e.target.dataset.qi;const s=stepOf(mat(cart[i].mid));cart[i].qty=Math.max(s,Math.round((parseFloat(e.target.value)||s)*100)/100);renderLog();});
+}
+
+/* ---------- TOOLS / EQUIPMENT (goal 2) ---------- */
+let toolFilter='all';
+function renderTools(){
+  const svcs=[{id:'all',name:'All',icon:'🧰'},...DB.services];
+  const chips=svcs.map(s=>`<button class="chip ${toolFilter===s.id?'on':''}" data-tf="${s.id}">${s.icon} ${s.name}</button>`).join('');
+  const list=DB.tools.filter(t=>toolFilter==='all'||t.service===toolFilter);
+  $('#view-tools').innerHTML=`
+    <div class="kpis">
+      <div class="kpi"><div class="k-lab"><span class="dot" style="background:var(--warn)"></span>Checked out</div><div class="k-val">${toolsOutCount()}</div><div class="k-sub">of ${DB.tools.length}</div></div>
+      <div class="kpi ${chargeDueCount()?'alert':''}"><div class="k-lab"><span class="dot" style="background:${chargeDueCount()?'var(--bad)':'var(--good)'}"></span>Charge due</div><div class="k-val">${chargeDueCount()}</div><div class="k-sub">batteries</div></div>
+    </div>
+    <div class="chips">${chips}</div>
+    <div class="card" style="padding:6px 14px">
+      ${list.length? list.map(toolRow).join('') : '<div class="empty">No tools in this service.</div>'}
+    </div>
+    <button class="btn line block" id="addTool" style="margin-bottom:8px">＋ Add tool / equipment</button>
+  `;
+}
+function toolRow(t){
+  const out=t.status==='out';
+  const ch=chargeInfo(t);
+  const condPill=t.condition==='damaged'?'<span class="pill bad">Damaged</span>':t.condition==='repair'?'<span class="pill warn">In repair</span>':'';
+  return `<div class="inv" data-open-tool="${t.id}">
+    <div class="ic">${svc(t.service).icon}</div>
+    <div class="mid">
+      <div class="nm">${esc(t.name)}${t.battery?' 🔋':''}</div>
+      <div class="meta">${svc(t.service).name}${out?` · <b style="color:var(--warn)">with ${esc(member(t.outBy)?.name||'crew')}${t.outJob?' @ '+esc((site(t.outJob)?.name||'').split('—')[0].trim()):''}${t.outService?' · '+esc(svc(t.outService).name):''}</b>`:''}${ch?` · 🔋 ${ch.lab}${ch.ago?' ('+ch.ago+')':''}`:''}${t.note?' · '+esc(t.note):''}</div>
+    </div>
+    <div class="qtywrap">
+      <span class="pill ${out?'warn':'good'}">${out?'Out':'In'}</span>
+      ${condPill?'<div style="margin-top:3px">'+condPill+'</div>':ch&&ch.k==='bad'?'<div style="margin-top:3px"><span class="pill bad">Low</span></div>':''}
+    </div>
+  </div>`;
+}
+
+/* ---------- TRUCKS / DAILY TASKS (goal 3) ---------- */
+let trkSvc='all', trkFreq='daily';
+function renderTrucks(){
+  const dTasks=dailyTasks();
+  const dDone=dTasks.filter(t=>taskDone(DB.me,t)).length, dTot=dTasks.length;
+  const allDaily=dDone===dTot;
+  const streak=(DB.streaks[DB.me]?.count)||0;
+  const svcs=[{id:'all',name:'All',icon:'📋'},...DB.services];
+  const svcChips=svcs.map(s=>`<button class="chip ${trkSvc===s.id?'on':''}" data-tsvc="${s.id}">${s.icon} ${s.name}</button>`).join('');
+  const freqs=[['daily','Daily'],['weekly','Weekly'],['monthly','Monthly']];
+  let tasks=DB.truckTasks.filter(t=>t.freq===trkFreq && (trkSvc==='all'||t.service===trkSvc));
+  $('#view-trucks').innerHTML=`
+    <div class="card">
+      <div class="ring-wrap">
+        <div class="ring" style="--p:${dTot?Math.round(dDone/dTot*100):0}"><b>${dTot?Math.round(dDone/dTot*100):0}%</b></div>
+        <div>
+          <div style="font-weight:800;font-size:15px">${me().name} · today's daily tasks</div>
+          <div class="tiny muted">${dDone}/${dTot} done · loading, oil, fuel & KM</div>
+          <div style="margin-top:6px">
+            ${allDaily?'<span class="pill good">🏆 100% — +50 pts earned</span>':`<span class="pill neu">${dTot-dDone} left for points</span>`}
+            ${streak>0?`<span class="pill warn streakflame">🔥 ${streak}-day streak</span>`:''}
+          </div>
+        </div>
+      </div>
+      <button class="btn dark block sm" id="truckTrip" style="margin-top:12px">🚚 End-of-day truck log (KM, oil, fuel, job)</button>
+    </div>
+
+    <div class="seg">${freqs.map(([k,l])=>`<button class="${trkFreq===k?'on':''}" data-tfreq="${k}">${l}</button>`).join('')}</div>
+    <div class="chips">${svcChips}</div>
+
+    <div class="card" style="padding:4px 14px">
+      ${tasks.length? tasks.map(t=>{const done=taskDone(DB.me,t);
+        return `<div class="task ${done?'done':''}" data-tt-id="${t.id}">
+          <div class="cbx"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l6 6L20 6"/></svg></div>
+          <div style="flex:1"><div class="tk-txt">${esc(t.text)}</div>
+            <div class="tiny muted">${svc(t.service).icon} ${svc(t.service).name} · ${t.freq}</div></div>
+        </div>`;}).join('')
+        : '<div class="empty">No '+trkFreq+' tasks for this service.</div>'}
+    </div>
+    <div class="row2" style="margin-bottom:8px">
+      <button class="btn ghost sm" id="markAllTrk">Mark all shown done</button>
+      <button class="btn line sm" id="editTasks">✎ Edit tasks</button>
+    </div>
+  `;
+}
+
+/* ---------- CREW / POINTS ---------- */
+function renderCrew(){
+  const dTasks=dailyTasks();
+  const ranked=[...DB.crew].sort((a,b)=>b.points-a.points);
+  const medals=['🥇','🥈','🥉'];
+  $('#view-crew').innerHTML=`
+    <div class="card">
+      <div class="sec-h"><h2>Leaderboard</h2><span class="pill neu">All-time pts</span></div>
+      ${ranked.map((c,i)=>{
+        const done=dTasks.filter(t=>taskDone(c.id,t)).length;
+        const tot=dTasks.length;
+        const pctc=Math.round(done/tot*100);
+        const perfect=done===tot;
+        const streak=(DB.streaks[c.id]?.count)||0;
+        return `<div class="lb">
+          <div class="rank ${i<3?'top':''}">${i<3?medals[i]:i+1}</div>
+          <div class="av-lg" style="background:${c.color}">${initials(c.name)}</div>
+          <div style="min-width:0">
+            <div style="font-weight:700">${esc(c.name)}${c.id===DB.me?' <span class="tiny muted">(you)</span>':''}</div>
+            <div class="tiny muted">Today ${pctc}% ${perfect?'· 🏆':''} ${streak>0?'· 🔥'+streak:''}</div>
+          </div>
+          <div class="pts"><b>${c.points}</b><div class="tiny muted">pts</div></div>
+        </div>`;}).join('')}
+    </div>
+    <div class="card">
+      <div class="sec-h"><h2>How points work</h2></div>
+      <div class="tiny muted" style="line-height:1.7">
+        Complete <b>100% of your daily truck tasks</b> — loading by service, oil, fuel, KM and wrap-up — to earn <b>+50 points</b>.<br>
+        Keep it up on consecutive workdays to build a 🔥 <b>streak</b> — every 5-day streak adds a <b>+25 bonus</b>.<br>
+        Daily tasks reset each morning; weekly and monthly tasks reset on their own cycle.
+      </div>
+      <button class="btn line block sm" id="manageCrew" style="margin-top:12px">👥 Manage crew members</button>
+    </div>
+    <button class="btn line block sm" id="resetDemo" style="margin-bottom:6px;color:var(--bad)">↺ Reset demo data</button>
+  `;
+}
+
+/* ============================================================
+   INTERACTION
+   ============================================================ */
+const TITLES={home:['Today',()=>{const d=new Date();return d.toLocaleDateString(undefined,{weekday:'long'})+' · trucks, tools & stock at a glance';}],
+  inv:['Warehouse inventory',()=>'Live counts · locked units · tap to adjust'],
+  log:['Log materials',()=>'Replace the BuilderTrend guesswork'],
+  tools:['Tools & equipment',()=>'Check in/out · damage · battery charge'],
+  trucks:['Trucks & daily tasks',()=>'By service · daily / weekly / monthly'],
+  crew:['Crew & points',()=>'100% of daily tasks earns points']};
+function go(tab){
+  $$('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  $$('.view').forEach(v=>v.classList.remove('active'));
+  $('#view-'+tab).classList.add('active');
+  $('#hTitle').textContent=TITLES[tab][0];
+  $('#hSub').textContent=TITLES[tab][1]();
+  $('#main').scrollTop=0;
+}
+
+/* delegated clicks */
+document.addEventListener('click',e=>{
+  const t=e.target;
+  const cl=sel=>t.closest(sel);
+  // tabs
+  if(cl('#tabs button')){go(cl('#tabs button').dataset.tab);return;}
+  if(t.dataset.go){go(t.dataset.go);return;}
+  // inventory filters
+  if(t.dataset.f){invFilter=t.dataset.f;renderInv();return;}
+  // open material sheet
+  if(cl('[data-open-mat]')){openMat(cl('[data-open-mat]').dataset.openMat);return;}
+  if(t.id==='addMat'){openMatEdit(null);return;}
+  if(t.id==='ordReport'){openReorder();return;}
+  if(t.id==='exportPdf'){openExport();return;}
+  if(t.id==='syncBt'){openBuilderTrend();return;}
+  // log
+  if(t.dataset.site){ if(t.dataset.site==='__new'){openSiteEdit();} else {logSite=t.dataset.site;renderLog();} return;}
+  if(t.dataset.lsvc){logService=t.dataset.lsvc;renderLog();return;}
+  if(t.dataset.ltype){logType=t.dataset.ltype;renderLog();return;}
+  if(t.id==='addLine'){openPicker();return;}
+  if(t.dataset.rm!=null){cart.splice(+t.dataset.rm,1);renderLog();return;}
+  if(t.dataset.inc!=null){const i=+t.dataset.inc;const s=stepOf(mat(cart[i].mid));cart[i].qty=Math.round((cart[i].qty+s)*100)/100;renderLog();return;}
+  if(t.dataset.dec!=null){const i=+t.dataset.dec;const s=stepOf(mat(cart[i].mid));cart[i].qty=Math.max(s,Math.round((cart[i].qty-s)*100)/100);renderLog();return;}
+  // tools
+  if(t.dataset.tf){toolFilter=t.dataset.tf;renderTools();return;}
+  if(cl('[data-open-tool]')){openTool(cl('[data-open-tool]').dataset.openTool);return;}
+  if(t.id==='addTool'){openToolEdit(null);return;}
+  // trucks / tasks
+  if(t.dataset.tsvc){trkSvc=t.dataset.tsvc;renderTrucks();return;}
+  if(t.dataset.tfreq){trkFreq=t.dataset.tfreq;renderTrucks();return;}
+  if(cl('[data-tt-id]')){toggleTaskId(cl('[data-tt-id]').dataset.ttId);return;}
+  if(t.id==='markAllTrk'){markAllShown();return;}
+  if(t.id==='truckTrip'){openTruckTrip();return;}
+  if(t.id==='editTasks'){openEditTasks();return;}
+  // crew
+  if(t.id==='manageCrew'){openManageCrew();return;}
+  if(t.id==='resetDemo'){openReset();return;}
+  if(t.id==='whoBtn'){openWho();return;}
+  // sheet close
+  if(t.id==='sheetX'||t.id==='sheetBg'){closeSheet();return;}
+});
+
+/* ---------- truck-task logic (recurrence + points) ---------- */
+function toggleTaskId(taskId){
+  const task=DB.truckTasks.find(t=>t.id===taskId); if(!task) return;
+  DB.taskState[DB.me]=DB.taskState[DB.me]||{};
+  const pk=periodKey(task.freq);
+  if(DB.taskState[DB.me][taskId]===pk) delete DB.taskState[DB.me][taskId];
+  else DB.taskState[DB.me][taskId]=pk;
+  checkAward();
+  persist(); renderTrucks(); renderHome(); renderCrew();
+}
+function markAllShown(){
+  const shown=DB.truckTasks.filter(t=>t.freq===trkFreq && (trkSvc==='all'||t.service===trkSvc));
+  const allDone=shown.every(t=>taskDone(DB.me,t));
+  DB.taskState[DB.me]=DB.taskState[DB.me]||{};
+  shown.forEach(t=>{ if(allDone) delete DB.taskState[DB.me][t.id]; else DB.taskState[DB.me][t.id]=periodKey(t.freq); });
+  checkAward();
+  persist(); renderTrucks(); renderHome(); renderCrew();
+}
+function checkAward(){
+  const done=myAllDailyDone(DB.me);
+  const s=DB.streaks[DB.me]||{count:0,last:null};
+  const awardedToday=s.awardedOn===todayKey();
+  if(done&&!awardedToday){
+    const m=member(DB.me); m.points+=50;
+    if(s.last!==todayKey()){ s.count=(s.count||0)+1; s.last=todayKey(); if(s.count%5===0){m.points+=25;} }
+    s.awardedOn=todayKey(); DB.streaks[DB.me]=s;
+    celebrate(); toast('🏆 100% of daily tasks! +50 points'+(s.count%5===0?' · +25 streak bonus!':''));
+  } else if(!done && awardedToday){
+    member(DB.me).points=Math.max(0,member(DB.me).points-50);
+    if(s.last===todayKey()){s.count=Math.max(0,s.count-1);s.last=null;}
+    s.awardedOn=null; DB.streaks[DB.me]=s;
+  }
+}
+function celebrate(){
+  const c=document.createElement('div');c.className='confetti';
+  const cols=['#12b3a6','#0b6ea8','#c9820a','#6b57d4','#1f9d63','#d0453b'];
+  for(let i=0;i<70;i++){const p=document.createElement('i');
+    p.style.left=Math.random()*100+'%';p.style.background=cols[i%cols.length];
+    p.style.animationDuration=(1.6+Math.random()*1.4)+'s';p.style.animationDelay=(Math.random()*.4)+'s';
+    p.style.transform='rotate('+Math.random()*360+'deg)';c.appendChild(p);}
+  document.body.appendChild(c);setTimeout(()=>c.remove(),3200);
+}
+
+/* ============================================================
+   SHEETS / MODALS
+   ============================================================ */
+function openSheet(title,html){$('#sheetTitle').textContent=title;$('#sheetBody').innerHTML=html;$('#sheetBg').classList.add('open');$('#sheet').classList.add('open');}
+function closeSheet(){$('#sheetBg').classList.remove('open');$('#sheet').classList.remove('open');}
+
+/* material detail + adjust */
+function openMat(id){
+  const m=mat(id);const ss=stockStatus(m);
+  openSheet(m.name,`
+    <div class="card" style="margin-top:4px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="ic" style="width:52px;height:52px;border-radius:13px;background:var(--surface-2);display:grid;place-items:center;font-size:24px">${cat(m.cat).icon}</div>
+        <div><div style="font-weight:800;font-size:22px">${fmtQty(m.qty)} <span class="tiny muted">${m.unit}${m.qty===1?'':'s'} on hand</span></div>
+        <div class="tiny muted">${cat(m.cat).name} · ${m.bin} · reorder at ${m.reorder}${m.pack?' · '+esc(m.pack):''}</div></div>
+        <span class="pill ${ss.k}" style="margin-left:auto">${ss.lab}</span>
+      </div>
+    </div>
+    <label class="fld">Quick stock action</label>
+    <div class="row2">
+      <button class="btn good" data-adj="receive" data-id="${id}">📥 Receive stock</button>
+      <button class="btn danger" data-adj="loss" data-id="${id}">⚠️ Record loss</button>
+    </div>
+    <div class="row2" style="margin-top:10px">
+      <button class="btn line" data-adj="adjust" data-id="${id}">✏️ Set exact count</button>
+      <button class="btn ghost" data-edit-mat="${id}">⚙️ Edit details</button>
+    </div>
+    <label class="fld">Recent movement</label>
+    <div class="card" style="padding:6px 14px">
+      ${DB.tx.filter(x=>x.mid===id).slice(0,6).map(actRow).join('')||'<div class="empty tiny">No movement logged yet.</div>'}
+    </div>
+  `);
+  $('#sheetBody').querySelectorAll('[data-adj]').forEach(b=>b.onclick=()=>openAdjust(b.dataset.id,b.dataset.adj));
+  const eb=$('#sheetBody').querySelector('[data-edit-mat]'); if(eb) eb.onclick=()=>openMatEdit(id);
+}
+function openAdjust(id,type){
+  const m=mat(id);
+  const isSet=type==='adjust';
+  openSheet((TYPE_META[type]||{}).lab||'Adjust',`
+    <div class="tiny muted" style="margin-top:4px">${esc(m.name)} · currently <b>${fmtQty(m.qty)} ${m.unit}s</b> · log in ${m.unit}s</div>
+    <label class="fld">${isSet?'New exact count':'Quantity'} (${m.unit}s)</label>
+    <input class="in" id="adjQty" type="number" inputmode="decimal" step="${stepOf(m)}" value="${isSet?fmtQty(m.qty):stepOf(m)}" min="0">
+    ${type==='loss'?'<label class="fld">Reason</label><input class="in" id="adjNote" placeholder="e.g. torn roll, spilled pail">':''}
+    <button class="btn primary block" id="adjGo" style="margin-top:16px">Confirm</button>
+  `);
+  $('#adjGo').onclick=()=>{
+    const v=Math.max(0,Math.round((parseFloat($('#adjQty').value)||0)*100)/100);
+    if(isSet){ const diff=v-m.qty; m.qty=v; logTx(id,Math.abs(diff),'adjust',null,DB.me,'set to '+v);}
+    else if(type==='receive'){ m.qty+=v; logTx(id,v,'receive',null,DB.me);}
+    else if(type==='loss'){ m.qty=Math.max(0,m.qty-v); logTx(id,v,'loss',null,DB.me,$('#adjNote')?.value||'');}
+    persist();closeSheet();render();toast('Stock updated');
+  };
+}
+function logTx(mid,qty,type,sid,cid,note,svcId){
+  DB.tx.unshift({id:'tx'+Date.now()+Math.round(Math.random()*999),ts:Date.now(),mid,qty,type,sid:sid||null,cid:cid||null,note:note||'',svc:svcId||null});
+}
+
+/* add/edit material */
+const UNITS=['barrel','roll','pail','tube','sausage','board','boot','sheet','panel','box','case','unit','each','litre','gallon','cup','lb','bag','tank','jug','can'];
+const HALF_UNITS=['barrel','roll','litre','gallon'];  // these allow half quantities
+function openMatEdit(id){
+  const m=id?mat(id):{name:'',cat:'wp',unit:'roll',step:0.5,pack:'',perPallet:0,qty:0,reorder:5,cost:0,bin:''};
+  openSheet(id?'Edit material':'New material',`
+    <label class="fld">Name</label><input class="in" id="mName" value="${esc(m.name)}" placeholder="e.g. Tremproof 260">
+    <label class="fld">Category</label>
+    <select class="in" id="mCat">${CATS.map(c=>`<option value="${c.id}" ${m.cat===c.id?'selected':''}>${c.icon} ${c.name}</option>`).join('')}</select>
+    <div class="row2">
+      <div><label class="fld">Logging unit 🔒</label>
+        <select class="in" id="mUnit">${UNITS.map(u=>`<option value="${u}" ${m.unit===u?'selected':''}>${u}</option>`).join('')}</select></div>
+      <div><label class="fld">Steps by</label>
+        <select class="in" id="mStep"><option value="1" ${stepOf(m)==1?'selected':''}>whole (1)</option><option value="0.5" ${stepOf(m)==0.5?'selected':''}>half (0.5)</option></select></div>
+    </div>
+    <div class="tiny muted" style="margin-top:6px">🔒 The crew can only log this material in <b>${m.unit||'this unit'}s</b> — that's what keeps counts consistent.</div>
+    <label class="fld">How it's bought (pack note)</label><input class="in" id="mPack" value="${esc(m.pack||'')}" placeholder="e.g. 15/case · 4/pallet">
+    <div class="row2">
+      <div><label class="fld">Storage location</label><input class="in" id="mBin" value="${esc(m.bin)}" placeholder="Yard / Shelf B"></div>
+      <div><label class="fld">Units per pallet</label><input class="in" id="mPP" type="number" value="${m.perPallet||0}"></div>
+    </div>
+    <div class="row2">
+      <div><label class="fld">On hand</label><input class="in" id="mQty" type="number" step="any" value="${fmtQty(m.qty)}"></div>
+      <div><label class="fld">Reorder at</label><input class="in" id="mRe" type="number" value="${m.reorder}"></div>
+    </div>
+    <label class="fld">Cost per unit ($)</label><input class="in" id="mCost" type="number" step="any" value="${m.cost}">
+    <button class="btn primary block" id="mSave" style="margin-top:16px">${id?'Save changes':'Add material'}</button>
+    ${id?`<button class="btn line block" id="mDel" style="margin-top:10px;color:var(--bad)">Delete material</button>`:''}
+  `);
+  $('#mSave').onclick=()=>{
+    const name=$('#mName').value.trim(); if(!name){toast('Enter a name');return;}
+    const data={name,cat:$('#mCat').value,unit:$('#mUnit').value,step:parseFloat($('#mStep').value)||1,
+      pack:$('#mPack').value.trim(),bin:$('#mBin').value.trim()||'—',perPallet:Math.max(0,parseInt($('#mPP').value)||0),
+      qty:Math.max(0,Math.round((parseFloat($('#mQty').value)||0)*100)/100),reorder:Math.max(0,parseFloat($('#mRe').value)||0),cost:Math.max(0,parseFloat($('#mCost').value)||0)};
+    if(id){Object.assign(m,data);} else {DB.materials.push({id:'m'+Date.now(),...data});}
+    persist();closeSheet();render();toast(id?'Saved':'Material added');
+  };
+  const d=$('#mDel'); if(d)d.onclick=()=>{DB.materials=DB.materials.filter(x=>x.id!==id);persist();closeSheet();render();toast('Deleted');};
+}
+
+/* material picker for log */
+function openPicker(){
+  const render=(q='')=>{
+    const list=DB.materials.filter(m=>!q||m.name.toLowerCase().includes(q.toLowerCase())).sort((a,b)=>a.name.localeCompare(b.name));
+    return list.map(m=>`<div class="inv" data-pick="${m.id}">
+      <div class="ic">${cat(m.cat).icon}</div>
+      <div class="mid"><div class="nm">${esc(m.name)}</div><div class="meta">${fmtQty(m.qty)} ${m.unit}s · logs in ${m.unit}s · ${m.bin}</div></div>
+      <div class="btn primary sm">Add</div></div>`).join('');
+  };
+  openSheet('Add material to log',`
+    <div class="search" style="margin-top:6px"><input class="in" id="pkSearch" placeholder="Search materials…"></div>
+    <div class="card" style="padding:6px 14px" id="pkList">${render()}</div>
+  `);
+  const doBind=()=>$$('#pkList [data-pick]').forEach(el=>el.onclick=()=>{
+    const id=el.dataset.pick;const s=stepOf(mat(id));
+    const ex=cart.find(c=>c.mid===id); if(ex){ex.qty=Math.round((ex.qty+s)*100)/100;} else {cart.push({mid:id,qty:s,type:logType});}
+    closeSheet();renderLog();toast('Added to log');
+  });
+  doBind();
+  $('#pkSearch').oninput=e=>{$('#pkList').innerHTML=render(e.target.value);doBind();};
+}
+
+/* reorder report */
+function openReorder(){
+  const lows=DB.materials.filter(m=>stockStatus(m).k!=='good').sort((a,b)=>a.cat.localeCompare(b.cat));
+  const rows=lows.map(m=>{
+    const need=Math.max(stepOf(m),Math.round((m.reorder-m.qty+m.reorder*0.2)*100)/100);
+    const pallets=m.perPallet?need/m.perPallet:null;
+    return {m,need,pallets,cost:need*m.cost};
+  });
+  const sub=rows.reduce((s,r)=>s+r.cost,0);
+  const gst=sub*0.05, freight=sub>0?4500:0, tot=sub+gst+freight;
+  openSheet('Reorder — PO estimate',`
+    <div class="tiny muted" style="margin:4px 0 10px">${lows.length} items below threshold · pallet-based, priced for the CFO</div>
+    <div class="card" style="padding:6px 14px">
+      ${rows.map(({m,need,pallets,cost})=>`<div class="inv">
+        <div class="ic">${cat(m.cat).icon}</div>
+        <div class="mid"><div class="nm">${esc(m.name)}</div><div class="meta">have ${fmtQty(m.qty)} · reorder ${m.reorder}${pallets?' · ≈'+fmtQty(Math.ceil(pallets*10)/10)+' pallet'+(pallets>1?'s':''):''}</div></div>
+        <div class="qtywrap"><div class="qty" style="color:var(--primary)">+${fmtQty(need)}</div><div class="tiny muted">${m.unit}s</div>${cost?`<div class="tiny">${money(cost)}</div>`:'<div class="tiny muted">price TBD</div>'}</div>
+      </div>`).join('')}
+    </div>
+    <div class="card" style="padding:14px">
+      <div style="display:flex;justify-content:space-between;font-size:13px"><span class="muted">Subtotal (priced items)</span><b>${money(sub)}</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px"><span class="muted">GST (5%)</span><span>${money(gst)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px"><span class="muted">Freight (est.)</span><span>${money(freight)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:16px;margin-top:10px;padding-top:10px;border-top:2px solid var(--line)"><b>Estimated PO</b><b style="color:var(--primary-d)">${money(tot)}</b></div>
+    </div>
+    <button class="btn primary block" id="copyOrder">📋 Copy PO to clipboard</button>
+    <div class="tiny muted" style="text-align:center;margin-top:10px">Items with a price show a $ figure; unpriced ones just list the qty. Add prices in each material's edit screen.</div>
+  `);
+  $('#copyOrder').onclick=()=>{
+    const txt='Waterproofing+ Reorder PO — '+new Date().toLocaleDateString()+'\n'+
+      rows.map(({m,need,cost})=>`${fmtQty(need)} ${m.unit} · ${m.name}${cost?' — '+money(cost):''} (${m.bin})`).join('\n')+
+      `\n\nSubtotal ${money(sub)} · GST ${money(gst)} · Freight ${money(freight)} · Estimate ${money(tot)}`;
+    copyText(txt);toast('PO estimate copied');
+  };
+}
+
+/* ============================================================
+   EXPORT / REPORTS  (PDF for CFO + CSV + BuilderTrend)
+   ============================================================ */
+let expRange=7, expSite='all';
+function rangeMs(r){return r===0?Infinity:r*86400000;}
+function reportRows(){
+  const cut=Date.now()-rangeMs(expRange);
+  return DB.tx.filter(t=>t.ts>=cut && (expSite==='all'||t.sid===expSite));
+}
+function reportSummary(rows){
+  let usedVal=0, lossVal=0, deliverVal=0, recVal=0;
+  const bySite={}, byMat={};
+  rows.forEach(t=>{
+    const m=mat(t.mid); const c=(m?.cost||0)*t.qty;
+    if(t.type==='use') usedVal+=c;
+    else if(t.type==='deliver') deliverVal+=c;
+    else if(t.type==='loss') lossVal+=c;
+    else if(t.type==='receive') recVal+=c;
+    const sk=t.sid||'—'; bySite[sk]=bySite[sk]||{use:0,deliver:0,loss:0,val:0};
+    if(['use','deliver','loss'].includes(t.type)){bySite[sk][t.type]+=t.qty;bySite[sk].val+=c;}
+    if(['use','deliver','loss'].includes(t.type)){byMat[t.mid]=byMat[t.mid]||{qty:0,val:0};byMat[t.mid].qty+=t.qty;byMat[t.mid].val+=c;}
+  });
+  return {usedVal,lossVal,deliverVal,recVal,bySite,byMat};
+}
+function openExport(){
+  const ranges=[[7,'7 days'],[30,'30 days'],[90,'90 days'],[0,'All time']];
+  const sites=[['all','All sites'],...DB.sites.map(s=>[s.id,s.name])];
+  const draw=()=>{
+    const rows=reportRows(); const sum=reportSummary(rows);
+    const consumed=sum.usedVal+sum.deliverVal;
+    return `
+    <label class="fld">Period</label>
+    <div class="selrow">${ranges.map(([v,l])=>`<button class="sopt ${expRange===v?'on':''}" data-er="${v}">${l}</button>`).join('')}</div>
+    <label class="fld">Job site</label>
+    <div class="selrow">${sites.map(([v,l])=>`<button class="sopt ${expSite===v?'on':''}" data-es="${v}">${esc(l)}</button>`).join('')}</div>
+    <div class="kpis" style="margin-top:14px">
+      <div class="kpi"><div class="k-lab">Materials consumed</div><div class="k-val">${money(consumed)}</div><div class="k-sub">used + delivered</div></div>
+      <div class="kpi alert"><div class="k-lab">Losses</div><div class="k-val">${money(sum.lossVal)}</div><div class="k-sub">damaged / spilled</div></div>
+    </div>
+    <div class="card" style="padding:6px 14px">
+      ${Object.keys(sum.bySite).length? Object.entries(sum.bySite).sort((a,b)=>b[1].val-a[1].val).map(([sid,d])=>`<div class="inv">
+        <div class="ic">📍</div>
+        <div class="mid"><div class="nm">${esc(site(sid)?site(sid).name:'No site')}</div><div class="meta">${d.use} used · ${d.deliver} delivered · ${d.loss} lost</div></div>
+        <div class="qtywrap"><div class="qty">${money(d.val)}</div></div></div>`).join('')
+        : '<div class="empty tiny">No usage in this period.</div>'}
+    </div>
+    <button class="btn dark block" id="doPdf">📄 Open printable report — Save as PDF</button>
+    <button class="btn line block" id="doCsv" style="margin-top:10px">⬇︎ Copy as CSV (Excel)</button>
+    <div class="tiny muted" style="text-align:center;margin-top:10px">${rows.length} transactions · report is CFO-ready with per-item cost breakdown.</div>
+    `;
+  };
+  openSheet('Cost report',draw());
+  const rebind=()=>{
+    $$('#sheetBody [data-er]').forEach(b=>b.onclick=()=>{expRange=+b.dataset.er;$('#sheetBody').innerHTML=draw();rebind();});
+    $$('#sheetBody [data-es]').forEach(b=>b.onclick=()=>{expSite=b.dataset.es;$('#sheetBody').innerHTML=draw();rebind();});
+    $('#doPdf').onclick=printReport;
+    $('#doCsv').onclick=copyCsv;
+  };
+  rebind();
+}
+function printReport(){
+  const rows=reportRows().slice().sort((a,b)=>b.ts-a.ts);
+  const sum=reportSummary(rows);
+  const consumed=sum.usedVal+sum.deliverVal;
+  const period=expRange===0?'All time':`Last ${expRange} days`;
+  const siteLbl=expSite==='all'?'All job sites':(site(expSite)?.name||'');
+  const trs=rows.map(t=>{const m=mat(t.mid);const tm=TYPE_META[t.type]||{lab:t.type};
+    const val=(m?.cost||0)*t.qty;
+    return `<tr>
+      <td>${new Date(t.ts).toLocaleDateString()}</td>
+      <td>${esc(m?m.name:'—')}</td>
+      <td>${esc(tm.lab)}</td>
+      <td>${esc(site(t.sid)?.name||'—')}</td>
+      <td>${esc(t.sid?svc(t.svc||guessService(t.mid)).name:'—')}</td>
+      <td>${esc(member(t.cid)?.name||'—')}</td>
+      <td style="text-align:right">${fmtQty(t.qty)} ${m?m.unit:''}</td>
+      <td style="text-align:right">${money(m?.cost||0)}</td>
+      <td style="text-align:right;${t.type==='loss'?'color:#c0392b':''}">${['use','deliver','loss'].includes(t.type)?money(val):'—'}</td>
+    </tr>`;}).join('');
+  const byMat=Object.entries(sum.byMat).sort((a,b)=>b[1].val-a[1].val).map(([mid,d])=>{const m=mat(mid);
+    return `<tr><td>${esc(m?m.name:'—')}</td><td style="text-align:right">${d.qty} ${m?m.unit:''}</td><td style="text-align:right">${money(d.val)}</td></tr>`;}).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Waterproofing+ Cost Report</title>
+  <style>
+    body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1a2433;margin:38px;font-size:12.5px}
+    .hd{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #0b3d61;padding-bottom:14px;margin-bottom:20px}
+    .hd h1{margin:0;font-size:22px;color:#0b3d61}
+    .hd .sub{color:#5a6b82;font-size:12px;margin-top:4px}
+    .cards{display:flex;gap:14px;margin-bottom:22px}
+    .c{flex:1;border:1px solid #e2e8f1;border-radius:10px;padding:12px 14px}
+    .c .l{font-size:11px;color:#5a6b82;text-transform:uppercase;letter-spacing:.5px}
+    .c .v{font-size:22px;font-weight:800;margin-top:4px;color:#0b3d61}
+    .c.loss .v{color:#c0392b}
+    h2{font-size:14px;color:#0b3d61;margin:22px 0 8px;border-bottom:1px solid #e2e8f1;padding-bottom:5px}
+    table{width:100%;border-collapse:collapse;font-size:11.5px}
+    th{text-align:left;background:#f4f7fb;padding:7px 8px;color:#5a6b82;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px}
+    td{padding:6px 8px;border-bottom:1px solid #eef2f7}
+    tfoot td{font-weight:800;border-top:2px solid #0b3d61;background:#f9fbfd}
+    .foot{margin-top:26px;color:#8a99ad;font-size:10.5px;text-align:center}
+    @media print{body{margin:14px}}
+  </style></head><body>
+    <div class="hd">
+      <div><h1>Materials Cost Report</h1><div class="sub">Waterproofing+ · ${period} · ${esc(siteLbl)}</div></div>
+      <div style="text-align:right;font-size:11px;color:#5a6b82">Generated ${new Date().toLocaleString()}<br>Prepared for: CFO</div>
+    </div>
+    <div class="cards">
+      <div class="c"><div class="l">Materials consumed</div><div class="v">${money(consumed)}</div></div>
+      <div class="c loss"><div class="l">Losses / damage</div><div class="v">${money(sum.lossVal)}</div></div>
+      <div class="c"><div class="l">Stock received</div><div class="v">${money(sum.recVal)}</div></div>
+      <div class="c"><div class="l">Transactions</div><div class="v">${rows.length}</div></div>
+    </div>
+    <h2>Cost by material</h2>
+    <table><thead><tr><th>Material</th><th style="text-align:right">Qty out</th><th style="text-align:right">Value</th></tr></thead>
+      <tbody>${byMat||'<tr><td colspan=3>No usage.</td></tr>'}</tbody>
+      <tfoot><tr><td>Total (used + delivered + lost)</td><td></td><td style="text-align:right">${money(consumed+sum.lossVal)}</td></tr></tfoot>
+    </table>
+    <h2>Transaction detail</h2>
+    <table><thead><tr><th>Date</th><th>Material</th><th>Action</th><th>Site</th><th>Service</th><th>Crew</th><th style="text-align:right">Qty</th><th style="text-align:right">Unit $</th><th style="text-align:right">Value</th></tr></thead>
+      <tbody>${trs||'<tr><td colspan=9>No transactions.</td></tr>'}</tbody></table>
+    <div class="foot">Waterproofing+ · below-grade waterproofing inventory &amp; crew operations. Figures based on logged crew activity.</div>
+    <script>window.onload=function(){setTimeout(function(){window.print();},350);}<\/script>
+  </body></html>`;
+  const w=window.open('','_blank');
+  if(!w){toast('Allow pop-ups to open the PDF report');return;}
+  w.document.write(html);w.document.close();
+  toast('Report opened — use “Save as PDF”');
+}
+function copyCsv(){
+  const rows=reportRows().slice().sort((a,b)=>b.ts-a.ts);
+  const head=['Date','Material','Category','Action','Site','Service','Crew','Qty','Unit','UnitCost','Value'];
+  const lines=rows.map(t=>{const m=mat(t.mid);const tm=TYPE_META[t.type]||{lab:t.type};
+    const val=['use','deliver','loss'].includes(t.type)?(m?.cost||0)*t.qty:'';
+    return [new Date(t.ts).toISOString().slice(0,10),m?m.name:'',m?cat(m.cat).name:'',tm.lab,site(t.sid)?.name||'',t.sid?svc(t.svc||guessService(t.mid)).name:'',member(t.cid)?.name||'',t.qty,m?m.unit:'',m?.cost||0,val]
+      .map(x=>`"${(x+'').replace(/"/g,'""')}"`).join(',');});
+  const csv=head.join(',')+'\n'+lines.join('\n');
+  copyText(csv);toast('CSV copied — paste into Excel');
+}
+function openBuilderTrend(){
+  const rows=reportRows();const n=rows.filter(t=>['use','deliver'].includes(t.type)).length;
+  openSheet('Sync with BuilderTrend',`
+    <div style="text-align:center;padding:14px 0 6px"><div style="font-size:40px">🔁</div></div>
+    <div class="tiny muted" style="text-align:center;margin-bottom:14px">
+      In the full version, Waterproofing+ pushes logged materials straight into your BuilderTrend "BT Report" — one row per job with real quantities in each material's locked unit. No more wide-column double entry.
+    </div>
+    <div class="card" style="padding:14px">
+      <div style="display:flex;justify-content:space-between;font-size:13px"><span class="muted">Ready to sync</span><b>${n} material entries</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:8px"><span class="muted">Maps to</span><b>Purchase Orders / To-Dos</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:8px"><span class="muted">Connection</span><span class="pill warn">Not connected</span></div>
+    </div>
+    <button class="btn dark block" id="btConnect" style="margin-top:14px">Connect BuilderTrend account</button>
+    <div class="tiny muted" style="text-align:center;margin-top:10px">Needs your BuilderTrend API key — I can wire this up once you share access. For now, export a PDF or CSV to attach manually.</div>
+  `);
+  $('#btConnect').onclick=()=>{closeSheet();toast('BuilderTrend hookup comes in the connected version');};
+}
+
+/* site add */
+function openSiteEdit(){
+  openSheet('New job site',`
+    <label class="fld">Site name</label><input class="in" id="sName" placeholder="e.g. Cedar Heights Basement">
+    <label class="fld">Address (optional)</label><input class="in" id="sAddr" placeholder="Street, unit">
+    <button class="btn primary block" id="sSave" style="margin-top:16px">Add site</button>
+  `);
+  $('#sSave').onclick=()=>{const n=$('#sName').value.trim();if(!n){toast('Enter a name');return;}
+    const id='s'+Date.now();DB.sites.push({id,name:n,addr:$('#sAddr').value.trim()});logSite=id;persist();closeSheet();renderLog();toast('Site added');};
+}
+
+/* edit checklist tasks */
+function openEditTasks(){
+  const draw=()=>DB.truckTasks.map((t,i)=>`<div class="line-item" style="gap:6px">
+    <input class="in" data-tt="${t.id}" value="${esc(t.text)}" style="font-size:13px;flex:1">
+    <select class="in" data-tsvc2="${t.id}" style="width:74px;padding:8px 4px;font-size:12px">${DB.services.map(s=>`<option value="${s.id}" ${t.service===s.id?'selected':''}>${s.name.split(' ')[0]}</option>`).join('')}</select>
+    <select class="in" data-tfr="${t.id}" style="width:70px;padding:8px 4px;font-size:12px">${['daily','weekly','monthly'].map(f=>`<option value="${f}" ${t.freq===f?'selected':''}>${f}</option>`).join('')}</select>
+    <button class="btn ghost sm" data-td="${t.id}" style="padding:6px 8px">✕</button></div>`).join('');
+  openSheet('Edit truck tasks',`
+    <div class="tiny muted" style="margin:4px 0 8px">Each task has a <b>service</b> and a <b>reset cycle</b>. Applies to every crew member.</div>
+    <div id="ttList">${draw()}</div>
+    <button class="btn line block sm" id="ttAdd" style="margin-top:10px">＋ Add task</button>
+    <button class="btn primary block" id="ttSave" style="margin-top:14px">Save tasks</button>
+  `);
+  const rebind=()=>{$$('#ttList [data-td]').forEach(b=>b.onclick=()=>{
+    // persist current field edits before removing
+    saveFields(); DB.truckTasks=DB.truckTasks.filter(x=>x.id!==b.dataset.td);$('#ttList').innerHTML=draw();rebind();});};
+  const saveFields=()=>{
+    $$('#ttList [data-tt]').forEach(inp=>{const t=DB.truckTasks.find(x=>x.id===inp.dataset.tt);if(t)t.text=inp.value.trim()||'Task';});
+    $$('#ttList [data-tsvc2]').forEach(sel=>{const t=DB.truckTasks.find(x=>x.id===sel.dataset.tsvc2);if(t)t.service=sel.value;});
+    $$('#ttList [data-tfr]').forEach(sel=>{const t=DB.truckTasks.find(x=>x.id===sel.dataset.tfr);if(t)t.freq=sel.value;});
+  };
+  rebind();
+  $('#ttAdd').onclick=()=>{saveFields();DB.truckTasks.push({id:'k'+Date.now(),text:'New task',service:'veh',freq:'daily'});$('#ttList').innerHTML=draw();rebind();};
+  $('#ttSave').onclick=()=>{saveFields();persist();closeSheet();renderTrucks();renderHome();toast('Tasks updated');};
+}
+
+/* ---------- tool detail + actions ---------- */
+function openTool(id){
+  const t=tool(id);const ch=chargeInfo(t);const out=t.status==='out';
+  openSheet(t.name,`
+    <div class="card" style="margin-top:4px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="ic" style="width:52px;height:52px;border-radius:13px;background:var(--surface-2);display:grid;place-items:center;font-size:24px">${svc(t.service).icon}</div>
+        <div><div style="font-weight:800;font-size:17px">${esc(t.name)}${t.battery?' 🔋':''}</div>
+        <div class="tiny muted">${svc(t.service).name}${t.condition!=='good'?' · '+(t.condition==='damaged'?'Damaged':'In repair'):''}</div>
+        ${out?`<div class="tiny" style="color:var(--warn);margin-top:2px">Out with ${esc(member(t.outBy)?.name||'crew')}${t.outJob?' @ '+esc(site(t.outJob)?.name||''):''}${t.outService?' · '+esc(svc(t.outService).name):''}</div>`:''}
+        ${ch?`<div class="tiny" style="color:${barColor(ch.k)};margin-top:2px">🔋 ${ch.lab}${ch.ago?' · '+ch.ago:''}</div>`:''}</div>
+        <span class="pill ${out?'warn':'good'}" style="margin-left:auto">${out?'Out':'In'}</span>
+      </div>
+      ${t.note?`<div class="tiny muted" style="margin-top:8px">📝 ${esc(t.note)}</div>`:''}
+    </div>
+    <label class="fld">Actions</label>
+    <div class="row2">
+      ${out?`<button class="btn good" data-tact="in">✅ Check in</button>`:`<button class="btn dark" data-tact="out">📤 Check out</button>`}
+      ${t.battery?`<button class="btn line" data-tact="charge">🔋 Mark charged</button>`:`<button class="btn line" data-tact="none" disabled>No battery</button>`}
+    </div>
+    <div class="row2" style="margin-top:10px">
+      ${t.condition==='good'?`<button class="btn danger" data-tact="damage">⚠️ Report damage</button><button class="btn ghost" data-tact="repair">🛠 Send to repair</button>`
+        :`<button class="btn good" data-tact="fixed">✅ Back in service</button><button class="btn ghost" data-edit-tool="${id}">⚙️ Edit</button>`}
+    </div>
+    ${t.condition==='good'?`<button class="btn line block" data-edit-tool="${id}" style="margin-top:10px">⚙️ Edit details</button>`:''}
+  `);
+  $$('#sheetBody [data-tact]').forEach(b=>b.onclick=()=>toolAction(id,b.dataset.tact));
+  const eb=$('#sheetBody [data-edit-tool]'); if(eb) eb.onclick=()=>openToolEdit(id);
+}
+function toolAction(id,act){
+  const t=tool(id);
+  if(act==='in'){t.status='in';t.outBy=null;t.outJob=null;t.outService=null;persist();closeSheet();render();toast('Checked in');}
+  else if(act==='charge'){t.lastCharged=Date.now();persist();closeSheet();render();toast('🔋 Marked charged');}
+  else if(act==='damage'){t.condition='damaged';openToolNote(id,'What\'s damaged?');}
+  else if(act==='repair'){t.condition='repair';openToolNote(id,'Repair notes');}
+  else if(act==='fixed'){t.condition='good';t.note='';persist();closeSheet();render();toast('Back in service');}
+  else if(act==='out'){openToolCheckout(id);}
+}
+function openToolNote(id,label){
+  const t=tool(id);
+  openSheet('Flag tool',`
+    <div class="tiny muted" style="margin-top:4px">${esc(t.name)}</div>
+    <label class="fld">${label}</label>
+    <textarea class="in" id="tNote" rows="3">${esc(t.note||'')}</textarea>
+    <button class="btn primary block" id="tNoteSave" style="margin-top:14px">Save</button>
+  `);
+  $('#tNoteSave').onclick=()=>{t.note=$('#tNote').value.trim();persist();closeSheet();render();toast('Tool flagged');};
+}
+function openToolCheckout(id){
+  const t=tool(id);
+  let pickJob=null, pickSvc=(t.service&&t.service!=='veh')?t.service:null;
+  openSheet('Check out — '+t.name,`
+    <label class="fld">To which job? <span style="color:var(--bad)">*</span></label>
+    <div class="selrow" id="tcoSites">${DB.sites.map(s=>`<button class="sopt" data-tco="${s.id}">${esc(s.name)}</button>`).join('')}</div>
+    <label class="fld">For which service? <span style="color:var(--bad)">*</span></label>
+    <div class="selrow" id="tcoSvcs">${JOB_SERVICES().map(s=>`<button class="sopt ${pickSvc===s.id?'on':''}" data-tcs="${s.id}">${s.icon} ${s.name}</button>`).join('')}</div>
+    <div class="tiny muted" style="margin-top:10px">Checking out as <b>${me().name}</b>. Switch crew from the top-right avatar.</div>
+    <button class="btn dark block" id="tcoGo" style="margin-top:14px" disabled>Select a job & service</button>
+  `);
+  const refresh=()=>{const g=$('#tcoGo');const ok=pickJob&&pickSvc;g.disabled=!ok;
+    g.textContent= ok ? 'Check out · '+site(pickJob).name.split('—')[0].trim()+' · '+svc(pickSvc).name : 'Select a job & service';};
+  $$('#tcoSites [data-tco]').forEach(b=>b.onclick=()=>{pickJob=b.dataset.tco;$$('#tcoSites .sopt').forEach(x=>x.classList.remove('on'));b.classList.add('on');refresh();});
+  $$('#tcoSvcs [data-tcs]').forEach(b=>b.onclick=()=>{pickSvc=b.dataset.tcs;$$('#tcoSvcs .sopt').forEach(x=>x.classList.remove('on'));b.classList.add('on');refresh();});
+  refresh();
+  $('#tcoGo').onclick=()=>{if(!(pickJob&&pickSvc))return;t.status='out';t.outBy=DB.me;t.outJob=pickJob;t.outService=pickSvc;t.outTs=Date.now();persist();closeSheet();render();toast('Checked out · '+svc(pickSvc).name);};
+}
+function openToolEdit(id){
+  const t=id?tool(id):{name:'',service:'veh',battery:false,status:'in',condition:'good',lastCharged:null,note:''};
+  openSheet(id?'Edit tool':'New tool',`
+    <label class="fld">Name</label><input class="in" id="tName" value="${esc(t.name)}" placeholder="e.g. Cordless Impact Driver">
+    <label class="fld">Service</label>
+    <select class="in" id="tSvc">${DB.services.map(s=>`<option value="${s.id}" ${t.service===s.id?'selected':''}>${s.icon} ${s.name}</option>`).join('')}</select>
+    <label class="fld" style="display:flex;align-items:center;gap:8px;margin-top:14px"><input type="checkbox" id="tBat" ${t.battery?'checked':''} style="width:18px;height:18px"> Battery-powered (track charge)</label>
+    <button class="btn primary block" id="tSave" style="margin-top:16px">${id?'Save':'Add tool'}</button>
+    ${id?`<button class="btn line block" id="tDel" style="margin-top:10px;color:var(--bad)">Delete tool</button>`:''}
+  `);
+  $('#tSave').onclick=()=>{
+    const name=$('#tName').value.trim();if(!name){toast('Enter a name');return;}
+    const data={name,service:$('#tSvc').value,battery:$('#tBat').checked};
+    if(!data.battery) data.lastCharged=null; else if(t.lastCharged==null) data.lastCharged=Date.now();
+    if(id){Object.assign(t,data);}else{DB.tools.push({id:'t'+Date.now(),status:'in',condition:'good',lastCharged:data.battery?Date.now():null,note:'',...data});}
+    persist();closeSheet();render();toast(id?'Saved':'Tool added');
+  };
+  const d=$('#tDel');if(d)d.onclick=()=>{DB.tools=DB.tools.filter(x=>x.id!==id);persist();closeSheet();render();toast('Deleted');};
+}
+
+/* ---------- end-of-day truck trip log ---------- */
+function openTruckTrip(){
+  openSheet('End-of-day truck log',`
+    <label class="fld">Truck</label>
+    <select class="in" id="ttrTruck">${DB.trucks.map(t=>`<option value="${t.id}">${esc(t.name)} · ${t.km.toLocaleString()} km</option>`).join('')}</select>
+    <div class="row2">
+      <div><label class="fld">Odometer (KM)</label><input class="in" id="ttrKm" type="number" inputmode="numeric" placeholder="current reading"></div>
+      <div><label class="fld">Driver</label>
+        <select class="in" id="ttrDriver">${DB.crew.map(c=>`<option value="${c.id}" ${c.id===DB.me?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+    </div>
+    <label class="fld">Job visited</label>
+    <select class="in" id="ttrJob"><option value="">—</option>${DB.sites.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select>
+    <label class="fld">Service provided</label>
+    <select class="in" id="ttrSvc"><option value="">—</option>${DB.services.filter(s=>s.id!=='veh').map(s=>`<option value="${s.id}">${s.icon} ${s.name}</option>`).join('')}</select>
+    <div class="row2" style="margin-top:6px">
+      <label class="fld" style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="ttrOil" style="width:18px;height:18px"> Oil checked</label>
+      <label class="fld" style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="ttrFuel" style="width:18px;height:18px"> Fuel topped up</label>
+    </div>
+    <label class="fld">Repairs / issues (optional)</label>
+    <textarea class="in" id="ttrRep" rows="2" placeholder="e.g. brake noise, replace wiper"></textarea>
+    <button class="btn primary block" id="ttrSave" style="margin-top:16px">Save truck log</button>
+    <div class="tiny muted" style="text-align:center;margin-top:8px">Updates the truck's KM and feeds the maintenance history.</div>
+  `);
+  $('#ttrSave').onclick=()=>{
+    const trk=truck($('#ttrTruck').value);
+    const km=parseInt($('#ttrKm').value)||0;
+    const log={id:'log'+Date.now(),ts:Date.now(),truckId:trk.id,km,driver:$('#ttrDriver').value,job:$('#ttrJob').value,service:$('#ttrSvc').value,
+      oil:$('#ttrOil').checked,fuel:$('#ttrFuel').checked,repairs:$('#ttrRep').value.trim()};
+    DB.truckLogs.unshift(log);
+    if(km>trk.km) trk.km=km;
+    if(log.oil) trk.lastOil=km||trk.lastOil;
+    // auto-complete the matching daily vehicle tasks
+    DB.taskState[DB.me]=DB.taskState[DB.me]||{};
+    if(km) DB.taskState[DB.me]['k3']=todayKey();
+    if(log.oil) DB.taskState[DB.me]['k1']=todayKey();
+    if(log.fuel) DB.taskState[DB.me]['k2']=todayKey();
+    checkAward();
+    persist();closeSheet();render();toast('🚚 Truck log saved'+(log.repairs?' · repair noted':''));
+  };
+}
+
+/* who am I */
+function openWho(){
+  openSheet('Who\'s on the truck?',`
+    <div class="tiny muted" style="margin:4px 0 8px">Pick your name — task points go to you.</div>
+    <div class="card" style="padding:6px 14px">
+      ${DB.crew.map(c=>`<div class="inv" data-me="${c.id}">
+        <div class="av-lg" style="background:${c.color}">${initials(c.name)}</div>
+        <div class="mid"><div class="nm">${esc(c.name)}</div><div class="meta">${c.points} pts</div></div>
+        ${c.id===DB.me?'<span class="pill good">Current</span>':'<div class="btn line sm">Switch</div>'}
+      </div>`).join('')}
+    </div>
+  `);
+  $$('#sheetBody [data-me]').forEach(el=>el.onclick=()=>{DB.me=el.dataset.me;persist();closeSheet();render();toast('Switched to '+me().name);go('trucks');});
+}
+
+/* manage crew */
+function openManageCrew(){
+  const colors=['#12b3a6','#0b6ea8','#6b57d4','#c9820a','#1f9d63','#d0453b','#0b3d61'];
+  openSheet('Crew members',`
+    <div class="card" style="padding:6px 14px">
+      ${DB.crew.map(c=>`<div class="inv">
+        <div class="av-lg" style="background:${c.color}">${initials(c.name)}</div>
+        <div class="mid"><div class="nm">${esc(c.name)}</div><div class="meta">${c.points} pts</div></div>
+        ${c.id===DB.me?'<span class="pill neu">you</span>':`<button class="btn ghost sm" data-delc="${c.id}">✕</button>`}
+      </div>`).join('')}
+    </div>
+    <label class="fld">Add crew member</label>
+    <div class="search"><input class="in" id="ncName" placeholder="Name"><button class="btn primary" id="ncAdd">Add</button></div>
+  `);
+  $('#ncAdd').onclick=()=>{const n=$('#ncName').value.trim();if(!n){toast('Enter a name');return;}
+    DB.crew.push({id:'c'+Date.now(),name:n,color:colors[DB.crew.length%colors.length],points:0});persist();openManageCrew();renderCrew();};
+  $$('#sheetBody [data-delc]').forEach(b=>b.onclick=()=>{DB.crew=DB.crew.filter(c=>c.id!==b.dataset.delc);persist();openManageCrew();renderCrew();});
+}
+
+/* reset */
+function openReset(){
+  openSheet('Reset demo data?',`
+    <div class="tiny muted" style="margin:6px 0 14px">This restores the sample warehouse, crew, and clears all logged usage &amp; points. Handy when showing the app to someone new.</div>
+    <button class="btn danger block" id="rsGo">Yes, reset everything</button>
+    <button class="btn ghost block" id="rsNo" style="margin-top:10px">Cancel</button>
+  `);
+  $('#rsGo').onclick=()=>{DB=JSON.parse(JSON.stringify(SEED));seedHistory();persist();closeSheet();render();go('home');toast('Demo data reset');};
+  $('#rsNo').onclick=closeSheet;
+}
+
+/* ---------- floating Log button on log view submit ---------- */
+function submitLog(){
+  if(!cart.length){toast('Add at least one item');return;}
+  if(!logSite){toast('Pick a job site first');go('log');return;}
+  if(!logService){toast('Pick a service first');go('log');return;}
+  cart.forEach(i=>{
+    const m=mat(i.mid);if(!m)return;
+    const sign=TYPE_META[logType].sign;
+    if(sign<0)m.qty=Math.max(0,m.qty-i.qty);
+    else if(sign>0)m.qty+=i.qty;
+    logTx(i.mid,i.qty,logType,logSite,DB.me,'',logService);
+  });
+  const n=cart.length;cart=[];persist();render();toast(`Logged ${n} item${n>1?'s':''} · stock updated`);go('home');
+}
+
+/* floating action button that changes per view */
+const fab=document.createElement('button');
+fab.className='btn dark fab';fab.id='fab';
+document.getElementById('app').appendChild(fab);
+function updateFab(){
+  const active=$('.view.active').id;
+  if(active==='view-log'&&cart.length){fab.style.display='flex';fab.innerHTML=`✓ Submit log (${cart.reduce((s,i)=>s+i.qty,0)} units)`;fab.className='btn good fab';fab.onclick=submitLog;}
+  else if(active==='view-inv'){fab.style.display='none';}
+  else{fab.style.display='none';}
+}
+const _origRenderLog=renderLog;
+renderLog=function(){_origRenderLog();updateFab();};
+const _origGo=go;
+go=function(t){_origGo(t);updateFab();};
+
+/* boot */
+render();
+go('home');
+updateFab();
+</script>
+</body>
+</html>

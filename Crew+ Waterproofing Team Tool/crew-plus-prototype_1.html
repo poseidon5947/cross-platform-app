@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Crew+ — People & Performance</title>
+<style>
+  :root{
+    --brand:#1c5cab; --brand-2:#2a78d6; --brand-deep:#0f3a70;
+    --aqua:#12a37a; --aqua-soft:#e2f5ee;
+    --page:#eef1f4; --card:#ffffff; --card-2:#f7f9fb;
+    --ink:#0d1b2a; --ink-2:#52606d; --muted:#8a94a1;
+    --line:#e6eaef; --line-2:#eef1f4;
+    --good:#0ca30c; --good-soft:#e5f5e5;
+    --warn:#e79a00; --warn-soft:#fdf1da;
+    --serious:#ec835a; --serious-soft:#fcebe2;
+    --crit:#d03b3b; --crit-soft:#fbe6e6;
+    --gold:#e0a100;
+    --shadow:0 1px 2px rgba(13,27,42,.06),0 4px 16px rgba(13,27,42,.06);
+    --shadow-lg:0 10px 40px rgba(13,27,42,.16);
+    --r:16px; --r-sm:11px;
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{background:linear-gradient(160deg,#dfe6ee,#c9d5e2);min-height:100vh;display:flex;flex-direction:column;align-items:center;gap:14px;padding:26px 12px 40px;color:var(--ink)}
+
+  /* ---- role switcher ---- */
+  .rolebar{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.75);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.6);padding:7px 8px 7px 16px;border-radius:999px;box-shadow:var(--shadow);position:sticky;top:8px;z-index:50}
+  .rolebar .lbl{font-size:12px;font-weight:600;color:var(--ink-2);letter-spacing:.02em}
+  .seg{display:flex;background:#e7ecf2;border-radius:999px;padding:3px}
+  .seg button{border:0;background:transparent;font:inherit;font-size:12.5px;font-weight:600;color:var(--ink-2);padding:7px 15px;border-radius:999px;cursor:pointer;transition:.18s}
+  .seg button.on{background:var(--brand);color:#fff;box-shadow:0 2px 6px rgba(28,92,171,.4)}
+
+  /* ---- phone ---- */
+  .phone{width:392px;max-width:100%;height:812px;background:var(--page);border-radius:44px;box-shadow:var(--shadow-lg),0 0 0 11px #10161d,0 0 0 13px #2a333d;overflow:hidden;position:relative;display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:150px;height:30px;background:#10161d;border-radius:0 0 18px 18px;z-index:40}
+  .statusbar{height:46px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font-size:13px;font-weight:600;color:#fff;position:relative;z-index:5}
+  .statusbar.dark-ink{color:var(--ink)}
+  .statusbar .r{display:flex;gap:6px;align-items:center;font-size:12px}
+
+  /* ---- app header ---- */
+  .apphead{flex:none;padding:2px 20px 18px;background:linear-gradient(150deg,var(--brand-deep),var(--brand) 60%,var(--brand-2));color:#fff;position:relative;overflow:hidden}
+  .apphead::after{content:"";position:absolute;right:-40px;top:-60px;width:200px;height:200px;background:radial-gradient(circle,rgba(255,255,255,.14),transparent 70%)}
+  .apphead .eyebrow{font-size:12px;font-weight:600;opacity:.8;letter-spacing:.04em;text-transform:uppercase}
+  .apphead h1{font-size:23px;font-weight:750;margin-top:3px;letter-spacing:-.01em}
+  .apphead .sub{font-size:13px;opacity:.85;margin-top:3px}
+  .avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:16px;color:#fff;flex:none;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+  .headrow{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;position:relative;z-index:2}
+
+  /* ---- scroll body ---- */
+  .screen{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 16px 96px;-webkit-overflow-scrolling:touch}
+  .screen::-webkit-scrollbar{width:0}
+  .view{display:none;animation:fade .28s ease}
+  .view.on{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* ---- cards & bits ---- */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
+  .card.tap{cursor:pointer;transition:.15s}
+  .card.tap:active{transform:scale(.985)}
+  .sect{font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:20px 4px 10px;display:flex;justify-content:space-between;align-items:center}
+  .sect:first-child{margin-top:4px}
+  .row{display:flex;align-items:center;gap:12px}
+  .row.sb{justify-content:space-between}
+  .grow{flex:1;min-width:0}
+  .muted{color:var(--muted)}.ink2{color:var(--ink-2)}
+  .b{font-weight:700}.sb{font-weight:600}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:650;padding:4px 9px;border-radius:999px;white-space:nowrap}
+  .pill.good{background:var(--good-soft);color:#0a7d0a}
+  .pill.warn{background:var(--warn-soft);color:#a06a00}
+  .pill.serious{background:var(--serious-soft);color:#b8552f}
+  .pill.crit{background:var(--crit-soft);color:#b32424}
+  .pill.brand{background:#e7f0fb;color:var(--brand)}
+  .pill.aqua{background:var(--aqua-soft);color:#0b7a5b}
+  .pill.gold{background:#fbf1cf;color:#8a6a00}
+  .pill.lock{background:#eceef1;color:#5a6472}
+  .dot{width:8px;height:8px;border-radius:50%;flex:none}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:0;font:inherit;font-weight:650;font-size:14px;padding:12px 16px;border-radius:12px;cursor:pointer;transition:.15s;width:100%}
+  .btn:active{transform:scale(.98)}
+  .btn.primary{background:var(--brand);color:#fff;box-shadow:0 3px 10px rgba(28,92,171,.32)}
+  .btn.ghost{background:var(--card-2);color:var(--brand);border:1px solid var(--line)}
+  .btn.aqua{background:var(--aqua);color:#fff;box-shadow:0 3px 10px rgba(18,163,122,.3)}
+  .btn.sm{padding:8px 13px;font-size:12.5px;width:auto;border-radius:10px}
+
+  .bar{height:8px;border-radius:6px;background:var(--line-2);overflow:hidden}
+  .bar>span{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--brand-2),var(--brand))}
+  .bar.aqua>span{background:linear-gradient(90deg,#2fc79a,var(--aqua))}
+  .bar.warn>span{background:linear-gradient(90deg,#f6c25a,var(--warn))}
+
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:13px 14px;box-shadow:var(--shadow)}
+  .stat .n{font-size:25px;font-weight:760;letter-spacing:-.02em;line-height:1}
+  .stat .k{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:5px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
+
+  .hero{background:linear-gradient(140deg,#123a6d,#1c5cab);color:#fff;border-radius:var(--r);padding:17px;position:relative;overflow:hidden;box-shadow:var(--shadow)}
+  .hero::after{content:"";position:absolute;right:-30px;bottom:-50px;width:150px;height:150px;background:radial-gradient(circle,rgba(255,255,255,.12),transparent 70%)}
+  .value-chip{display:inline-block;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.25);padding:5px 11px;border-radius:999px;font-size:12px;font-weight:650;margin-bottom:10px}
+
+  .listitem{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--line-2)}
+  .listitem:last-child{border-bottom:0}
+  .ico{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:18px;flex:none}
+
+  .check{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);flex:none;display:grid;place-items:center;cursor:pointer;transition:.18s;color:transparent;font-size:14px}
+  .check.done{background:var(--aqua);border-color:var(--aqua);color:#fff}
+  .ritual.done .rt{text-decoration:line-through;color:var(--muted)}
+
+  .tabs{display:flex;gap:6px;background:var(--card-2);border:1px solid var(--line);padding:4px;border-radius:12px;margin-bottom:14px;overflow-x:auto}
+  .tabs button{flex:1;white-space:nowrap;border:0;background:transparent;font:inherit;font-size:12.5px;font-weight:650;color:var(--ink-2);padding:8px 10px;border-radius:9px;cursor:pointer}
+  .tabs button.on{background:#fff;color:var(--brand);box-shadow:var(--shadow)}
+  .subview{display:none}.subview.on{display:block}
+
+  .lb{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line-2)}
+  .lb:last-child{border-bottom:0}
+  .rank{width:26px;text-align:center;font-weight:750;color:var(--muted)}
+  .rank.g1{color:var(--gold)}.rank.g2{color:#9aa3ad}.rank.g3{color:#c08457}
+  .lb.me{background:#eef5ff;margin:0 -8px;padding:11px 8px;border-radius:10px;border-bottom:0}
+
+  .timeline{position:relative;padding-left:22px}
+  .timeline::before{content:"";position:absolute;left:6px;top:4px;bottom:4px;width:2px;background:var(--line)}
+  .tl{position:relative;padding:0 0 16px}
+  .tl:last-child{padding-bottom:0}
+  .tl::before{content:"";position:absolute;left:-19px;top:4px;width:11px;height:11px;border-radius:50%;background:#fff;border:2.5px solid var(--brand-2)}
+  .tl.pos::before{border-color:var(--aqua)}
+  .tl.warnd::before{border-color:var(--warn)}
+
+  .confidential{background:repeating-linear-gradient(45deg,#faf3f3,#faf3f3 10px,#f7ecec 10px,#f7ecec 20px);border:1px dashed #e3b7b7}
+  .rate{display:flex;gap:5px}
+  .rate span{width:22px;height:22px;border-radius:6px;background:var(--line-2);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer}
+  .rate span.on{background:var(--brand);color:#fff}
+
+  /* bottom nav */
+  .nav{position:absolute;bottom:0;left:0;right:0;height:80px;background:rgba(255,255,255,.92);backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;padding:9px 6px 20px;z-index:30}
+  .nav button{flex:1;border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;color:var(--muted);font-size:10.5px;font-weight:650}
+  .nav button .ni{font-size:21px;line-height:1}
+  .nav button.on{color:var(--brand)}
+  .navset{display:none}.navset.on{display:flex}
+
+  .toast{position:absolute;left:50%;bottom:98px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:11px 18px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:.3s;z-index:60;display:flex;align-items:center;gap:8px;white-space:nowrap}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .fabnote{font-size:12px;color:var(--ink-2);background:var(--card-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;line-height:1.5}
+  .caption{max-width:392px;text-align:center;font-size:12.5px;color:#41506180;color:#495a6b;line-height:1.5;padding:0 6px}
+  .modhint{font-size:11px;color:var(--muted);margin-top:2px}
+  .badge-tile{aspect-ratio:1;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border:1px solid var(--line);background:var(--card);text-align:center;padding:6px}
+  .badge-tile .be{font-size:26px}
+  .badge-tile.lock{opacity:.42;filter:grayscale(.4)}
+  .badge-tile .bt{font-size:10px;font-weight:650;color:var(--ink-2);line-height:1.15}
+  a{color:var(--brand);text-decoration:none}
+</style>
+</head>
+<body>
+
+<div class="rolebar">
+  <span class="lbl">Viewing as</span>
+  <div class="seg">
+    <button id="roleCrew" class="on" onclick="setRole('crew')">👷 Crew</button>
+    <button id="roleMgr" onclick="setRole('mgr')">🧭 Manager / Admin</button>
+  </div>
+</div>
+
+<div class="phone">
+  <div class="notch"></div>
+  <div class="statusbar"><span>9:41</span><span class="r">✦ 5G &nbsp; 100%▮</span></div>
+
+  <!-- HEADER -->
+  <div class="apphead">
+    <div class="headrow">
+      <div>
+        <div class="eyebrow" id="hEyebrow">Good morning</div>
+        <h1 id="hTitle">Jesse</h1>
+        <div class="sub" id="hSub">Technician · Waterproofing crew</div>
+      </div>
+      <div class="avatar" id="hAvatar" style="background:linear-gradient(135deg,#2fc79a,#12a37a)">JE</div>
+    </div>
+  </div>
+
+  <div class="screen" id="screen"><!-- views injected --></div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- NAV: crew -->
+  <div class="nav navset on" id="navCrew">
+    <button class="on" data-v="c-home"><span class="ni">🏠</span>Home</button>
+    <button data-v="c-values"><span class="ni">🎯</span>Values</button>
+    <button data-v="c-growth"><span class="ni">📈</span>Growth</button>
+    <button data-v="c-rewards"><span class="ni">🏆</span>Rewards</button>
+  </div>
+  <!-- NAV: manager -->
+  <div class="nav navset" id="navMgr">
+    <button class="on" data-v="m-team"><span class="ni">👥</span>Team</button>
+    <button data-v="m-reviews"><span class="ni">📝</span>Reviews</button>
+    <button data-v="m-comply"><span class="ni">🛡️</span>Compliance</button>
+    <button data-v="m-rewards"><span class="ni">🏆</span>Rewards</button>
+    <button data-v="m-more"><span class="ni">⚙️</span>More</button>
+  </div>
+</div>
+
+<p class="caption" id="caption">Prototype · tap around and switch roles up top. Marking value rituals done banks points and grows the streak; logging a Google review awards points; open a team member to see their profile. Sample data only.</p>
+
+<script>
+// ---------------- state ----------------
+const state = {
+  role:'crew',
+  points:1240,
+  streak:6,
+  rituals:{daily:false, weekly:false, monthly:false},
+  // Real crew + real certifications from the audit worksheet. status: good | warn | crit | audit
+  crew:[
+    {id:'jesse',name:'Jesse',init:'JE',color:'#12a37a',role:'Technician',pts:1240,me:true,reviewIn:9,kpi:84,bday:null,office:false,
+      certs:[
+        {label:'WHMIS',status:'audit',note:'Active · date needed'},
+        {label:'Hearing',status:'audit',note:'Active · date needed'},
+        {label:'Level 1 First Aid',status:'crit',note:'Expired · renew now'},
+        {label:'Fit Test',status:'warn',note:'Tested Sep 2025 · likely overdue'},
+        {label:'Lift',status:'audit',note:'Active · date needed'},
+      ]},
+    {id:'shane',name:'Shane',init:'SH',color:'#2a78d6',role:'Technician',pts:1610,reviewIn:12,kpi:88,bday:'Thu',office:false,
+      certs:[
+        {label:'Lift Operation',status:'audit',note:'Active · date needed'},
+      ], flag:'Only 1 cert on file'},
+    {id:'jon',name:'Jon',init:'JO',color:'#eb6834',role:'Technician',pts:980,reviewIn:34,kpi:90,bday:null,office:false,
+      certs:[
+        {label:'Lift Operation',status:'audit',note:'Active · date needed'},
+        {label:'Level 1 First Aid',status:'good',note:'Current · exp Feb 2028'},
+        {label:'Fit Test',status:'audit',note:'Active · date needed'},
+        {label:'Confined Spaces',status:'audit',note:'Active · date needed'},
+      ]},
+    {id:'josh',name:'Josh',init:'JH',color:'#4a3aa7',role:'Technician',pts:640,reviewIn:16,kpi:79,bday:null,office:false,
+      certs:[
+        {label:'Fall Arrest',status:'audit',note:'Active · date needed'},
+        {label:'Lift',status:'audit',note:'Active · date needed'},
+        {label:'Confined Spaces',status:'audit',note:'Active · date needed'},
+      ]},
+    {id:'logan',name:'Logan',init:'LO',color:'#e87ba4',role:'Technician',pts:410,reviewIn:22,kpi:70,bday:null,office:false,
+      certs:[], flag:'No certs on file — full audit needed'},
+    {id:'thorpe',name:'Thorpe',init:'TH',color:'#1baf7a',role:'Technician',pts:1305,reviewIn:48,kpi:91,bday:null,office:false,
+      certs:[
+        {label:'Lift Operation',status:'audit',note:'Active · date needed'},
+        {label:'Level 1 First Aid',status:'good',note:'Current · exp Feb 2028'},
+        {label:'Fit Test',status:'audit',note:'Active · date needed'},
+        {label:'Confined Spaces',status:'audit',note:'Active · date needed'},
+      ]},
+    {id:'rogers',name:'Rogers',init:'RO',color:'#eda100',role:'Technician',pts:1120,reviewIn:6,kpi:86,bday:null,office:false,
+      certs:[
+        {label:'Level 1 First Aid',status:'good',note:'Current · exp Feb 2028'},
+        {label:'Fit Test',status:'audit',note:'Active · date needed'},
+      ]},
+    {id:'crewlead',name:'Crew Lead',init:'CL',color:'#0f3a70',role:'Crew Lead · Field manager',pts:1740,reviewIn:28,kpi:92,bday:null,office:false,
+      certs:[
+        {label:'Lift Operation',status:'audit',note:'Active · date needed'},
+        {label:'Level 1 First Aid',status:'audit',note:'Active · date needed'},
+        {label:'Confined Spaces',status:'audit',note:'Active · date needed'},
+      ], addNote:'Name to confirm · +1 technician to add'},
+    {id:'ops',name:'Operations',init:'OP',color:'#256abf',role:'Ops · Marketing · Accounting',pts:870,reviewIn:40,kpi:88,bday:null,office:true,certs:[]},
+    {id:'cfo',name:'CFO',init:'CF',color:'#52606d',role:'Finance · owns bonus pool',pts:520,reviewIn:55,kpi:90,bday:null,office:true,certs:[]},
+    {id:'ceo',name:'CEO',init:'CE',color:'#4a3aa7',role:'Owner',pts:600,reviewIn:60,kpi:0,bday:null,office:true,certs:[]},
+  ],
+  rewards:[
+    {t:'Cash - $50',c:200,e:'$'},
+    {t:'Cash - $100',c:400,e:'$'},
+    {t:'Gift Card - $50',c:200,e:'GC'},
+    {t:'Gift Card - $100',c:400,e:'GC'},
+    {t:'PTO - half day',c:800,e:'PTO'},
+    {t:'PTO - full day',c:1600,e:'PTO'},
+  ],
+};
+const VALUES = [
+  {v:'Safety First, Always', color:'#d03b3b'},
+  {v:'Do It Right the First Time', color:'#1c5cab'},
+  {v:'Own the Outcome', color:'#12a37a'},
+  {v:'Leave It Better', color:'#eb6834'},
+  {v:'Grow the Crew', color:'#4a3aa7'},
+];
+
+// ---------------- helpers ----------------
+const $=(s,r=document)=>r.querySelector(s);
+const el=(h)=>{const d=document.createElement('div');d.innerHTML=h.trim();return d.firstChild;};
+function toast(msg){const t=$('#toast');t.innerHTML=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1900);}
+function addPts(n,msg){state.points+=n;state.crew.find(c=>c.me).pts+=n;toast(`✨ +${n} pts · ${msg}`);render();}
+
+const STATUS_ORDER={crit:0,warn:1,audit:2,good:3};
+function statusPillCls(s){return {good:'good',warn:'warn',crit:'crit',audit:'lock'}[s];}
+// most urgent cert for the roster chip
+function topCert(c){
+  if(!c.certs || !c.certs.length) return {label:'No certs', status:'crit', note:''};
+  return [...c.certs].sort((a,b)=>STATUS_ORDER[a.status]-STATUS_ORDER[b.status])[0];
+}
+function certChip(cert){
+  const short=cert.status==='crit'?'Action':cert.status==='warn'?'Renew soon':cert.status==='audit'?'Date needed':'Current';
+  return `<span class="pill ${statusPillCls(cert.status)}">${cert.label} · ${short}</span>`;
+}
+
+// ---------------- CREW VIEWS ----------------
+function crewHome(){
+  const val=VALUES[1];
+  return `
+  <div class="hero">
+    <span class="value-chip">🎯 Today's value focus</span>
+    <div style="font-size:19px;font-weight:750;letter-spacing:-.01em">${val.v}</div>
+    <div style="font-size:13px;opacity:.9;margin-top:6px;line-height:1.45">Before you leave a stage, ask: “Would I be happy to inspect this myself?” Log one thing you did right the first time today.</div>
+    <div class="row" style="margin-top:14px;gap:10px">
+      <button class="btn aqua" style="flex:1" onclick="markRitual('daily',this)">${state.rituals.daily?'✓ Logged today':'Mark done · +30'}</button>
+    </div>
+  </div>
+
+  <div class="grid3" style="margin-top:14px">
+    <div class="stat"><div class="n" style="color:var(--brand)">${state.points.toLocaleString()}</div><div class="k">My points</div></div>
+    <div class="stat"><div class="n">🔥 ${state.streak}</div><div class="k">Day streak</div></div>
+    <div class="stat"><div class="n">84%</div><div class="k">KPIs on track</div></div>
+  </div>
+
+  <div class="sect">This week</div>
+  <div class="card tap" onclick="go('c-growth')">
+    <div class="row sb"><div class="row"><div class="ico" style="background:#e7f0fb">📅</div><div><div class="b">Quarterly check-in</div><div class="muted" style="font-size:12.5px">with the Crew Lead · in 9 days</div></div></div><span class="pill brand">Q3 review</span></div>
+  </div>
+  <div class="card tap" onclick="go('c-values');subgo('sw')">
+    <div class="row sb"><div class="row"><div class="ico" style="background:#efeafb">🧭</div><div><div class="b">Quarterly SWOT due</div><div class="muted" style="font-size:12.5px">5-minute self-reflection · feeds your review</div></div></div><span class="pill warn">Do it</span></div>
+  </div>
+  <div class="card tap" onclick="go('c-growth');subgo('certs')">
+    <div class="row sb"><div class="row"><div class="ico" style="background:#fbe6e6">🩹</div><div><div class="b">Level 1 First Aid expired</div><div class="muted" style="font-size:12.5px">renew now · required on site</div></div></div><span class="pill crit">Act</span></div>
+  </div>
+
+  <div class="sect">Team pulse</div>
+  <div class="card">
+    <div class="row sb"><div class="row"><div class="ico" style="background:#fbf1cf">🎂</div><div><div class="b">Shane's birthday is Thursday</div><div class="muted" style="font-size:12.5px">Say something nice 🎉</div></div></div><button class="btn ghost sm" onclick="addPts(10,'Sent Shane a shout-out')">Shout-out</button></div>
+  </div>
+  <div class="card">
+    <div class="row sb"><div class="row"><div class="ico" style="background:#e2f5ee">⭐</div><div><div class="b">Rogers pulled a 5★ Google review</div><div class="muted" style="font-size:12.5px">“Crew was spotless and on time.”</div></div></div><span class="pill aqua">+200</span></div>
+  </div>`;
+}
+
+function crewValues(){
+  const R=state.rituals;
+  const ritual=(k,tag,tagcls,title,desc)=>`
+    <div class="card ritual ${R[k]?'done':''}">
+      <div class="row" style="align-items:flex-start">
+        <div class="check ${R[k]?'done':''}" onclick="markRitual('${k}',this)">✓</div>
+        <div class="grow">
+          <div class="row sb"><div class="rt b">${title}</div><span class="pill ${tagcls}">${tag}</span></div>
+          <div class="muted" style="font-size:12.5px;margin-top:3px;line-height:1.45">${desc}</div>
+        </div>
+      </div>
+    </div>`;
+  return `
+  <div class="sect">Live our values <span class="pill aqua">🔥 ${state.streak}-day streak</span></div>
+  ${ritual('daily','Daily','brand','Right the first time','30-sec log: name one thing you inspected and got right on the first pass today. (+30 pts)')}
+  ${ritual('weekly','Weekly','aqua','Peer shout-out','Recognize a teammate who lived a value this week — safety catch, clean stage, going the extra mile. (+40 pts)')}
+  ${ritual('monthly','Monthly','gold','Leave it better','Photo one job site you left cleaner than you found it, and note what you improved. (+60 pts)')}
+
+  <div class="sect" id="sw">Quarterly nudges</div>
+  <div class="card">
+    <div class="row sb" style="margin-bottom:10px"><div class="row"><div class="ico" style="background:#efeafb">🧭</div><div><div class="b">Personal SWOT</div><div class="muted" style="font-size:12.5px">Strengths · Weaknesses · Opportunities · Threats</div></div></div><span class="pill warn">Due</span></div>
+    <button class="btn primary" onclick="addPts(80,'Quarterly SWOT submitted')">Start my SWOT · +80</button>
+  </div>
+  <div class="card">
+    <div class="row sb" style="margin-bottom:10px"><div class="row"><div class="ico" style="background:#e7f0fb">💬</div><div><div class="b">Company feedback form</div><div class="muted" style="font-size:12.5px">Tell Sam what's working & what's not — anonymous option</div></div></div><span class="pill brand">Monthly</span></div>
+    <button class="btn ghost" onclick="addPts(40,'Feedback submitted — thank you')">Give feedback · +40</button>
+  </div>
+
+  <div class="sect">Our values</div>
+  <div class="card">
+    ${VALUES.map(v=>`<div class="listitem"><span class="dot" style="background:${v.color}"></span><div class="grow b">${v.v}</div></div>`).join('')}
+  </div>`;
+}
+
+function crewGrowth(){
+  const me=state.crew.find(c=>c.me);
+  return `
+  <div class="tabs" id="growthTabs">
+    <button class="on" data-sv="jd">Role</button>
+    <button data-sv="kpi">KPIs</button>
+    <button data-sv="fb">Feedback</button>
+    <button data-sv="certs">Certs</button>
+  </div>
+
+  <div class="subview on" data-sv="jd">
+    <div class="card">
+      <div class="row sb"><div class="b" style="font-size:15px">Technician · Waterproofing</div><span class="pill lock">🔒 Pay hidden</span></div>
+      <div class="muted" style="font-size:12.5px;margin:6px 0 12px">Job description · v2 · updated Apr 2026</div>
+      <div class="modhint b" style="color:var(--ink-2);margin-bottom:6px">Core responsibilities</div>
+      <div class="listitem" style="padding:9px 0"><span class="dot" style="background:var(--brand)"></span><div class="grow" style="font-size:13.5px">Run the day's membrane install to spec, no callbacks</div></div>
+      <div class="listitem" style="padding:9px 0"><span class="dot" style="background:var(--brand)"></span><div class="grow" style="font-size:13.5px">Lead crew safety & toolbox talk each morning</div></div>
+      <div class="listitem" style="padding:9px 0"><span class="dot" style="background:var(--brand)"></span><div class="grow" style="font-size:13.5px">Log materials & tools in Waterproofing+ accurately</div></div>
+    </div>
+    <div class="card tap" onclick="go('c-growth');subgo('kpi')">
+      <div class="row sb"><div class="row"><div class="ico" style="background:#e7f0fb">📅</div><div><div class="b">Next review</div><div class="muted" style="font-size:12.5px">Q3 quarterly check-in · in 9 days</div></div></div><span class="pill brand">On track</span></div>
+    </div>
+  </div>
+
+  <div class="subview" data-sv="kpi">
+    ${kpiRow('Jobs completed on schedule','92%','92',94,'aqua')}
+    ${kpiRow('Callback / rework rate','1.4%','88','','warn','Target under 2%')}
+    ${kpiRow('Safety incidents','0','100','','aqua','Target: zero')}
+    ${kpiRow('Material loss rate','3.1%','76','','warn','From Waterproofing+')}
+    <div class="card" style="background:var(--aqua-soft);border-color:#bfe8da">
+      <div class="row sb"><div class="b" style="color:#0b7a5b">On track for quarterly bonus</div><span class="pill aqua">88% of KPIs</span></div>
+      <div class="muted" style="font-size:12px;margin-top:4px">Bonus $ amount is set by the office and shown to managers only.</div>
+    </div>
+  </div>
+
+  <div class="subview" data-sv="fb">
+    <div class="card">
+      <div class="timeline">
+        <div class="tl pos"><div class="b" style="font-size:13.5px">Great catch on the Blackcrete job</div><div class="muted" style="font-size:12px">Sam · 3 days ago · caught a drainage board gap before backfill</div></div>
+        <div class="tl"><div class="b" style="font-size:13.5px">Q2 review — Meets / Exceeds</div><div class="muted" style="font-size:12px">Apr 2026 · “Reliable, crew looks up to you. Work on paperwork speed.”</div></div>
+        <div class="tl pos"><div class="b" style="font-size:13.5px">Customer shout-out</div><div class="muted" style="font-size:12px">Mar 2026 · EllisDon PM praised the clean site</div></div>
+        <div class="tl warnd"><div class="b" style="font-size:13.5px">Coaching note</div><div class="muted" style="font-size:12px">Feb 2026 · Log tool check-outs same-day, not next morning</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="subview" data-sv="certs">
+    <div class="card">
+      ${me.certs.map(x=>certLine(x.label,x.status,x.note)).join('')}
+    </div>
+    <div class="fabnote">🔔 You'll get a reminder 60, 30, and 7 days before any ticket expires — and so will your manager. Two of yours need attention now.</div>
+  </div>`;
+}
+function kpiRow(t,val,pct,extra,cls,sub){
+  return `<div class="card"><div class="row sb" style="margin-bottom:9px"><div class="grow"><div class="b" style="font-size:13.5px">${t}</div>${sub?`<div class="muted" style="font-size:11.5px;margin-top:2px">${sub}</div>`:''}</div><div class="b" style="font-size:16px">${val}</div></div><div class="bar ${cls}"><span style="width:${pct}%"></span></div></div>`;
+}
+function certLine(t,lvl,txt){
+  const soft={good:'good-soft',warn:'warn-soft',crit:'crit-soft',audit:'line-2'}[lvl]||'line-2';
+  const chip={good:'Current',warn:'Renew',crit:'Action',audit:'Add date'}[lvl];
+  return `<div class="listitem"><div class="ico" style="background:var(--${soft})">🎓</div><div class="grow"><div class="b" style="font-size:13.5px">${t}</div><div class="muted" style="font-size:11.5px">${txt||''}</div></div><span class="pill ${statusPillCls(lvl)}">${chip}</span></div>`;
+}
+
+function crewRewards(){
+  const me=state.crew.find(c=>c.me);
+  const sorted=[...state.crew].sort((a,b)=>b.pts-a.pts);
+  return `
+  <div class="hero" style="background:linear-gradient(140deg,#8a6a00,#e0a100)">
+    <div style="font-size:13px;opacity:.9;font-weight:600">My points wallet</div>
+    <div style="font-size:38px;font-weight:800;letter-spacing:-.02em;margin-top:2px">${state.points.toLocaleString()}</div>
+    <div style="font-size:12.5px;opacity:.92">🔥 ${state.streak}-day streak · shared with Waterproofing+</div>
+  </div>
+
+  <div class="sect">Redeem</div>
+  ${state.rewards.map((r,i)=>`
+    <div class="card"><div class="row sb"><div class="row"><div class="ico" style="background:#fbf1cf;font-size:19px">${r.e}</div><div><div class="b" style="font-size:13.5px">${r.t}</div><div class="muted" style="font-size:12px">${r.c.toLocaleString()} pts</div></div></div>
+    <button class="btn ${state.points>=r.c?'aqua':'ghost'} sm" ${state.points>=r.c?`onclick="redeem(${i})"`:'disabled style=\"opacity:.5\"'}>${state.points>=r.c?'Redeem':'Locked'}</button></div></div>`).join('')}
+
+  <div class="sect">Leaderboard · this quarter</div>
+  <div class="card">
+    ${sorted.map((c,i)=>`
+      <div class="lb ${c.me?'me':''}">
+        <div class="rank ${i<3?'g'+(i+1):''}">${i<3?['🥇','🥈','🥉'][i]:i+1}</div>
+        <div class="avatar" style="width:34px;height:34px;font-size:12px;background:${c.color}">${c.init}</div>
+        <div class="grow b" style="font-size:13.5px">${c.name}${c.me?' (you)':''}</div>
+        <div class="b" style="color:var(--brand)">${c.pts.toLocaleString()}</div>
+      </div>`).join('')}
+  </div>
+
+  <div class="sect">Badges</div>
+  <div class="grid3">
+    ${badge('🛡️','Zero Incidents',1)}${badge('🔥','7-Day Streak',state.streak>=7?1:0)}${badge('⭐','5★ Review',1)}
+    ${badge('🎓','Certs Current',1)}${badge('🧭','SWOT Done',0)}${badge('🏆','Top 3',0)}
+  </div>`;
+}
+function badge(e,t,on){return `<div class="badge-tile ${on?'':'lock'}"><div class="be">${e}</div><div class="bt">${t}</div></div>`;}
+
+// ---------------- MANAGER VIEWS ----------------
+function mgrTeam(){
+  const flags=state.crew.reduce((a,c)=>{
+    if(c.reviewIn<=7)a.rev++;
+    if(!c.office && (topCert(c).status==='crit'||topCert(c).status==='warn'))a.cert++;
+    if(c.bday)a.bday++; return a;
+  },{rev:0,cert:0,bday:0});
+  return `
+  <div class="grid3">
+    <div class="stat"><div class="n" style="color:var(--warn)">${flags.rev}</div><div class="k">Reviews due</div></div>
+    <div class="stat"><div class="n" style="color:var(--crit)">${flags.cert}</div><div class="k">Cert flags</div></div>
+    <div class="stat"><div class="n">${flags.bday}</div><div class="k">Birthday 🎂</div></div>
+  </div>
+
+  <div class="sect">Needs you this week</div>
+  <div class="card">
+    <div class="listitem" onclick="openMember('jesse')" style="cursor:pointer"><div class="ico" style="background:#fbe6e6">🩹</div><div class="grow"><div class="b" style="font-size:13.5px">Jesse — Level 1 First Aid expired</div><div class="muted" style="font-size:12px">renew now · required on site</div></div><span class="pill crit">Act</span></div>
+    <div class="listitem" onclick="openMember('logan')" style="cursor:pointer"><div class="ico" style="background:#fbe6e6">🛡️</div><div class="grow"><div class="b" style="font-size:13.5px">Logan — no certs on file</div><div class="muted" style="font-size:12px">full audit needed before high-risk work</div></div><span class="pill crit">Audit</span></div>
+    <div class="listitem" onclick="openMember('jesse')" style="cursor:pointer"><div class="ico" style="background:#fdf1da">😷</div><div class="grow"><div class="b" style="font-size:13.5px">Jesse — Fit Test likely overdue</div><div class="muted" style="font-size:12px">last tested Sep 2025 · confirm & rebook</div></div><span class="pill warn">Check</span></div>
+    <div class="listitem" onclick="openMember('rogers')" style="cursor:pointer"><div class="ico" style="background:#fdf1da">📝</div><div class="grow"><div class="b" style="font-size:13.5px">Rogers' quarterly review in 6 days</div></div><span class="pill warn">Prep</span></div>
+    <div class="listitem"><div class="ico" style="background:#fbf1cf">🎂</div><div class="grow"><div class="b" style="font-size:13.5px">Shane's birthday Thursday</div></div><span class="pill gold">2d</span></div>
+  </div>
+
+  <div class="sect">Team roster <span class="muted" style="font-weight:600;text-transform:none;letter-spacing:0">${state.crew.length} on file · +1 tech to add</span></div>
+  ${state.crew.map(c=>`
+    <div class="card tap" onclick="openMember('${c.id}')">
+      <div class="row">
+        <div class="avatar" style="width:42px;height:42px;font-size:14px;background:${c.color}">${c.init}</div>
+        <div class="grow">
+          <div class="row sb"><div class="b" style="font-size:14.5px">${c.name}</div>${c.bday?'<span class="pill gold">🎂 '+c.bday+'</span>':''}</div>
+          <div class="muted" style="font-size:12px">${c.role}</div>
+          <div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">
+            <span class="pill ${c.reviewIn<=7?'warn':'brand'}">📝 Review ${c.reviewIn}d</span>
+            ${c.office?'<span class="pill brand">🏢 Office</span>':certChip(topCert(c))}
+          </div>
+        </div>
+        <div class="muted" style="font-size:20px">›</div>
+      </div>
+    </div>`).join('')}`;
+}
+
+function mgrMember(id){
+  const c=state.crew.find(x=>x.id===id);
+  return `
+  <div class="card" style="background:linear-gradient(140deg,#123a6d,#1c5cab);color:#fff;border:0">
+    <div class="row">
+      <div class="avatar" style="width:52px;height:52px;font-size:18px;background:rgba(255,255,255,.2)">${c.init}</div>
+      <div class="grow"><div class="b" style="font-size:18px">${c.name}</div><div style="opacity:.88;font-size:12.5px">${c.role}</div></div>
+    </div>
+    <div class="grid3" style="margin-top:14px;gap:8px">
+      <div><div class="b" style="font-size:18px">${c.pts.toLocaleString()}</div><div style="opacity:.8;font-size:11px">points</div></div>
+      <div><div class="b" style="font-size:18px">${c.kpi}%</div><div style="opacity:.8;font-size:11px">KPIs</div></div>
+      <div><div class="b" style="font-size:18px">${c.reviewIn}d</div><div style="opacity:.8;font-size:11px">to review</div></div>
+    </div>
+  </div>
+
+  <div class="tabs" id="memTabs">
+    <button class="on" data-sv="ov">Overview</button>
+    <button data-sv="rev">Reviews</button>
+    <button data-sv="kpi">KPIs</button>
+    <button data-sv="cert">Certs</button>
+    <button data-sv="note">Notes</button>
+  </div>
+
+  <div class="subview on" data-sv="ov">
+    <div class="card confidential">
+      <div class="row sb" style="margin-bottom:6px"><div class="b">Compensation & bonus</div><span class="pill lock">🔒 Admin only</span></div>
+      <div class="row sb" style="font-size:13.5px"><span class="ink2">Pay band</span><span class="b">Band C</span></div>
+      <div class="row sb" style="font-size:13.5px;margin-top:6px"><span class="ink2">Bonus (Dec profit-share)</span><span class="b">Role weight ×1.0</span></div>
+      <div class="row sb" style="font-size:13.5px;margin-top:6px"><span class="ink2">Performance factor</span><span class="b" style="color:#0a7d0a">Meets · on track 🟢</span></div>
+      <div class="muted" style="font-size:11px;margin-top:8px">Profit pool × role weight × performance — visible trajectory, dollars admin-only. Hidden from crew entirely.</div>
+    </div>
+    <div class="card"><div class="b" style="margin-bottom:4px">Job description</div><div class="muted" style="font-size:12.5px">v3 · ${c.role} · responsibilities, required certs & KPIs attached</div></div>
+    <div class="card"><div class="row sb"><div><div class="b">Start date</div><div class="muted" style="font-size:12.5px">Employment anniversary tracked</div></div><span class="b">Mar 2023</span></div></div>
+  </div>
+
+  <div class="subview" data-sv="rev">
+    <div class="card">
+      <div class="b" style="margin-bottom:10px">Q3 review · benchmarks</div>
+      ${benchRow('Quality / right first time',5)}
+      ${benchRow('Safety leadership',5)}
+      ${benchRow('Paperwork & logging',3)}
+      ${benchRow('Team & communication',4)}
+      <div style="margin-top:12px"><div class="modhint b" style="color:var(--ink-2);margin-bottom:5px">Written feedback</div>
+      <div class="card" style="background:var(--card-2);box-shadow:none;margin:0"><div style="font-size:13px;line-height:1.5;color:var(--ink-2)">Reliable and safety-minded; crew looks up to him. Focus this quarter: log tool & material usage same-day to tighten reorder accuracy.</div></div></div>
+      <button class="btn primary" style="margin-top:12px">Save & schedule next</button>
+    </div>
+    <div class="card confidential">
+      <div class="row sb"><div class="b">Write-ups / discipline</div><span class="pill lock">🔒 Confidential</span></div>
+      <div class="muted" style="font-size:12.5px;margin-top:6px">No active write-ups. Records here require employee acknowledgement and never appear in the crew view.</div>
+    </div>
+  </div>
+
+  <div class="subview" data-sv="kpi">
+    ${kpiRow('Jobs on schedule','92%','92','','aqua')}
+    ${kpiRow('Callback / rework','1.4%','88','','warn','Target under 2%')}
+    ${kpiRow('Safety incidents','0','100','','aqua','Zero target')}
+    ${kpiRow('Material loss','3.1%','76','','warn','From Waterproofing+')}
+  </div>
+
+  <div class="subview" data-sv="cert">
+    <div class="card">
+      ${c.office?'<div class="muted" style="font-size:13px;padding:6px 0">Office role — no field certifications tracked.</div>':(c.certs.length?c.certs.map(x=>certLine(x.label,x.status,x.note)).join(''):`<div class="row" style="padding:6px 0"><span class="pill crit">🔴 ${c.flag||'No certs on file'}</span></div>`)}
+    </div>
+  </div>
+
+  <div class="subview" data-sv="note">
+    <div class="card">
+      <div class="b" style="margin-bottom:10px">1:1 meeting notes</div>
+      <div class="timeline">
+        <div class="tl"><div class="b" style="font-size:13.5px">Weekly 1:1 — Jul 14</div><div class="muted" style="font-size:12px">Action: order First Aid renewal (due Jul 21) · Owner: Dave</div></div>
+        <div class="tl pos"><div class="b" style="font-size:13.5px">Recognition — Jul 10</div><div class="muted" style="font-size:12px">Caught drainage gap before backfill on Blackcrete</div></div>
+        <div class="tl"><div class="b" style="font-size:13.5px">Weekly 1:1 — Jul 7</div><div class="muted" style="font-size:12px">Discussed apprentice mentoring</div></div>
+      </div>
+      <button class="btn ghost" style="margin-top:12px">+ Add note / action item</button>
+    </div>
+  </div>`;
+}
+function benchRow(t,score){
+  return `<div class="row sb" style="margin-bottom:11px"><div class="grow" style="font-size:13px">${t}</div><div class="rate">${[1,2,3,4,5].map(n=>`<span class="${n<=score?'on':''}">${n}</span>`).join('')}</div></div>`;
+}
+
+function mgrReviews(){
+  const up=[...state.crew].sort((a,b)=>a.reviewIn-b.reviewIn);
+  return `
+  <div class="sect">Review pipeline</div>
+  <div class="fabnote" style="margin-bottom:14px">The nudge engine counts down to every review — probation 30/60/90, quarterly, and annual — and reminds you the week before, so reviews stop slipping.</div>
+  ${up.map(c=>`
+    <div class="card tap" onclick="openMember('${c.id}')">
+      <div class="row"><div class="avatar" style="width:38px;height:38px;font-size:13px;background:${c.color}">${c.init}</div>
+      <div class="grow"><div class="b" style="font-size:14px">${c.name}</div><div class="muted" style="font-size:12px">${c.reviewIn<=2?'Quarterly · this week':c.reviewIn<=16?'Quarterly check-in':'Annual review'}</div></div>
+      <span class="pill ${c.reviewIn<=7?'warn':'brand'}">${c.reviewIn}d</span></div>
+    </div>`).join('')}`;
+}
+
+function mgrComply(){
+  const field=state.crew.filter(c=>!c.office);
+  let nCrit=0,nWarn=0,nAudit=0;
+  field.forEach(c=>{ if(!c.certs.length){nCrit++;} c.certs.forEach(x=>{if(x.status==='crit')nCrit++;else if(x.status==='warn')nWarn++;else if(x.status==='audit')nAudit++;});});
+  const order=c=>STATUS_ORDER[topCert(c).status];
+  const sorted=[...field].sort((a,b)=>order(a)-order(b));
+  return `
+  <div class="grid3">
+    <div class="stat"><div class="n" style="color:var(--crit)">${nCrit}</div><div class="k">Expired / gap</div></div>
+    <div class="stat"><div class="n" style="color:var(--warn)">${nWarn}</div><div class="k">Renew soon</div></div>
+    <div class="stat"><div class="n" style="color:var(--muted)">${nAudit}</div><div class="k">Date needed</div></div>
+  </div>
+  <div class="card" style="background:var(--crit-soft);border-color:#eecaca">
+    <div class="b" style="color:#b32424;margin-bottom:4px">⚠️ ${nAudit} certs have no expiry date on file</div>
+    <div class="muted" style="font-size:12px">Add issue/expiry dates so the 60/30/7-day alerts can fire — start with Fit Test and First Aid.</div>
+  </div>
+
+  <div class="sect">Certification watch · field crew</div>
+  ${sorted.map(c=>{
+    const rows = c.certs.length ? c.certs.sort((a,b)=>STATUS_ORDER[a.status]-STATUS_ORDER[b.status]).map(x=>`
+        <div class="row sb" style="padding:7px 0;border-top:1px solid var(--line-2)"><div class="row" style="gap:8px"><span class="dot" style="background:var(--${x.status==='good'?'good':x.status==='warn'?'warn':x.status==='crit'?'crit':'muted'})"></span><span style="font-size:13px">${x.label}</span></div><span class="muted" style="font-size:11.5px">${x.note}</span></div>`).join('')
+      : `<div class="row" style="padding:8px 0;border-top:1px solid var(--line-2)"><span class="pill crit">🔴 ${c.flag||'No certs on file'}</span></div>`;
+    return `
+    <div class="card tap" onclick="openMember('${c.id}')">
+      <div class="row" style="margin-bottom:2px"><div class="avatar" style="width:34px;height:34px;font-size:12px;background:${c.color}">${c.init}</div>
+      <div class="grow b" style="font-size:14px">${c.name}</div>${certChip(topCert(c))}</div>
+      ${rows}
+    </div>`;}).join('')}
+  <div class="fabnote">🔔 Alerts fire at 60 / 30 / 7 days and on expiry, to both the crew member and you.</div>
+  <button class="btn ghost" style="margin-top:12px" onclick="toast('📄 Compliance report exported (sample)')">Export compliance report (PDF/CSV)</button>`;
+}
+
+function mgrRewards(){
+  const sorted=[...state.crew].sort((a,b)=>b.pts-a.pts);
+  return `
+  <div class="sect">Recognize great work</div>
+  <div class="card">
+    <div class="row sb" style="margin-bottom:12px"><div class="row"><div class="ico" style="background:#e2f5ee;font-size:19px">⭐</div><div><div class="b">Log a glowing review</div><div class="muted" style="font-size:12px">Google or customer · awards points to the crew named</div></div></div></div>
+    <button class="btn aqua" onclick="logReview()">+ Log 5★ review · award +200</button>
+  </div>
+  <div class="card">
+    <div class="row sb"><div class="row"><div class="ico" style="background:#e7f0fb;font-size:19px">🎁</div><div><div class="b">Award bonus points</div><div class="muted" style="font-size:12px">Hit a goal, safety milestone, extra effort</div></div></div>
+    <button class="btn ghost sm" onclick="addPts(100,'Bonus points awarded to Jesse')">+100</button></div>
+  </div>
+
+  <div class="sect">Leaderboard · company</div>
+  <div class="card">
+    ${sorted.map((c,i)=>`<div class="lb"><div class="rank ${i<3?'g'+(i+1):''}">${i<3?['🥇','🥈','🥉'][i]:i+1}</div><div class="avatar" style="width:34px;height:34px;font-size:12px;background:${c.color}">${c.init}</div><div class="grow b" style="font-size:13.5px">${c.name}</div><div class="b" style="color:var(--brand)">${c.pts.toLocaleString()}</div></div>`).join('')}
+  </div>
+  <div class="fabnote">Points are one shared wallet with Waterproofing+ — perfect truck-task days and glowing reviews both feed this board.</div>`;
+}
+
+function mgrMore(){
+  const item=(e,t,s)=>`<div class="listitem"><div class="ico" style="background:var(--card-2)">${e}</div><div class="grow"><div class="b" style="font-size:13.5px">${t}</div><div class="muted" style="font-size:12px">${s}</div></div><div class="muted">›</div></div>`;
+  return `
+  <div class="sect">Cadence & nudge engine</div>
+  <div class="card">
+    ${item('🗓️','Recurring nudges','Daily value · weekly exercise · monthly ritual')}
+    ${item('🧭','Quarterly SWOT + feedback form','Auto-sent before reviews')}
+    ${item('🎂','Birthdays & work anniversaries','Auto reminders to managers')}
+    ${item('🔔','Push & email digests','Web push + manager weekly email')}
+  </div>
+  <div class="sect">Configure</div>
+  <div class="card">
+    ${item('🎯','Company values & exercises','4 values · edit rituals')}
+    ${item('📊','KPI templates by role','Set targets per role')}
+    ${item('🏆','Rewards catalog','5 rewards · point costs')}
+    ${item('👤','Roles & access','Crew · Manager · Admin')}
+  </div>
+  <div class="sect">Reports</div>
+  <div class="card">
+    <button class="btn ghost" style="margin-bottom:10px" onclick="toast('📄 Review summary exported (sample)')">Export review summary (PDF/CSV)</button>
+    <button class="btn ghost" style="margin-bottom:10px" onclick="toast('📄 Compliance report exported (sample)')">Export compliance report</button>
+    <button class="btn ghost" onclick="toast('📄 Bonus report exported — admin only')">Export bonus report 🔒</button>
+  </div>`;
+}
+
+// ---------------- router ----------------
+const VIEWS={
+  'c-home':crewHome,'c-values':crewValues,'c-growth':crewGrowth,'c-rewards':crewRewards,
+  'm-team':mgrTeam,'m-reviews':mgrReviews,'m-comply':mgrComply,'m-rewards':mgrRewards,'m-more':mgrMore,
+};
+let current = 'c-home';
+let memberOpen = null;
+
+function render(){
+  const scr=$('#screen');
+  let html;
+  if(memberOpen){ html = mgrMember(memberOpen); }
+  else { html = VIEWS[current](); }
+  scr.innerHTML = `<div class="view on">${html}</div>`;
+  scr.scrollTop=0;
+  bindSub();
+}
+function go(v){
+  memberOpen=null; current=v;
+  const navset = state.role==='crew'?'#navCrew':'#navMgr';
+  document.querySelectorAll(navset+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  render();
+}
+function openMember(id){ memberOpen=id; render(); updateHeaderForMember(id); }
+
+function bindSub(){
+  document.querySelectorAll('.tabs').forEach(tabs=>{
+    tabs.querySelectorAll('button').forEach(b=>{
+      b.onclick=()=>{
+        tabs.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+        b.classList.add('on');
+        const host=tabs.parentElement;
+        host.querySelectorAll('.subview').forEach(sv=>sv.classList.toggle('on',sv.dataset.sv===b.dataset.sv));
+      };
+    });
+  });
+}
+function subgo(sv){ // jump to a subtab after navigating
+  setTimeout(()=>{const b=document.querySelector(`.tabs button[data-sv="${sv}"]`)||document.querySelector(`#${sv}`); if(b&&b.click)b.click(); else if(b)b.scrollIntoView({behavior:'smooth'});},60);
+}
+
+// nav wiring
+document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.v)));
+
+// ---------------- header + role ----------------
+function setRole(r){
+  state.role=r; memberOpen=null;
+  $('#roleCrew').classList.toggle('on',r==='crew');
+  $('#roleMgr').classList.toggle('on',r==='mgr');
+  $('#navCrew').classList.toggle('on',r==='crew');
+  $('#navMgr').classList.toggle('on',r==='mgr');
+  if(r==='crew'){ current='c-home'; setHeader('Good morning','Jesse','Technician · Waterproofing crew','JE','linear-gradient(135deg,#2fc79a,#12a37a)'); }
+  else { current='m-team'; setHeader('Admin view','Operations','Ops / Marketing / Accounting · 12 people','OP','linear-gradient(135deg,#4a3aa7,#2a78d6)'); }
+  document.querySelectorAll('.navset.on button').forEach((b,i)=>b.classList.toggle('on',i===0));
+  render();
+}
+function setHeader(eye,title,sub,init,grad){
+  $('#hEyebrow').textContent=eye; $('#hTitle').textContent=title; $('#hSub').textContent=sub;
+  const a=$('#hAvatar'); a.textContent=init; a.style.background=grad;
+}
+function updateHeaderForMember(id){
+  const c=state.crew.find(x=>x.id===id);
+  setHeader('Team member',c.name,c.role,c.init,`linear-gradient(135deg,${c.color},${c.color})`);
+}
+
+// ---------------- interactions ----------------
+const RITUAL_PTS={daily:30,weekly:40,monthly:60};
+function markRitual(k,btn){
+  if(state.rituals[k]) return;
+  state.rituals[k]=true;
+  if(k==='daily'&&!state._streakBumped){ state.streak++; state._streakBumped=true; }
+  addPts(RITUAL_PTS[k], k[0].toUpperCase()+k.slice(1)+' ritual done');
+}
+function redeem(i){
+  const r=state.rewards[i];
+  if(state.points<r.c)return;
+  state.points-=r.c; state.crew.find(c=>c.me).pts-=r.c;
+  toast(`🎉 Redeemed: ${r.t}`); render();
+}
+function logReview(){
+  state.crew.find(c=>c.me).pts+=200; state.points+=200;
+  toast('⭐ 5★ review logged · +200 to the crew'); render();
+}
+
+// boot
+render();
+</script>
+</body>
+</html>

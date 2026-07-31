@@ -1,0 +1,17 @@
+{
+  "name": "Crew+",
+  "short_name": "Crew+",
+  "description": "Van Isle Water Proofing+ people and performance platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#14A2A4",
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

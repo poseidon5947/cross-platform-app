@@ -1,0 +1,7 @@
+
+> van-isle-crew-plus@0.1.0 preview
+> vite preview --host 0.0.0.0 --host 0.0.0.0 --port 4175
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m4175[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://198.19.255.253:[1m4175[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.142.100:[1m4175[22m/[39m

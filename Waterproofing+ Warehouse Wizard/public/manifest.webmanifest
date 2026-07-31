@@ -1,0 +1,15 @@
+{
+  "name": "Van Isle Water Proofing+ Warehouse Wizard",
+  "short_name": "Warehouse Wizard",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#14A2A4",
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}

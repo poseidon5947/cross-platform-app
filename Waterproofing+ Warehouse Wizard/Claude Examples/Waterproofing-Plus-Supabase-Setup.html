@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Waterproofing+ · Connect the Database (Supabase)</title>
+<style>
+  :root{--ink:#132135;--ink2:#5a6b82;--ink3:#8a99ad;--line:#e2e8f1;
+    --primary:#0b6ea8;--deep:#0b3d61;--accent:#12b3a6;--good:#1f9d63;--warn:#c9820a;--bad:#d0453b;--surf:#f4f7fb;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);line-height:1.6;background:#eef2f7}
+  .page{max-width:820px;margin:0 auto;background:#fff;box-shadow:0 4px 30px rgba(11,61,97,.1)}
+  header{background:linear-gradient(135deg,var(--deep),var(--primary));color:#fff;padding:34px 40px 30px}
+  header .kicker{font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.85;font-weight:700}
+  header h1{margin:6px 0 4px;font-size:29px;letter-spacing:-.5px}
+  header p{margin:0;opacity:.92;font-size:15px;max-width:580px}
+  .body{padding:14px 40px 44px}
+  h2{font-size:20px;color:var(--deep);margin:32px 0 4px;display:flex;align-items:center;gap:12px}
+  h2 .n{background:var(--accent);color:#04302c;width:30px;height:30px;border-radius:9px;display:inline-grid;place-items:center;font-size:15px;font-weight:800;flex:0 0 auto}
+  h3{font-size:15px;color:var(--deep);margin:18px 0 4px}
+  p{margin:8px 0}.lead{color:var(--ink2)}
+  ol,ul{margin:8px 0;padding-left:22px}li{margin:7px 0}
+  code{background:var(--surf);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:13px;font-family:ui-monospace,Menlo,monospace;color:var(--deep)}
+  .card{background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:14px 0}
+  .tip{border-left:4px solid var(--accent);background:#eafaf8;border-radius:0 10px 10px 0;padding:12px 16px;margin:14px 0;font-size:14.5px}
+  .warn{border-left:4px solid var(--warn);background:#fdf6e7;border-radius:0 10px 10px 0;padding:12px 16px;margin:14px 0;font-size:14.5px}
+  .stop{border-left:4px solid var(--bad);background:#fbe9e7;border-radius:0 10px 10px 0;padding:12px 16px;margin:14px 0;font-size:14.5px}
+  b.hl{color:var(--deep)}
+  .foot{border-top:2px solid var(--line);margin-top:32px;padding-top:16px;color:var(--ink3);font-size:13px}
+  .send{background:var(--deep);color:#fff;border-radius:12px;padding:18px 20px;margin:16px 0}
+  .send b{color:#fff}.send code{background:rgba(255,255,255,.15);border:0;color:#fff}
+  @media print{body{background:#fff}.page{box-shadow:none}header,.send{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="kicker">Waterproofing+ · Real App, Step 1</div>
+    <h1>Create your free database</h1>
+    <p>This gives your app a shared "brain" so every phone sees the same live inventory, tools and trucks — while keeping the exact design you liked. About 10 minutes. No coding on your end.</p>
+  </header>
+  <div class="body">
+
+    <div class="card">
+      <b class="hl">You'll need two files I sent you:</b>
+      <ul>
+        <li><code>waterproofing-plus-supabase-setup.sql</code> — the script that builds your database, pre-filled with your real data.</li>
+        <li>(Later) the app file — I'll send the connected version once your database is up.</li>
+      </ul>
+      <p class="lead" style="margin-bottom:0">Think of Supabase as a free, secure filing cabinet in the cloud. Your app reads from and writes to it, so everyone shares one set of records.</p>
+    </div>
+
+    <h2><span class="n">1</span> Make a Supabase account &amp; project</h2>
+    <ol>
+      <li>Go to <code>supabase.com</code> and click <b class="hl">Start your project</b> (sign in with your Google account — one click).</li>
+      <li>Click <b class="hl">New project</b>.</li>
+      <li>Name it <b>Waterproofing</b>. It will ask you to create a <b class="hl">database password</b> — type any strong password and <b>save it somewhere</b> (you likely won't need it day-to-day, but keep it).</li>
+      <li>Pick the region closest to you, then <b class="hl">Create new project</b>. Give it a minute or two to set up.</li>
+    </ol>
+
+    <h2><span class="n">2</span> Build the tables (one paste)</h2>
+    <ol>
+      <li>In your new project, look at the left sidebar and click <b class="hl">SQL Editor</b>.</li>
+      <li>Click <b class="hl">New query</b>.</li>
+      <li>Open <code>waterproofing-plus-supabase-setup.sql</code> on your computer, select <b class="hl">all of it</b> (Cmd/Ctrl + A), copy, and paste it into the big empty box.</li>
+      <li>Click <b class="hl">Run</b> (bottom right). It should say <i>Success</i>.</li>
+    </ol>
+    <div class="tip">💡 To confirm it worked: click <b>Table Editor</b> in the sidebar. You should see tables like <code>materials</code>, <code>tools</code>, <code>trucks</code> — open <code>materials</code> and you'll see all 45 of your real items. That means your data is live in the cloud. 🎉</div>
+    <p class="lead">If any line shows a red error, don't worry — copy the error text and send it to me, and I'll fix the script.</p>
+
+    <h2><span class="n">3</span> Grab the two values I need</h2>
+    <p>These let the app talk to your database. Both are meant to live inside the app, so they're safe to share with me.</p>
+    <ol>
+      <li>In the sidebar, click the <b class="hl">gear icon (Project Settings)</b> at the bottom.</li>
+      <li>Click <b class="hl">API</b> (or "API Keys").</li>
+      <li>Copy these two things:
+        <ul>
+          <li><b class="hl">Project URL</b> — looks like <code>https://abcdxyz.supabase.co</code></li>
+          <li><b class="hl">anon public</b> key — a long string labelled <code>anon</code> / <code>public</code>.</li>
+        </ul>
+      </li>
+    </ol>
+
+    <div class="stop">🛑 <b>Important:</b> on that same page you'll also see a <b>service_role</b> / <b>secret</b> key. <b>Do NOT share that one</b> — with anyone, ever. I only need the <b>anon public</b> key (the public one). If you're ever unsure which is which, just tell me the labels you see and I'll point to the right one.</div>
+
+    <div class="send">
+      <b>➡️ Send me these two, and I'll finish the app:</b>
+      <p style="margin:8px 0 0"><b>Project URL:</b> &nbsp;<code>https://__________.supabase.co</code></p>
+      <p style="margin:6px 0 0"><b>anon public key:</b> &nbsp;<code>eyJhbGciOi… (the long one)</code></p>
+    </div>
+
+    <h2><span class="n">4</span> What happens next (my part)</h2>
+    <p>Once you send those two values, I will:</p>
+    <ul>
+      <li>Connect the app you liked to <b>your</b> database and test that logging, tools, trucks and the checklist all save and sync.</li>
+      <li>Send you back the finished app file, plus dead-simple steps to put it online (a free link + QR the crew scans).</li>
+      <li>Help you add crew logins so each person signs in and shares the same live data.</li>
+    </ul>
+
+    <div class="foot">
+      Waterproofing+ · Below-grade waterproofing operations. Supabase's free tier is plenty for a crew your size; you can upgrade later if you outgrow it. Your data stays in your own Supabase project, which you own and control.
+    </div>
+  </div>
+</div>
+</body>
+</html>
