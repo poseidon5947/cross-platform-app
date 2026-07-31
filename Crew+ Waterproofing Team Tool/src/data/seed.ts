@@ -93,9 +93,12 @@ export const demoUsers: Profile[] = [
   member("u8", "EMP-008", "Tara", "Clark", "Tara", "Operations / Admin", "Office", "CEO / Owner", "04-03", "ops@vanislecoatings.com", "778-688-0759", "#14A2A4"),
   member("u9", "EMP-009", "Bobby", "Wagner", "Bobby", "Caulker", "Field", "CEO / Owner", "02-11", "bymsid@gmail.com", "250-589-3697", "#456b8c"),
   member("u10", "EMP-010", "Ray", "Boudreault", "Ray", "Caulker", "Field", "CEO / Owner", "", "rayboudreault@yahoo.ca", "250-880-2489", "#7c6f52"),
-  member("u11", "EMP-011", "Jacob", "Soto", "Jacob", "Technician", "Field", "CEO / Owner", "", "jacob.valentin.soto@gmail.com", "(250) 882-8666", "#c53030"),
+  member("u11", "EMP-011", "Jacob", "V", "Jacob V", "Technician", "Field", "CEO / Owner", "", "jacob.valentin.soto@gmail.com", "(250) 882-8666", "#c53030"),
   member("u12", "EMP-012", "Finance", "Admin", "CFO", "CFO", "Office", "CEO / Owner", "", "finance@vanislecoatings.com", "", "#37526d"),
-];
+  member("u13", "EMP-013", "Matthew", "Chester", "Matthew", "Crew Lead", "Field", "CEO / Owner", "", "matthew.chester@skynetcfo.com", "", "#245b84"),
+  member("u14", "EMP-014", "Desmond", "Scott", "Desmond", "Technician", "Field", "CEO / Owner", "", "desmondscot@gmail.com", "", "#6b7280"),
+  member("u15", "EMP-015", "Ken", "Taylor", "Ken", "Technician", "Field", "CEO / Owner", "", "ken.taylor@example.com", "", "#8b5e34"),
+].map(applyReviewRoster);
 
 export const certificationTypes: CertificationType[] = [
   certType("ct-whmis", "WHMIS", "Safety", 12, "60;30;7", "All field", "Confirm refresher cadence"),
@@ -109,29 +112,15 @@ export const certificationTypes: CertificationType[] = [
 ];
 
 export const values: ValueItem[] = [
-  value("v1", "Safety First, Always"),
-  value("v2", "Do It Right the First Time"),
-  value("v3", "Own the Outcome"),
-  value("v4", "Leave It Better"),
-  value("v5", "Grow the Crew"),
+  value("v-clear", "Clear", "Open, straightforward communication."),
+  value("v-helpful", "Helpful", "We go out of our way to solve problems and make your project easier to manage."),
+  value("v-professional", "Professional", "Reliable, safety-first work delivered to a consistently high standard, every time."),
 ];
 
 export const valueRituals: ValueRitual[] = [
-  ritual("v1", "Safety First, Always", "daily", "30-sec pre-job hazard call-out, logged by Crew Lead", "Name today's top hazard and the control", 5),
-  ritual("v1", "Safety First, Always", "weekly", "Share one near-miss or catch (no blame)", "Crew discusses one prevention", 5),
-  ritual("v1", "Safety First, Always", "monthly", "10-min toolbox talk, led by a different tech", "Rotate the presenter", 5),
-  ritual("v2", "Do It Right the First Time", "daily", "Log one thing you'd be happy to inspect yourself", "Photo/note the detail", 5),
-  ritual("v2", "Do It Right the First Time", "weekly", "Review any callback/rework and the fix", "Root-cause in 2 lines", 5),
-  ritual("v2", "Do It Right the First Time", "monthly", "Quality win of the month recognized", "Team nominates", 5),
-  ritual("v3", "Own the Outcome", "daily", "Close your own tool/material logging same-day", "No next-morning cleanup", 5),
-  ritual("v3", "Own the Outcome", "weekly", "Move or close every open 1:1 action item", "Update owner/date", 5),
-  ritual("v3", "Own the Outcome", "monthly", "Name one thing to take fuller ownership of", "Set the intention", 5),
-  ritual("v4", "Leave It Better", "daily", "Photo the site as you leave it", "Before/after", 5),
-  ritual("v4", "Leave It Better", "weekly", "One improvement to a truck, process, or warehouse", "Log the idea", 5),
-  ritual("v4", "Leave It Better", "monthly", "Team vote on the cleanest, most professional job site", "Team nominates", 5),
-  ritual("v5", "Grow the Crew", "daily", "Apprentices log one thing learned; leads log one thing taught", "One sentence reflection", 5),
-  ritual("v5", "Grow the Crew", "weekly", "Senior tech shadows or coaches one skill", "Log skill coached", 5),
-  ritual("v5", "Grow the Crew", "monthly", "Progress one cert or skill goal per person", "Pick next milestone", 5),
+  ritual("v-clear", "Clear", "weekly", "Monday 6:30am crew meeting value-share", "Share one clear communication moment from the week", 5),
+  ritual("v-helpful", "Helpful", "weekly", "Monday 6:30am crew meeting value-share", "Share one way you made a project easier to manage", 5),
+  ritual("v-professional", "Professional", "weekly", "Monday 6:30am crew meeting value-share", "Share one safety-first professional standard you upheld", 5),
 ];
 
 export const earningRules: EarningRule[] = [
@@ -142,6 +131,7 @@ export const earningRules: EarningRule[] = [
   earn("earn-daily", "Daily value ritual", 5, "crew", undefined, true),
   earn("earn-weekly", "Weekly value exercise", 5, "crew", undefined, true),
   earn("earn-monthly", "Monthly value ritual", 5, "crew", undefined, true),
+  earn("earn-cert-detail", "Certification details completed", 5, "crew"),
   // TODO confirm with client: "etc. +5" was applied to these non-named small-tier rules.
   earn("earn-swot", "Quarterly SWOT on time", 5, "crew"),
   earn("earn-feedback", "Company feedback form submitted", 5, "crew"),
@@ -188,35 +178,61 @@ export const kpis: Kpi[] = [
   kpi("kpi-ceo-2", "CEO / Owner", "Margin", "%", "Annual", "Accounting"),
   kpi("kpi-ceo-3", "CEO / Owner", "Retention", "%", "Annual", "HR"),
   kpi("kpi-ceo-4", "CEO / Owner", "Safety record", "count", "Annual", "Safety log"),
+  kpi("kpi-crew-attendance", "Technician", "Attendance", "100%", "Quarterly", "Payroll / schedule"),
+  kpi("kpi-crew-paperwork", "Technician", "Daily paperwork", "100%", "Quarterly", "Warehouse Wizard / Crew+"),
+  kpi("kpi-crew-safety", "Technician", "Safety violations", "Zero", "Quarterly", "Safety log"),
+  kpi("kpi-crew-complaints", "Technician", "Customer complaints", "Zero", "Quarterly", "Customer log"),
+  kpi("kpi-crew-rework", "Technician", "Rework", "Under target", "Quarterly", "Job records"),
+  kpi("kpi-crew-vehicle", "Technician", "Vehicle inspections", "Weekly", "Quarterly", "Warehouse Wizard"),
+  kpi("kpi-crew-training", "Technician", "Training completed", "Yes", "Quarterly", "Crew+ certs"),
 ];
 
 export const bonusConfig: BonusConfig = {
   id: "bonus-2026",
   profitSharePercent: 0,
   roleWeights,
-  ratingFactors: { below: 0.7, meets: 1, exceeds: 1.3 },
-  floorsCaps: "Optional guardrails - client to confirm minimum floor / maximum cap.",
+  ratingFactors: { 1: 0, 2: 0, 3: 0.02, 4: 0.04, 5: 0.06 },
+  floorsCaps: "Bonus is capped by average annual review score: 3 = up to 2%, 4 = up to 4%, 5 = up to 6%. Below 3 is not eligible.",
   tenureBump: 0,
-  payoutTiming: "December",
+  payoutTiming: "Payroll closest to Dec 25 after annual reviews two weeks prior",
   quarterlyComponent: false,
   whoConfirmsProfit: "CFO",
   whoApprovesPayouts: "CEO",
+  model: "gross_wages_review_score",
+  scoreBands: [
+    { average: 3, label: "Meets", maxPercent: 0.02 },
+    { average: 4, label: "Exceeds", maxPercent: 0.04 },
+    { average: 5, label: "Exceptional", maxPercent: 0.06 },
+  ],
+  eligibilityRules: [
+    "At least 6 months continuous employment",
+    "Participated in at least 2 quarterly reviews",
+    "Actively employed at payout",
+    "Not under notice",
+    "No verbal or written disciplinary action in last 3 months",
+    "No partial-period eligibility",
+  ],
+  discretionary: true,
+  reviewAverageSource: "Annual bonus average derives from the year's quarterly Overall Ratings.",
+  grossWagesPending: true,
 };
 
 export const bonusRoleWeights: BonusRoleWeight[] = Object.entries(bonusConfig.roleWeights).map(([orgRole, weight]) => ({ orgRole: orgRole as OrgRole, weight }));
 
 export const reviewTypes: ReviewTypeConfig[] = [
-  reviewType("rt-30", "Probation 30-day", "New hires", "Day 30", "Below / Meets / Exceeds", "Early fit & setup"),
-  reviewType("rt-60", "Probation 60-day", "New hires", "Day 60", "Below / Meets / Exceeds", "Progress check"),
-  reviewType("rt-90", "Probation 90-day", "New hires", "Day 90", "Below / Meets / Exceeds", "Confirm permanent"),
-  reviewType("rt-quarterly", "Quarterly check-in", "Everyone", "Q1-Q4 (15 min)", "Below / Meets / Exceeds", "Light: KPIs, SWOT, 1 up / 1 to work on"),
-  reviewType("rt-annual", "Annual review", "Everyone", "Once a year", "Below / Meets / Exceeds", "Full scorecard; feeds Dec bonus"),
+  reviewType("rt-30", "Probation 30-day", "New hires", "Day 30", "1-5", "Early fit & setup"),
+  reviewType("rt-60", "Probation 60-day", "New hires", "Day 60", "1-5", "Progress check"),
+  reviewType("rt-90", "Probation 90-day", "New hires", "Day 90", "1-5", "Confirm permanent"),
+  reviewType("rt-quarterly", "Quarterly check-in", "Everyone", "Each employee's quarter cycle", "1-5", "Coaching check-in; no payout"),
+  reviewType("rt-annual", "Annual review", "Everyone", "Two weeks before Dec payout", "1-5", "Employee Performance Scorecard; feeds Dec bonus"),
 ];
 
 export const ratingScale: RatingScaleDefinition[] = [
-  { value: 1, label: "below", meaning: "Not yet meeting the role's bar", performanceFactor: 0.7 },
-  { value: 2, label: "meets", meaning: "Solidly meeting expectations", performanceFactor: 1 },
-  { value: 3, label: "exceeds", meaning: "Consistently above the role's bar", performanceFactor: 1.3 },
+  { value: 1, label: "Unsatisfactory", meaning: "Does not meet role expectations", performanceFactor: 0 },
+  { value: 2, label: "Developing", meaning: "Inconsistent or needs support to meet expectations", performanceFactor: 0 },
+  { value: 3, label: "Meets", meaning: "Solidly meeting expectations", performanceFactor: 0.02 },
+  { value: 4, label: "Exceeds", meaning: "Often exceeds expectations", performanceFactor: 0.04 },
+  { value: 5, label: "Exceptional", meaning: "Consistently exceptional performance", performanceFactor: 0.06 },
 ];
 
 export const reviewCompetencies: ReviewCompetency[] = [
@@ -224,7 +240,7 @@ export const reviewCompetencies: ReviewCompetency[] = [
   competency("Safety compliance & leadership", "All", "Follows and models safe practice"),
   competency("Paperwork & logging discipline", "Field", "Accurate, same-day tool/material logs"),
   competency("Team & communication", "All", "Works well with crew, clear communication"),
-  competency("Lives the company values", "All", "Demonstrates the 5 values day to day"),
+  competency("Lives the company values", "All", "Demonstrates Clear, Helpful, and Professional day to day"),
   competency("Mentoring / development", "Crew Lead, Senior", "Grows others"),
 ];
 
@@ -236,6 +252,8 @@ export const jobDescriptions: JobDescription[] = [
 export const forms: CrewForm[] = [
   { id: "form-swot", name: "Quarterly SWOT", anonymousAllowed: false },
   { id: "form-feedback", name: "Company feedback form", anonymousAllowed: true },
+  { id: "form-quarterly-scorecard", name: "Quarterly Review Scorecard", anonymousAllowed: false },
+  { id: "form-annual-performance", name: "Employee Performance Scorecard", anonymousAllowed: false },
 ];
 
 export const formQuestions: CrewFormQuestion[] = [
@@ -247,18 +265,33 @@ export const formQuestions: CrewFormQuestion[] = [
   question("form-feedback", 2, "What's frustrating or slowing you down?", "Text", true, true),
   question("form-feedback", 3, "One idea to make us better?", "Text", false, true),
   question("form-feedback", 4, "How supported do you feel? (1-5)", "Scale 1-5", true, true),
+  question("form-quarterly-scorecard", 1, "Check-In and Discussion", "Text", true, false, "both"),
+  question("form-quarterly-scorecard", 2, "Company Support", "Text", true, false, "employee"),
+  question("form-quarterly-scorecard", 3, "KPI Review: Attendance 100%, Daily paperwork 100%, Safety violations Zero, Customer complaints Zero, Rework under target, Vehicle inspections weekly, Training completed Yes", "KPI Table", true, false, "employee"),
+  question("form-quarterly-scorecard", 4, "Workmanship Review", "Scale 1-5", true, false, "employee"),
+  question("form-quarterly-scorecard", 5, "Strengths", "Text", true, false, "employee"),
+  question("form-quarterly-scorecard", 6, "Opportunities", "Text", true, false, "employee"),
+  question("form-quarterly-scorecard", 7, "Quarterly Goals", "Text", true, false, "employee"),
+  question("form-quarterly-scorecard", 8, "Overall Rating", "Scale 1-5", true, false, "employee"),
+  question("form-quarterly-scorecard", 9, "Employee Comments", "Text", false, false, "employee"),
+  question("form-quarterly-scorecard", 10, "Review Job Description ratings", "Scale 1-5", true, false, "admin"),
+  question("form-quarterly-scorecard", 11, "Living Our Core Values: Accountability, Professionalism, Respect, Teamwork, Continuous Improvement", "Checkbox", true, false, "admin"),
+  question("form-quarterly-scorecard", 12, "Career Development", "Text", false, false, "admin"),
+  question("form-quarterly-scorecard", 13, "Feedback for Management", "Text", false, false, "admin"),
+  question("form-quarterly-scorecard", 14, "Manager Summary", "Text", true, false, "admin"),
+  question("form-annual-performance", 1, "Employee Performance Scorecard header: employee, role, review period, reviewer, annual review date", "Text", true, false, "both"),
+  question("form-annual-performance", 2, "Annual Overall Rating", "Scale 1-5", true, false, "both"),
+  question("form-annual-performance", 3, "Bonus eligibility gates confirmed", "Checkbox", true, false, "admin"),
 ];
 
 export const nudgeTemplates: Nudge[] = [
-  nudge("nudge-daily", "Daily value focus", "cadence", "Each morning", "Crew", "In-app + Push", "-", "ritual"),
-  nudge("nudge-weekly", "Weekly value exercise", "cadence", "Friday", "Crew", "In-app + Push", "-", "ritual"),
-  nudge("nudge-monthly", "Monthly value ritual", "cadence", "1st of month", "Crew", "In-app", "-", "ritual"),
+  nudge("nudge-weekly-value-share", "Monday value-share", "cadence", "Monday before 6:30am", "Crew", "In-app + Push", "Before meeting", "ritual"),
   nudge("nudge-swot", "Quarterly SWOT", "cadence", "Start of quarter", "Crew", "In-app + Push", "Before review", "swot"),
   nudge("nudge-feedback", "Company feedback form", "cadence", "Monthly", "Crew", "In-app", "-", "feedback"),
   nudge("nudge-birthday", "Birthday reminder", "date-driven", "On date", "Manager", "Push + Email", "Same day", "birthday"),
   nudge("nudge-anniversary", "Work anniversary", "date-driven", "On date", "Manager", "Push", "Same day", "anniversary"),
   nudge("nudge-cert", "Cert expiry alert", "date-driven", "60/30/7 days + expiry", "Crew + Manager", "Push + Email", "60/30/7 days", "cert"),
-  nudge("nudge-review", "Review countdown", "date-driven", "Before review date", "Manager", "Push + Email", "7 days", "review"),
+  nudge("nudge-review", "Quarterly review countdown", "date-driven", "Within 2 weeks of quarter end", "Manager", "Push + Email", "14 days", "review"),
   nudge("nudge-probation", "Probation checkpoint", "date-driven", "Day 30/60/90", "Manager", "Push", "On day", "review"),
   nudge("nudge-digest", "Manager weekly digest", "cadence", "Monday", "Manager", "Email", "-", "benefits"),
 ];
@@ -278,23 +311,24 @@ export const integrations: IntegrationDecision[] = [
 ];
 
 const certs: Certification[] = [
-  cert("cert-jesse-whmis", "u1", "ct-whmis", "WHMIS", undefined, undefined, "active", "Add issue/expiry date"),
-  cert("cert-jesse-hearing", "u1", "ct-hearing", "Hearing test", undefined, undefined, "active", "Add date"),
-  cert("cert-jesse-fa", "u1", "ct-first-aid", "Level 1 First Aid", undefined, undefined, "expired", "RENEW NOW - required on site"),
-  cert("cert-jesse-fit", "u1", "ct-fit", "Fit Test (respirator)", "2025-09-09", undefined, "expired", "Last tested 2025-09-09 - confirm & rebook"),
-  cert("cert-jesse-lift", "u1", "ct-lift", "Lift Operation", undefined, undefined, "active", "Add date"),
-  cert("cert-shane-lift", "u2", "ct-lift", "Lift Operation", undefined, undefined, "active", "Only cert on file - confirm others"),
-  cert("cert-jon-lift", "u3", "ct-lift", "Lift Operation", undefined, undefined, "active", "Add date"),
-  cert("cert-jon-fa", "u3", "ct-first-aid", "Level 1 First Aid", undefined, "2028-02-28", "active", "Expires Feb 2028"),
-  cert("cert-jon-fit", "u3", "ct-fit", "Fit Test (respirator)", undefined, undefined, "active", "Add date"),
-  cert("cert-jon-confined", "u3", "ct-confined", "Confined Spaces", undefined, undefined, "active", "Add date"),
-  cert("cert-josh-fall", "u4", "ct-fall", "Fall Arrest", undefined, undefined, "active", "Add date"),
-  cert("cert-josh-lift", "u4", "ct-lift", "Lift Operation", undefined, undefined, "active", "Add date"),
-  cert("cert-logan-none", "u5", "ct-whmis", "No certs on file", undefined, undefined, "missing", "Full audit needed before high-risk work"),
-  cert("cert-thorpe-lift", "u6", "ct-lift", "Lift Operation", undefined, undefined, "active", "Add date"),
-  cert("cert-thorpe-fa", "u6", "ct-first-aid", "Level 1 First Aid", undefined, "2028-02-28", "active", "Expires Feb 2028"),
-  cert("cert-thorpe-fit", "u6", "ct-fit", "Fit Test (respirator)", undefined, undefined, "active", "Add date"),
-  cert("cert-thorpe-confined", "u6", "ct-confined", "Confined Spaces", undefined, undefined, "active", "Add date"),
+  cert("cert-jesse-whmis", "u1", "ct-whmis", "WHMIS", undefined, undefined, "active", "Add course date, expiry, cert # and hard-copy photo"),
+  cert("cert-jesse-hearing", "u1", "ct-hearing", "Hearing test", undefined, undefined, "active", "Add course date, expiry, cert # and hard-copy photo"),
+  cert("cert-jesse-fa", "u1", "ct-first-aid", "Level 1 First Aid", undefined, undefined, "date_needed", "Add course date, expiry, cert # and hard-copy photo"),
+  cert("cert-jesse-fit", "u1", "ct-fit", "Fit Test (respirator)", undefined, undefined, "date_needed", "Add course date, expiry, cert # and hard-copy photo"),
+  cert("cert-jesse-lift", "u1", "ct-lift", "Lift Operation", undefined, undefined, "active", "Add course date, expiry, cert # and hard-copy photo"),
+  cert("cert-shane-lift", "u2", "ct-lift", "Lift Operation", undefined, undefined, "active", "Only cert on file"),
+  cert("cert-jon-lift", "u3", "ct-lift", "Lift Operation", undefined, undefined, "active", "Add details"),
+  cert("cert-jon-fa", "u3", "ct-first-aid", "Level 1 First Aid", undefined, undefined, "active", "Add details"),
+  cert("cert-jon-fit", "u3", "ct-fit", "Fit Test (respirator)", undefined, undefined, "active", "Add details"),
+  cert("cert-jon-confined", "u3", "ct-confined", "Confined Spaces", undefined, undefined, "active", "Add details"),
+  cert("cert-josh-confined", "u4", "ct-confined", "Confined Spaces", undefined, undefined, "active", "Add details"),
+  // TODO_CONFIRM: Logan Pardy has no certs on file in V2 intake; confirm this is a real gap, not missing data.
+  cert("cert-thorpe-lift", "u6", "ct-lift", "Lift Operation", undefined, undefined, "active", "Add details"),
+  cert("cert-thorpe-fa", "u6", "ct-first-aid", "Level 1 First Aid", undefined, undefined, "active", "Add details"),
+  cert("cert-thorpe-fit", "u6", "ct-fit", "Fit Test (respirator)", undefined, undefined, "active", "Add details"),
+  cert("cert-thorpe-confined", "u6", "ct-confined", "Confined Spaces", undefined, undefined, "active", "Add details"),
+  cert("cert-rogers-fa", "u7", "ct-first-aid", "Level 1 First Aid", undefined, undefined, "active", "Add details"),
+  cert("cert-rogers-fit", "u7", "ct-fit", "Fit Test (respirator)", undefined, undefined, "active", "Add details"),
 ];
 
 export function createSeedState(): CrewState {
@@ -313,16 +347,17 @@ export function createSeedState(): CrewState {
       { id: "pe3", userId: "u3", type: "crew_peer_recognition", points: 5, reason: "Peer recognition received", ref: "rec-u3-1", ts: "2026-07-24T10:00:00-07:00", source: "crew" },
       { id: "pe-google-jesse-2026-07", userId: "u1", type: "crew_google_review", points: 200, reason: "Seeded 5-star Google review naming Jesse Dares", ref: "google_seed:u1:2026-07", ts: "2026-07-29T10:00:00-07:00", source: "crew" },
       { id: "pe-google-jon-2026-07", userId: "u3", type: "crew_google_review", points: 200, reason: "Seeded 5-star Google review naming Jon Gregoire", ref: "google_seed:u3:2026-07", ts: "2026-07-29T10:05:00-07:00", source: "crew" },
+      { id: "pe-google-jon-2026-07-30", userId: "u3", type: "crew_google_review", points: 200, reason: "Seeded 5-star Google review naming Jon Gregoire from July 30 review", ref: "google_seed:u3:2026-07-30", ts: "2026-07-30T10:05:00-07:00", source: "crew" },
       { id: "pe-google-jordan-2026-07", userId: "u6", type: "crew_google_review", points: 200, reason: "Seeded 5-star Google review naming Jordan Thorpe", ref: "google_seed:u6:2026-07", ts: "2026-07-29T10:10:00-07:00", source: "crew" },
+      { id: "pe-google-jordan-2026-07-30", userId: "u6", type: "crew_google_review", points: 200, reason: "Seeded 5-star Google review naming Jordan Thorpe from July 30 review", ref: "google_seed:u6:2026-07-30", ts: "2026-07-30T10:10:00-07:00", source: "crew" },
     ],
     walletConfig: { rewardDollarPerPoint: crewConfig.pointsAnchor, weeklyHabitCap: null },
     rewards,
     redemptions: [],
     ritualCompletions: [],
     reviews: [
-      { id: "rev-u1-q3", userId: "u1", managerId: "u7", type: "quarterly", scheduledFor: "2026-08-05", status: "scheduled", ratings: {}, notes: "", swot: "" },
-      { id: "rev-u5-90", userId: "u5", managerId: "u1", type: "90", scheduledFor: "2026-07-30", status: "scheduled", ratings: {}, notes: "", swot: "" },
-      { id: "rev-u3-q2", userId: "u3", managerId: "u1", type: "quarterly", scheduledFor: "2026-06-30", completedAt: "2026-06-28", status: "completed", ratings: { responsibilities: "exceeds", values: "meets", kpis: "meets" }, notes: "Strong quality on complex scopes.", swot: "Mentor one more tech next quarter." },
+      ...quarterlyReviewSeeds(),
+      { id: "rev-u3-q2", userId: "u3", managerId: "u1", type: "quarterly", scheduledFor: "2026-06-30", completedAt: "2026-06-28", status: "completed", ratings: { responsibilities: 4, values: 3, kpis: 3 }, overallRating: 4, notes: "Strong quality on complex scopes.", swot: "Mentor one more tech next quarter." },
     ],
     reviewTypes,
     ratingScale,
@@ -389,6 +424,45 @@ function member(id: string, employeeId: string, firstName: string, lastName: str
   };
 }
 
+function applyReviewRoster(profile: Profile): Profile {
+  const byName: Record<string, { date?: string; eligibility: Profile["reviewEligibility"] }> = {
+    "Jordan Rogers": { date: "2026-09-30", eligibility: "Eligible" },
+    "Tara Clark": { date: "2026-09-30", eligibility: "Eligible" },
+    "Jesse Dares": { date: "2026-07-31", eligibility: "Eligible" },
+    "Jon Gregoire": { date: "2026-09-30", eligibility: "Eligible" },
+    "Jordan Thorpe": { date: "2026-09-30", eligibility: "Eligible" },
+    "Josh Murray": { eligibility: "TBD" },
+    "Logan Pardy": { date: "2026-07-31", eligibility: "Eligible" },
+    "Matthew Chester": { date: "2026-07-31", eligibility: "Eligible" },
+    "Bobby Wagner": { date: "2026-07-31", eligibility: "Eligible" },
+    "Ray Boudreault": { date: "2026-07-31", eligibility: "Eligible" },
+    "Shane Smith": { date: "2026-09-30", eligibility: "Eligible" },
+    "Desmond Scott": { eligibility: "Not Eligible" },
+    "Jacob V": { eligibility: "Not Eligible" },
+    "Ken Taylor": { eligibility: "Not Eligible" },
+  };
+  const fullName = `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim();
+  const meta = byName[profile.name] ?? byName[fullName];
+  return meta ? { ...profile, nextQuarterlyReviewDate: meta.date, reviewEligibility: meta.eligibility, grossAnnualWages: undefined, underNotice: false } : profile;
+}
+
+function quarterlyReviewSeeds() {
+  return demoUsers
+    .filter((user) => user.reviewEligibility)
+    .map((user) => ({
+      id: `rev-${user.id}-q3-2026`,
+      userId: user.id,
+      managerId: user.managerId ?? "u7",
+      type: "quarterly" as const,
+      scheduledFor: user.nextQuarterlyReviewDate ?? "TBD",
+      status: user.reviewEligibility === "Not Eligible" ? "scheduled" as const : "scheduled" as const,
+      ratings: {},
+      notes: user.reviewEligibility === "Not Eligible" ? "Not eligible for quarterly review until employment eligibility gate is met." : "",
+      swot: "",
+      visibilityNotes: "Employee-visible: support, KPI, workmanship, strengths, opportunities, goals, overall rating, comments. Admin-only: job description ratings, core values, career development, management feedback, manager summary.",
+    }));
+}
+
 function managerIdFor(reportsTo: string) {
   if (reportsTo === "Crew Lead") return "u1";
   if (reportsTo === "CEO / Owner" || reportsTo === "CEO" || reportsTo === "CEO/Owner") return "u7";
@@ -403,8 +477,8 @@ function cert(id: string, userId: string, certTypeId: string, name: string, issu
   return { id, userId, certTypeId, name, issuedAt, expiresAt, status, note };
 }
 
-function value(id: string, name: string): ValueItem {
-  return { id, name, wording: `${name}.`, dailyRitual: "", weeklyRitual: "", monthlyRitual: "", exercise: "", active: true };
+function value(id: string, name: string, wording = `${name}.`): ValueItem {
+  return { id, name, wording, dailyRitual: "", weeklyRitual: "", monthlyRitual: "", exercise: "", active: true };
 }
 
 function valuesFromRituals(rows: ValueRitual[]) {
@@ -415,7 +489,7 @@ function valuesFromRituals(rows: ValueRitual[]) {
       dailyRitual: byCadence.find((row) => row.cadence === "daily")?.prompt ?? "",
       weeklyRitual: byCadence.find((row) => row.cadence === "weekly")?.prompt ?? "",
       monthlyRitual: byCadence.find((row) => row.cadence === "monthly")?.prompt ?? "",
-      exercise: byCadence.find((row) => row.cadence === "daily")?.exercise ?? "",
+      exercise: byCadence.find((row) => row.cadence === "weekly")?.exercise ?? "",
     };
   });
 }
@@ -433,7 +507,7 @@ function reward(id: string, name: string, points: number, approxValue: string, n
 }
 
 function kpi(id: string, role: OrgRole, name: string, unit: string, cadence: string, dataSource: string): Kpi {
-  return { id, role, name, description: "", unit, target: "", period: cadence.toLowerCase().startsWith("annual") ? "annual" : cadence.toLowerCase().startsWith("quarter") ? "quarterly" : "monthly", dataSource, active: true };
+  return { id, role, name, description: "", unit, target: unit, period: cadence.toLowerCase().startsWith("annual") ? "annual" : cadence.toLowerCase().startsWith("quarter") ? "quarterly" : "monthly", dataSource, active: true };
 }
 
 function reviewType(id: string, type: string, appliesTo: string, cadence: string, rating: string, purpose: string): ReviewTypeConfig {
@@ -448,8 +522,8 @@ function jd(id: string, role: OrgRole, version: string, responsibility: string, 
   return { id, role, version, responsibility, requiredCertifications: splitList(certs), linkedKpis: splitList(kpis), reportsTo };
 }
 
-function question(formId: string, order: number, text: string, responseType: CrewFormQuestion["responseType"], required: boolean, anonymousAllowed: boolean): CrewFormQuestion {
-  return { id: `${formId}-${order}`, formId, order, question: text, responseType, required, anonymousAllowed };
+function question(formId: string, order: number, text: string, responseType: CrewFormQuestion["responseType"], required: boolean, anonymousAllowed: boolean, visibility: CrewFormQuestion["visibility"] = "both"): CrewFormQuestion {
+  return { id: `${formId}-${order}`, formId, order, question: text, responseType, required, anonymousAllowed, visibility };
 }
 
 function nudge(id: string, name: string, triggerType: Nudge["triggerType"], cadence: string, audience: string, channel: string, leadTime: string, type: Nudge["type"]): Nudge {

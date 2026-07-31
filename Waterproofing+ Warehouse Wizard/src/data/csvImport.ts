@@ -1,4 +1,4 @@
-import { id } from "../domain/business";
+import { applyCostIncreaseFlag, id, normalizeMaterialUnit, stepForMaterialUnit } from "../domain/business";
 import type { Category, ImportReport, Material } from "../types";
 
 const categoryAliases: Record<string, Category> = {
@@ -93,30 +93,27 @@ export function validateMaterialsCsv(text: string, existing: Material[] = []): I
     const name = pick(record, ["name", "inventory", "material", "item"]);
     const categoryLabel = pick(record, ["category"]);
     const category = categoryFrom(categoryLabel || pick(record, ["service"]));
-    const unit = pick(record, ["unit", "unit (locked)", "locked unit"]) || "unit";
-    const stepBasis = `${unit} ${name}`;
-    const defaultStep = /barrel|gallon|drum|\bgal\b|[0-9]\s*gal/i.test(stepBasis) ? 0.25 : /roll|litre/i.test(stepBasis) ? 0.5 : 1;
-    const stepValue = num(pick(record, ["step", "logging step"]), defaultStep);
-    const step = stepValue === 0.25 ? 0.25 : stepValue === 0.5 ? 0.5 : stepValue === 1 ? 1 : null;
+    const unitRaw = pick(record, ["unit", "unit (locked)", "locked unit"]) || "Unit";
+    const unit = normalizeMaterialUnit(unitRaw);
 
     if (!name) skipped.push({ row: index + 2, reason: "Missing material name" });
     else if (!category) skipped.push({ row: index + 2, reason: `Unknown category '${categoryLabel}'` });
-    else if (!step) skipped.push({ row: index + 2, reason: "Step must be 0.25, 0.5, or 1" });
+    else if (!unit) skipped.push({ row: index + 2, reason: `Invalid locked unit '${unitRaw}'. Use Unit, Roll, Drum, Box, or Sausage.` });
     else {
       const existingMaterial = existingByName.get(normalize(name));
-      materials.push({
+      materials.push(applyCostIncreaseFlag(existingMaterial, {
         id: existingMaterial?.id ?? (pick(record, ["inventory id", "sku", "id"]) || id("m")),
         name,
         category,
         unit,
-        step,
+        step: stepForMaterialUnit(unit),
         pack: pick(record, ["pack", "units per", "vendor", "secondary supplier"]),
         unitsPerPallet: num(pick(record, ["units per pallet", "units_per_pallet"]), 0),
         cost: num(pick(record, ["cost", "unit cost ($)", "unit cost"]), existingMaterial?.cost ?? 0),
         qty: existingMaterial?.qty ?? num(pick(record, ["on hand", "on hand (current quantity)", "qty"]), 0),
         reorderPoint: num(pick(record, ["reorder", "reorder point", "reorder at (3 remaining in inventory)"]), existingMaterial?.reorderPoint ?? 3),
         bin: pick(record, ["bin", "warehouse location", "location"]) || existingMaterial?.bin || "",
-      });
+      }));
     }
   });
 

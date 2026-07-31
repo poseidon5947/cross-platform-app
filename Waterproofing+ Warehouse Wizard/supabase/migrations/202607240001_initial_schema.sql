@@ -17,6 +17,7 @@ alter type points_event_type add value if not exists 'crew_google_review';
 alter type points_event_type add value if not exists 'crew_compliment';
 alter type points_event_type add value if not exists 'crew_safety_milestone';
 alter type points_event_type add value if not exists 'crew_peer_recognition';
+alter type points_event_type add value if not exists 'crew_cert_detail';
 alter type points_event_type add value if not exists 'redeem';
 create type source_type as enum ('manual','quickbooks');
 
@@ -47,12 +48,16 @@ create table materials (
   pack text not null default '',
   units_per_pallet integer not null default 0,
   cost numeric(12,2) not null default 0,
+  previous_cost numeric(12,2),
+  price_changed_at timestamptz,
   qty numeric(12,2) not null default 0,
   reorder_point numeric(12,2) not null default 0,
   bin text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table materials add column if not exists previous_cost numeric(12,2);
+alter table materials add column if not exists price_changed_at timestamptz;
 create index materials_category_idx on materials(category);
 create index materials_reorder_idx on materials(qty, reorder_point);
 

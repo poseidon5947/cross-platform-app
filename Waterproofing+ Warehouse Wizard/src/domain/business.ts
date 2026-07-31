@@ -14,11 +14,14 @@ import type {
   TxType,
 } from "../types";
 import { canonicalWarehouseRef, legacyOrCanonicalRefs } from "./pointsAwardPolicy";
+import type { MaterialUnit } from "../types";
 
 const VANCOUVER_TZ = "America/Vancouver";
 const DAY_MS = 86_400_000;
 const DAILY_100_POINTS = 25;
 const STREAK_BONUS_POINTS = 25;
+
+export const ALLOWED_MATERIAL_UNITS: MaterialUnit[] = ["Unit", "Roll", "Drum", "Box", "Sausage"];
 
 export function id(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -26,6 +29,35 @@ export function id(prefix: string) {
 
 export function money(value: number) {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(value || 0);
+}
+
+export function normalizeMaterialUnit(value: string): MaterialUnit | null {
+  const normalized = value.trim().toLowerCase();
+  return ALLOWED_MATERIAL_UNITS.find((unit) => unit.toLowerCase() === normalized) ?? null;
+}
+
+export function remapProvisionalMaterialUnit(value: string): MaterialUnit {
+  const normalized = value.trim().toLowerCase();
+  if (/barrel|gallon|litre|liter|pail|jug|can|tank|drum|\bgal\b|\bltr?\b/.test(normalized)) return "Drum";
+  if (/roll/.test(normalized)) return "Roll";
+  if (/box|case/.test(normalized)) return "Box";
+  if (/tube|sausage/.test(normalized)) return "Sausage";
+  return "Unit";
+}
+
+export function stepForMaterialUnit(unit: MaterialUnit): 0.25 | 1 {
+  return unit === "Drum" ? 0.25 : 1;
+}
+
+export function applyCostIncreaseFlag(existing: Material | undefined, next: Material, now = new Date().toISOString()): Material {
+  if (existing && next.cost > existing.cost) {
+    return { ...next, previousCost: existing.cost, priceChangedAt: now };
+  }
+  return { ...next, previousCost: existing?.previousCost, priceChangedAt: existing?.priceChangedAt };
+}
+
+export function priceIncreaseMaterials(materials: Material[]) {
+  return materials.filter((material) => material.previousCost != null && material.cost > material.previousCost);
 }
 
 export function stockStatus(material: Pick<Material, "qty" | "reorderPoint">) {

@@ -15,6 +15,7 @@ export type TxType = "use" | "deliver" | "loss" | "receive" | "return" | "adjust
 export type ToolStatus = "in" | "out";
 export type ToolCondition = "good" | "repair" | "damaged";
 export type TaskFrequency = "daily" | "weekly" | "monthly";
+export type MaterialUnit = "Unit" | "Roll" | "Drum" | "Box" | "Sausage";
 export type PointsEventType =
   | "daily_100"
   | "daily_100_reversal"
@@ -36,11 +37,13 @@ export interface Material {
   id: string;
   name: string;
   category: Category;
-  unit: string;
+  unit: MaterialUnit;
   step: 0.25 | 0.5 | 1;
   pack: string;
   unitsPerPallet: number;
   cost: number;
+  previousCost?: number;
+  priceChangedAt?: string;
   qty: number;
   reorderPoint: number;
   bin: string;

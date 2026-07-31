@@ -2,7 +2,7 @@ export type Role = "admin" | "manager" | "crew";
 export type OrgRole = "Senior Technician" | "Technician" | "Assistant Technician" | "Crew Lead" | "Operations / Admin" | "Operations" | "CFO" | "CEO / Owner" | "CEO" | "Caulker";
 export type Cadence = "daily" | "weekly" | "monthly";
 export type ReviewType = "30" | "60" | "90" | "quarterly" | "annual";
-export type ReviewRating = "below" | "meets" | "exceeds";
+export type ReviewRating = 1 | 2 | 3 | 4 | 5 | "below" | "meets" | "exceeds";
 export type ReviewStatus = "scheduled" | "completed" | "overdue";
 export type CertStatus = "active" | "current" | "expired" | "missing" | "date_needed";
 export type RedemptionStatus = "requested" | "approved" | "rejected";
@@ -34,6 +34,11 @@ export interface Profile {
   emergencyContactPhone?: string;
   payBand?: string;
   bonusRoleWeight?: number;
+  grossAnnualWages?: number;
+  underNotice?: boolean;
+  disciplinaryActionAt?: string;
+  nextQuarterlyReviewDate?: string;
+  reviewEligibility?: "Eligible" | "Not Eligible" | "TBD";
 }
 
 export interface ValueItem {
@@ -120,6 +125,8 @@ export interface Review {
   };
   notes: string;
   swot?: string;
+  overallRating?: 1 | 2 | 3 | 4 | 5;
+  visibilityNotes?: string;
 }
 
 export interface ReviewNote {
@@ -156,13 +163,19 @@ export interface BonusConfig {
   id: string;
   profitSharePercent: number;
   roleWeights: Record<OrgRole, number>;
-  ratingFactors: Record<ReviewRating, number>;
+  ratingFactors: Partial<Record<ReviewRating, number>>;
   floorsCaps: string;
   tenureBump: number;
   payoutTiming?: string;
   quarterlyComponent?: boolean;
   whoConfirmsProfit?: string;
   whoApprovesPayouts?: string;
+  model?: "gross_wages_review_score";
+  scoreBands?: Array<{ average: number; label: string; maxPercent: number }>;
+  eligibilityRules?: string[];
+  discretionary?: boolean;
+  reviewAverageSource?: string;
+  grossWagesPending?: boolean;
 }
 
 export interface BonusPeriod {
@@ -180,7 +193,10 @@ export interface Certification {
   name: string;
   issuingBody?: string;
   issuedAt?: string;
+  courseDate?: string;
   expiresAt?: string;
+  certificateNumber?: string;
+  certificatePhotoKey?: string;
   status: CertStatus;
   scanFile?: string;
   note?: string;
@@ -296,7 +312,7 @@ export interface ReviewTypeConfig {
 
 export interface RatingScaleDefinition {
   value: number;
-  label: ReviewRating;
+  label: string;
   meaning: string;
   performanceFactor: number;
 }
@@ -326,9 +342,11 @@ export interface CrewFormQuestion {
   formId: string;
   order: number;
   question: string;
-  responseType: "Text" | "Scale 1-5";
+  responseType: "Text" | "Scale 1-5" | "Checkbox" | "Date" | "KPI Table";
   required: boolean;
   anonymousAllowed: boolean;
+  visibility?: "employee" | "admin" | "both";
+  options?: string[];
 }
 
 export interface IntegrationDecision {

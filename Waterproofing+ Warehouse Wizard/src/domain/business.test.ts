@@ -87,8 +87,8 @@ describe("csv import validation", () => {
     const state = createSeedState();
     const csv = [
       "Inventory,Category,Unit (locked),Unit Cost ($),On Hand (current quantity),Reorder At (3 remaining in inventory),Warehouse Location",
-      '"TremProof TP 260 55 Gallon Drum",Waterproofing,barrel,$999.00,100,8,Yard 2',
-      "Bad Row,Unknown,each,1,1,1,Bin",
+      '"TremProof TP 260 55 Gallon Drum",Waterproofing,Drum,$999.00,100,8,Yard 2',
+      "Bad Row,Unknown,Unit,1,1,1,Bin",
     ].join("\n");
     const report = validateMaterialsCsv(csv, state.materials);
     expect(report.imported).toBe(1);
@@ -96,6 +96,19 @@ describe("csv import validation", () => {
     expect(report.materials[0].qty).toBe(0);
     expect(report.materials[0].step).toBe(0.25);
     expect(report.materials[0].cost).toBe(999);
+    expect(report.materials[0].previousCost).toBeLessThan(999);
+  });
+
+  it("rejects non-canonical locked units and keeps Roll to whole units", () => {
+    const csv = [
+      "Inventory,Category,Unit (locked),Unit Cost ($),On Hand (current quantity),Reorder At (3 remaining in inventory),Warehouse Location",
+      "Roll Item,Waterproofing,Roll,$10.00,4,2,A1",
+      "Pail Item,Waterproofing,pail,$10.00,4,2,A2",
+    ].join("\n");
+    const report = validateMaterialsCsv(csv);
+    expect(report.imported).toBe(1);
+    expect(report.materials[0]).toMatchObject({ unit: "Roll", step: 1 });
+    expect(report.skipped[0].reason).toContain("Invalid locked unit");
   });
 });
 

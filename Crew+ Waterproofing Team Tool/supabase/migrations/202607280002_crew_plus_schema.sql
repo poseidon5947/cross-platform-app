@@ -7,6 +7,7 @@ alter type points_event_type add value if not exists 'crew_google_review';
 alter type points_event_type add value if not exists 'crew_compliment';
 alter type points_event_type add value if not exists 'crew_safety_milestone';
 alter type points_event_type add value if not exists 'crew_peer_recognition';
+alter type points_event_type add value if not exists 'crew_cert_detail';
 alter type points_event_type add value if not exists 'redeem';
 
 alter table if exists profiles add column if not exists org_role text;
@@ -29,6 +30,11 @@ alter table if exists profiles add column if not exists emergency_contact_email 
 alter table if exists profiles add column if not exists emergency_contact_phone text;
 alter table if exists profiles add column if not exists pay_band text;
 alter table if exists profiles add column if not exists bonus_role_weight numeric;
+alter table if exists profiles add column if not exists gross_annual_wages numeric;
+alter table if exists profiles add column if not exists under_notice boolean not null default false;
+alter table if exists profiles add column if not exists disciplinary_action_at date;
+alter table if exists profiles add column if not exists next_quarterly_review_date date;
+alter table if exists profiles add column if not exists review_eligibility text;
 
 create unique index if not exists points_events_type_ref_idx on points_events(type, ref);
 
@@ -123,6 +129,12 @@ alter table if exists crew_bonus_config add column if not exists payout_timing t
 alter table if exists crew_bonus_config add column if not exists quarterly_component boolean not null default false;
 alter table if exists crew_bonus_config add column if not exists who_confirms_profit text not null default 'CFO';
 alter table if exists crew_bonus_config add column if not exists who_approves_payouts text not null default 'CEO';
+alter table if exists crew_bonus_config add column if not exists model text;
+alter table if exists crew_bonus_config add column if not exists score_bands jsonb not null default '[]'::jsonb;
+alter table if exists crew_bonus_config add column if not exists eligibility_rules text[] not null default '{}';
+alter table if exists crew_bonus_config add column if not exists discretionary boolean not null default true;
+alter table if exists crew_bonus_config add column if not exists review_average_source text;
+alter table if exists crew_bonus_config add column if not exists gross_wages_pending boolean not null default true;
 
 create table if not exists crew_bonus_period (
   id uuid primary key default gen_random_uuid(),
@@ -150,6 +162,13 @@ create table if not exists crew_certification (
 alter table if exists crew_certification add column if not exists cert_type_id text;
 alter table if exists crew_certification add column if not exists issuing_body text;
 alter table if exists crew_certification add column if not exists scan_file text;
+alter table if exists crew_certification add column if not exists course_date date;
+alter table if exists crew_certification add column if not exists certificate_number text;
+alter table if exists crew_certification add column if not exists certificate_photo_key text;
+
+insert into storage.buckets (id, name, public)
+values ('crew-cert-media', 'crew-cert-media', false)
+on conflict (id) do nothing;
 
 create table if not exists crew_reward (
   id uuid primary key default gen_random_uuid(),
@@ -275,6 +294,8 @@ create table if not exists crew_form_question (
   required boolean not null default false,
   anonymous_allowed boolean not null default false
 );
+alter table if exists crew_form_question add column if not exists visibility text not null default 'both';
+alter table if exists crew_form_question add column if not exists options jsonb not null default '[]'::jsonb;
 
 create table if not exists crew_integration_decision (
   id text primary key,

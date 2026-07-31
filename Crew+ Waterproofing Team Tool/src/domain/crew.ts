@@ -126,6 +126,18 @@ export function awardCertsCurrent(state: CrewState, userId: string, periodKey: s
   return { ...state, pointsEvents: [event, ...state.pointsEvents] };
 }
 
+export function certDetailComplete(cert: Certification) {
+  return Boolean(cert.courseDate && cert.expiresAt && cert.certificateNumber?.trim());
+}
+
+export function awardCertDetail(state: CrewState, userId: string, certId: string, now = new Date().toISOString()) {
+  const cert = state.certifications.find((item) => item.id === certId && item.userId === userId);
+  const ref = `cert_detail:${userId}:${certId}`;
+  if (!cert || !certDetailComplete(cert) || !shouldAward(state.pointsEvents, ref, "crew_cert_detail")) return state;
+  const event: PointsEvent = { id: uid("pe"), userId, type: "crew_cert_detail", points: rulePoints(state, "earn-cert-detail", 5), reason: "Certification details completed", ref, ts: now, source: "crew" };
+  return { ...state, pointsEvents: [event, ...state.pointsEvents] };
+}
+
 export function submitFeedback(state: CrewState, userId: string, message: string, now = new Date().toISOString()) {
   const ref = `feedback:${userId}:${now.slice(0, 10)}:${message.slice(0, 12)}`;
   if (!message.trim() || !shouldAward(state.pointsEvents, ref, "crew_feedback")) return state;
@@ -199,17 +211,41 @@ export function certAlerts(certs: Certification[], todayIso: string) {
 
 export function bonusTrajectory(ratings: ReviewRating[]) {
   if (!ratings.length) return "amber";
-  const score = ratings.reduce((sum, rating) => sum + (rating === "exceeds" ? 3 : rating === "meets" ? 2 : 1), 0) / ratings.length;
-  if (score >= 2.5) return "green";
-  if (score >= 1.6) return "amber";
+  const score = ratings.reduce((sum, rating) => sum + numericRating(rating), 0) / ratings.length;
+  if (score >= 4) return "green";
+  if (score >= 3) return "amber";
   return "red";
 }
 
 export function estimatedBonusDollars(state: CrewState, user: Profile) {
-  const period = state.bonusPeriods[0];
-  const weight = state.bonusConfig.roleWeights[user.orgRole] ?? 1;
-  const pool = period.annualProfit * period.poolPercent;
-  return Math.round(pool * weight * 100) / 100;
+  const average = averageQuarterlyRating(state, user.id, state.bonusPeriods[0]?.year ?? 2026);
+  const percent = bonusPercentForAverage(average);
+  if (!isBonusEligible(state, user, state.bonusPeriods[0]?.year ?? 2026) || !user.grossAnnualWages) return 0;
+  return Math.round(user.grossAnnualWages * percent * 100) / 100;
+}
+
+export function averageQuarterlyRating(state: CrewState, userId: string, year: number) {
+  const ratings = state.reviews
+    .filter((review) => review.userId === userId && review.type === "quarterly" && review.status === "completed" && review.scheduledFor.startsWith(String(year)))
+    .map((review) => review.overallRating ?? averageRatings(Object.values(review.ratings)));
+  const valid = ratings.filter((rating): rating is number => Number.isFinite(rating));
+  return valid.length ? valid.reduce((sum, rating) => sum + rating, 0) / valid.length : 0;
+}
+
+export function bonusPercentForAverage(average: number) {
+  if (average >= 5) return 0.06;
+  if (average >= 4) return 0.04;
+  if (average >= 3) return 0.02;
+  return 0;
+}
+
+export function isBonusEligible(state: CrewState, user: Profile, year: number, todayIso = `${year}-12-25`) {
+  if (user.status && user.status !== "Active") return false;
+  if (user.underNotice) return false;
+  if (user.disciplinaryActionAt && daysBetween(user.disciplinaryActionAt, todayIso) < 92) return false;
+  if (!user.hireDate || daysBetween(user.hireDate, todayIso) < 183) return false;
+  const completedQuarterlies = state.reviews.filter((review) => review.userId === user.id && review.type === "quarterly" && review.status === "completed" && review.scheduledFor.startsWith(String(year))).length;
+  return completedQuarterlies >= 2;
 }
 
 export function canSeeBonusDollars(state: CrewState, user: Profile) {
@@ -237,6 +273,24 @@ function rewardName(state: CrewState, rewardId: string) {
 function daysUntil(dateIso: string, todayIso: string) {
   const ms = new Date(`${dateIso}T00:00:00`).getTime() - new Date(`${todayIso}T00:00:00`).getTime();
   return Math.ceil(ms / 86400000);
+}
+
+function daysBetween(startIso: string, endIso: string) {
+  const ms = new Date(`${endIso}T00:00:00`).getTime() - new Date(`${startIso}T00:00:00`).getTime();
+  return Math.floor(ms / 86400000);
+}
+
+function numericRating(rating: ReviewRating | undefined) {
+  if (typeof rating === "number") return rating;
+  if (rating === "exceeds") return 4;
+  if (rating === "meets") return 3;
+  if (rating === "below") return 2;
+  return 0;
+}
+
+function averageRatings(ratings: Array<ReviewRating | undefined>) {
+  const valid: number[] = ratings.map(numericRating).filter((rating) => rating > 0);
+  return valid.length ? valid.reduce((sum, rating) => sum + rating, 0) / valid.length : 0;
 }
 
 function deriveExpiryDate(issuedAt: string | undefined, validityMonths: number | undefined) {

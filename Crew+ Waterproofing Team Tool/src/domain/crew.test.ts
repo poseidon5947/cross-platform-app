@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
-import { approveRedemption, bonusTrajectory, canSeeBonusDollars, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, nextRedemptionWindow, requestRedemption, reviewDueDates, walletBalance } from "./crew";
+import { approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, nextRedemptionWindow, requestRedemption, reviewDueDates, walletBalance } from "./crew";
 
 describe("Crew+ wallet", () => {
   it("sums earned and redeemed points from the append-only ledger", () => {
@@ -8,7 +8,7 @@ describe("Crew+ wallet", () => {
     state = { ...state, pointsEvents: [{ id: "seed-extra", userId: "u3", type: "crew_feedback", points: 600, reason: "Seed balance", ref: "seed-extra", ts: "2026-07-28T08:00:00Z", source: "crew" }, ...state.pointsEvents] };
     state = requestRedemption(state, "u3", "r1", "2026-07-31T09:00:00Z");
     state = approveRedemption(state, state.redemptions[0].id, "u1", "2026-07-31T10:00:00Z");
-    expect(walletBalance(state.pointsEvents, "u3")).toBe(605);
+    expect(walletBalance(state.pointsEvents, "u3")).toBe(805);
   });
 
   it("shows implied reward value from the configurable anchor", () => {
@@ -30,7 +30,7 @@ describe("Crew+ wallet", () => {
     expect(state.redemptions).toHaveLength(0);
     expect(isRedemptionWindowOpen("2026-07-31T09:00:00Z")).toBe(true);
     expect(nextRedemptionWindow("2026-08-01T09:00:00Z")).toBe("2026-10-31");
-    expect(walletBalance(state.pointsEvents, "u3")).toBe(205);
+    expect(walletBalance(state.pointsEvents, "u3")).toBe(405);
   });
 });
 
@@ -44,9 +44,9 @@ describe("Crew+ cadence, compliance, and privacy", () => {
 
   it("awards review completion idempotently", () => {
     let state = createSeedState();
-    state = completeReview(state, "rev-u1-q3", { responsibilities: "meets", values: "meets", kpis: "meets" });
-    state = completeReview(state, "rev-u1-q3", { responsibilities: "exceeds", values: "meets", kpis: "meets" });
-    expect(state.pointsEvents.filter((event) => event.ref === "review:rev-u1-q3")).toHaveLength(1);
+    state = completeReview(state, "rev-u1-q3-2026", { responsibilities: 3, values: 3, kpis: 3 });
+    state = completeReview(state, "rev-u1-q3-2026", { responsibilities: 4, values: 3, kpis: 3 });
+    expect(state.pointsEvents.filter((event) => event.ref === "review:rev-u1-q3-2026")).toHaveLength(1);
   });
 
   it("flags cert renewal windows and gaps", () => {
@@ -60,7 +60,20 @@ describe("Crew+ cadence, compliance, and privacy", () => {
     expect(canSeeBonusDollars(state, state.users.find((user) => user.orgRole === "Operations / Admin")!)).toBe(true);
     expect(canSeeBonusDollars(state, state.users.find((user) => user.orgRole === "CEO / Owner")!)).toBe(true);
     expect(canSeeBonusDollars(state, state.users.find((user) => user.orgRole === "Technician")!)).toBe(false);
-    expect(bonusTrajectory(["below", "meets", "meets"])).toBe("amber");
+    expect(bonusTrajectory([2, 3, 3])).toBe("red");
+    expect(bonusPercentForAverage(4)).toBe(0.04);
+  });
+
+  it("awards certification detail completion once when key fields are filled", () => {
+    let state = createSeedState();
+    state = {
+      ...state,
+      certifications: state.certifications.map((cert) => cert.id === "cert-jon-fa" ? { ...cert, courseDate: "2026-07-15", expiresAt: "2029-07-15", certificateNumber: "FA-123" } : cert),
+    };
+    state = awardCertDetail(state, "u3", "cert-jon-fa", "2026-07-29T09:00:00Z");
+    state = awardCertDetail(state, "u3", "cert-jon-fa", "2026-07-29T10:00:00Z");
+    expect(state.pointsEvents.filter((event) => event.ref === "cert_detail:u3:cert-jon-fa")).toHaveLength(1);
+    expect(walletBalance(state.pointsEvents, "u3")).toBe(410);
   });
 
   it("uses the intake permission matrix for finer-grained gates", () => {

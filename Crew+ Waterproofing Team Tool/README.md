@@ -99,7 +99,7 @@ $env:CREW_PROFILE_MAP_JSON='{"u1":"AUTH_UUID","u2":"AUTH_UUID","u3":"AUTH_UUID"}
 npm run seed:supabase
 ```
 
-`CREW_PROFILE_MAP_JSON` maps the 12 local demo roster ids (`u1`-`u12`) to real Supabase Auth user ids. At minimum provide `u1`, `u2`, and `u3`; unmapped crew demo records are skipped for profile upsert and dependent rows fall back to `u3`.
+`CREW_PROFILE_MAP_JSON` maps the 15 local demo roster ids (`u1`-`u15`) to real Supabase Auth user ids. At minimum provide `u1`, `u2`, and `u3`; unmapped crew demo records are skipped for profile upsert and dependent rows fall back to `u3`.
 
 ## Points Wallet
 
@@ -134,7 +134,8 @@ Perfect daily truck-task day: +25
 5-day truck-task streak: +25
 Approved SOP: +20
 5-star Google review naming crew member: +200
-Daily / weekly / monthly rituals: +5 each
+Weekly Monday 6:30am value-share: +5
+Certification details completed: +5
 Safety milestone: +5
 Peer recognition received: +5
 Feedback, KPI hit, review on time, certs current, SWOT, written compliment: +5 each (TODO confirm)
@@ -150,9 +151,22 @@ Google review URL is stored in `crew_config.google_review_url`:
 https://www.google.com/maps/place//data=!4m3!3m2!1s0x548f6b3774eb6afd:0xbd3374f825d460ba!12e1?source=g.page.m._&laa=merchant-review-solicitation
 ```
 
-One-time seeded Google review awards were added for Jesse Dares, Jon Gregoire, and Jordan Thorpe.
+One-time seeded Google review awards were added for Jesse Dares, Jon Gregoire, and Jordan Thorpe. V2 adds distinct July 30 Google review seed credits for Jon Gregoire and Jordan Thorpe, bringing both to 400 Google-review points while Jesse remains at 200.
 
 Brand confirmation needed: the intake proposes `#1C5CAB` / `#12A37A`, but the suite keeps the official Van Isle brand `#14A2A4` / `#1C1E20` until the client signs off.
+
+## V2 Decisions And TODO_CONFIRM
+
+- Values are now `Clear`, `Helpful`, and `Professional`; the weekly value-share is the primary ritual.
+- Certifications now carry course date, expiry date, certificate number, and a private `crew-cert-media` storage key/photo reference.
+- TODO_CONFIRM: cert-detail points are awarded per completed certification record, not per field.
+- TODO_CONFIRM: Logan Pardy has no certs on file in the V2 intake; confirm this is a real compliance gap.
+- TODO_CONFIRM: decide whether to keep any light daily value prompt; seed keeps only the weekly ritual.
+- Bonus model now uses gross annual wages and a 1-5 average review score: 3 up to 2%, 4 up to 4%, 5 up to 6%, below 3 not eligible.
+- TODO_CONFIRM: gross annual wages are blank placeholders until payroll/Admin confirms them.
+- Quarterly check-ins are coaching only; annual bonus average derives from the year's quarterly Overall Ratings.
+- TODO_CONFIRM: confirm whether the client wants a separate annual review score in addition to the quarterly average.
+- TODO_CONFIRM: quarterly scorecard core-value checkboxes use Accountability, Professionalism, Respect, Teamwork, Continuous Improvement, which differs from the new three brand values.
 
 ## Privacy
 

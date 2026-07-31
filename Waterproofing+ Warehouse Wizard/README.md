@@ -194,4 +194,16 @@ The Admin tab provides:
 
 ## Tests
 
-Current tests cover stock movement, signed adjust/set exact count, reorder math, Vancouver period keys, points/streaks/reversals, truck-log auto-task completion, CSV validation, and offline queue drain.
+Current tests cover stock movement, signed adjust/set exact count, reorder math, Vancouver period keys, points/streaks/reversals, truck-log auto-task completion, CSV validation, locked V2 material units, price-increase flags, and offline queue drain.
+
+## V2 Material Notes
+
+Locked material units are now restricted to `Unit`, `Roll`, `Drum`, `Box`, and `Sausage`. CSV imports reject any other unit. Seed data is provisionally remapped as follows:
+
+- barrel/gallon/litre/pail/jug/can/tank/drum -> `Drum`
+- roll -> `Roll`
+- box/case -> `Box`
+- tube/sausage -> `Sausage`
+- everything else -> `Unit`
+
+TODO_CONFIRM: confirm the provisional remap for legacy pail/board/bag-style units. TODO_CONFIRM: Roll now logs in whole units per V2; earlier drafts allowed 0.5 rolls.

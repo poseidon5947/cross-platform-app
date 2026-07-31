@@ -1,3 +1,4 @@
+import { remapProvisionalMaterialUnit, stepForMaterialUnit } from "../domain/business";
 import type { AppState, Category, Material, Role, Service, Site, ToolItem, Truck, TruckTask, User } from "../types";
 
 const catMap = {
@@ -138,19 +139,23 @@ const materialRows = [
   ["m121", "zmac - delwalt ( samckies)", "wp", "unit", 1, "Vendor: WhiteCap", 0, 0.52, 0, 3, ""],
 ] as const;
 
-export const materials: Material[] = materialRows.map((row) => ({
-  id: row[0],
-  name: row[1],
-  category: catMap[row[2]],
-  unit: row[3],
-  step: /barrel|gallon|drum|\bgal\b|[0-9]\s*gal/i.test(`${row[3]} ${row[1]}`) ? 0.25 : row[4],
-  pack: row[5],
-  unitsPerPallet: row[6],
-  cost: row[7],
-  qty: row[8],
-  reorderPoint: row[9],
-  bin: row[10],
-}));
+export const materials: Material[] = materialRows.map((row) => {
+  // TODO_CONFIRM: provisional V2 remap keeps only Unit, Roll, Drum, Box, Sausage. Confirm legacy pail/board/bag/tube intent with client.
+  const unit = remapProvisionalMaterialUnit(`${row[3]} ${row[1]}`);
+  return {
+    id: row[0],
+    name: row[1],
+    category: catMap[row[2]],
+    unit,
+    step: stepForMaterialUnit(unit),
+    pack: row[5],
+    unitsPerPallet: row[6],
+    cost: row[7],
+    qty: row[8],
+    reorderPoint: row[9],
+    bin: row[10],
+  };
+});
 
 export const services: Service[] = [
   { id: "wp", name: "Waterproofing", short: "WP" },
