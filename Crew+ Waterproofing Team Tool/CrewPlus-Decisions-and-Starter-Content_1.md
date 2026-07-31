@@ -107,7 +107,7 @@ This keeps your profit linkage and your December timing, removes the discretion/
 | Feedback, KPI hit, review on time, certs current, SWOT, written compliment | +5 | Crew+ (TODO confirm) |
 | 5-star Google review naming you | +200 | Crew+ |
 
-*Guardrail:* the weekly ritual/habit cap remains 300/week for now, but with +5 ritual values it is effectively non-binding. Confirm whether to lower it.
+*Guardrail:* the client confirmed there is no weekly cap on points. Habit and ritual earning is uncapped; idempotency still prevents duplicate awards for the same event. Small-tier actions remain +5 while the client decides between +5 and +10.
 
 ### What points buy
 
@@ -120,7 +120,7 @@ This keeps your profit linkage and your December timing, removes the discretion/
 | PTO - half day | 800 | ~$200 |
 | PTO - full day | 1,600 | ~$400 |
 
-Redemptions open at quarter-end only: Jan 31, Apr 30, Jul 31, and Oct 31. Points roll over; wallet balances do not reset. TODO confirm which Jordan should receive the third one-time Google review seed award; the app defaults to Jordan Thorpe.
+Redemptions open at quarter-end only: Jan 31, Apr 30, Jul 31, and Oct 31. Points roll over; wallet balances do not reset. One-time Google review seed awards are finalized for Jesse Dares, Jon Gregoire, and Jordan Thorpe.
 
 ---
 

@@ -12,9 +12,10 @@ export function canCallerAwardRule(caller: Profile, crewMemberId: string, ruleKe
   return false;
 }
 
-export function resolveServerAwardPoints(rule: EarningRule, events: PointsEvent[], crewMemberId: string, weekKey: string, weeklyCap: number) {
+export function resolveServerAwardPoints(rule: EarningRule, events: PointsEvent[], crewMemberId: string, weekKey: string, weeklyCap?: number | null) {
   if (!rule.active) return 0;
   if (!rule.habit) return rule.points;
+  if (!weeklyCap || weeklyCap <= 0) return rule.points;
   const already = events
     .filter((event) => event.userId === crewMemberId && event.type.startsWith("crew_habit") && event.ref.includes(weekKey))
     .reduce((sum, event) => sum + event.points, 0);

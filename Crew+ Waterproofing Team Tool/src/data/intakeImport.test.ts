@@ -25,14 +25,15 @@ describe("Crew+ intake importer", () => {
     expect(result.report.imported).toBe(1);
   });
 
-  it("maps earning caps and keeps the confirmed point anchor configurable", () => {
+  it("imports earning values without re-enabling weekly caps", () => {
     const state = createSeedState();
     const csv = [
       "Action / trigger,Points,Source app,Weekly cap,Active",
       "Daily value ritual,30,Crew+,150,Y",
     ].join("\n");
     const result = applyIntakeCsvTabs(state, [{ name: "12. Rewards - Earning", csv }]);
-    expect(result.state.earningRules.find((rule) => rule.id === "earn-daily")?.weeklyCap).toBe(150);
+    expect(result.state.earningRules.find((rule) => rule.id === "earn-daily")?.weeklyCap).toBeUndefined();
+    expect(result.state.earningRules.find((rule) => rule.id === "earn-daily")?.habit).toBe(true);
     expect(result.state.walletConfig.rewardDollarPerPoint).toBe(0.25);
   });
 });

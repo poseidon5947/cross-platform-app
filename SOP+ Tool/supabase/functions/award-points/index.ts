@@ -86,13 +86,15 @@ async function awardCrewRule(service: any, caller: any, callerId: string, body: 
 
   let points = Number(rule.points);
   if (rule.habit) {
-    const key = weekKey || ref.split(":").find((part) => /^20\d\d-W\d\d/.test(part)) || ref;
-    const { data: rows, error: habitError } = await service.from("points_events").select("points").eq("user_id", crewMemberId).like("type", "crew_habit%").ilike("ref", `%${key}%`);
-    if (habitError) return json({ error: habitError.message }, 500);
-    const already = (rows ?? []).reduce((sum: number, event: { points: number }) => sum + Number(event.points), 0);
-    const cap = Number(rule.weekly_cap ?? Deno.env.get("CREW_WEEKLY_HABIT_CAP") ?? 300);
-    points = Math.max(0, Math.min(points, cap - already));
-    if (points <= 0) return json({ eventId: null, awardedAt: null, alreadyAwarded: true, capped: true });
+    const cap = Number(rule.weekly_cap ?? Deno.env.get("CREW_WEEKLY_HABIT_CAP") ?? 0);
+    if (cap > 0) {
+      const key = weekKey || ref.split(":").find((part) => /^20\d\d-W\d\d/.test(part)) || ref;
+      const { data: rows, error: habitError } = await service.from("points_events").select("points").eq("user_id", crewMemberId).like("type", "crew_habit%").ilike("ref", `%${key}%`);
+      if (habitError) return json({ error: habitError.message }, 500);
+      const already = (rows ?? []).reduce((sum: number, event: { points: number }) => sum + Number(event.points), 0);
+      points = Math.max(0, Math.min(points, cap - already));
+      if (points <= 0) return json({ eventId: null, awardedAt: null, alreadyAwarded: true, capped: true });
+    }
   }
 
   return insertIdempotent(service, { userId: crewMemberId, type: eventTypeForRule(ruleKey), points, reason: rule.action, ref, contract: "suite.points.v1" });

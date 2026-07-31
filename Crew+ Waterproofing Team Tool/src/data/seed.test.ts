@@ -20,6 +20,10 @@ describe("Crew+ seed completeness", () => {
     expect(state.walletConfig.rewardDollarPerPoint).toBe(0.25);
     expect(state.config.googleReviewUrl).toContain("merchant-review-solicitation");
     expect(state.pointsEvents.filter((event) => event.type === "crew_google_review" && event.ref.startsWith("google_seed:"))).toHaveLength(3);
-    expect(state.pointsEvents.some((event) => event.ref.includes("TODO_CONFIRM_JORDAN_THORPE") && event.userId === "u6")).toBe(true);
+    expect(state.pointsEvents.some((event) => event.ref === "google_seed:u6:2026-07" && event.reason === "Seeded 5-star Google review naming Jordan Thorpe")).toBe(true);
+    expect(state.pointsEvents.filter((event) => event.userId === "u6" && event.type === "crew_google_review")).toEqual([
+      expect.objectContaining({ ref: "google_seed:u6:2026-07", reason: "Seeded 5-star Google review naming Jordan Thorpe" }),
+    ]);
+    expect(state.walletConfig.weeklyHabitCap).toBeNull();
   });
 });

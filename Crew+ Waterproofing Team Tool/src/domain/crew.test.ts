@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
-import { approveRedemption, bonusTrajectory, canSeeBonusDollars, cappedHabitAward, certAlertLevel, certAlertLevelFromType, completeReview, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, nextRedemptionWindow, requestRedemption, reviewDueDates, walletBalance } from "./crew";
+import { approveRedemption, bonusTrajectory, canSeeBonusDollars, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, nextRedemptionWindow, requestRedemption, reviewDueDates, walletBalance } from "./crew";
 
 describe("Crew+ wallet", () => {
   it("sums earned and redeemed points from the append-only ledger", () => {
@@ -15,10 +15,13 @@ describe("Crew+ wallet", () => {
     expect(impliedRewardValue(200, 0.25)).toBe(50);
   });
 
-  it("caps small habit points per week", () => {
+  it("leaves repeated habit points uncapped while idempotency blocks duplicate refs", () => {
     let state = createSeedState();
     state = { ...state, pointsEvents: [{ id: "habit-heavy", userId: "u3", type: "crew_habit_ritual", points: 298, reason: "existing", ref: "ritual:u3:v1:daily:2026-W30", ts: "2026-07-28" }, ...state.pointsEvents] };
-    expect(cappedHabitAward(state, "u3", 5, "2026-W30")).toBe(2);
+    state = completeRitual(state, "u3", "v1", "daily", "2026-W30-Mon", "2026-07-28T09:00:00Z");
+    state = completeRitual(state, "u3", "v1", "daily", "2026-W30-Mon", "2026-07-28T10:00:00Z");
+    expect(habitAwardPoints(state, "u3", 5, "2026-W30")).toBe(5);
+    expect(state.pointsEvents.filter((event) => event.ref === "ritual:u3:v1:daily:2026-W30-Mon")).toHaveLength(1);
   });
 
   it("opens redemptions only on quarter-end dates and rolls wallet balances forward", () => {

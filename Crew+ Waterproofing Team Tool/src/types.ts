@@ -70,7 +70,7 @@ export interface PointsEvent {
 
 export interface WalletConfig {
   rewardDollarPerPoint: number;
-  weeklyHabitCap: number;
+  weeklyHabitCap?: number | null;
 }
 
 export interface Reward {

@@ -26,7 +26,8 @@ export function habitPointsThisWeek(events: PointsEvent[], userId: string, weekK
     .reduce((sum, event) => sum + event.points, 0);
 }
 
-export function cappedHabitAward(state: CrewState, userId: string, points: number, weekKey: string) {
+export function habitAwardPoints(state: CrewState, userId: string, points: number, weekKey: string) {
+  if (!state.walletConfig.weeklyHabitCap || state.walletConfig.weeklyHabitCap <= 0) return points;
   const already = habitPointsThisWeek(state.pointsEvents, userId, weekKey);
   return Math.max(0, Math.min(points, state.walletConfig.weeklyHabitCap - already));
 }
@@ -39,8 +40,7 @@ export function completeRitual(state: CrewState, userId: string, valueId: string
   const rule = state.earningRules.find((item) => item.id === (cadence === "daily" ? "earn-daily" : cadence === "weekly" ? "earn-weekly" : "earn-monthly"));
   const ref = `ritual:${userId}:${valueId}:${cadence}:${periodKey}`;
   if (!rule || !shouldAward(state.pointsEvents, ref, "crew_habit_ritual")) return state;
-  const weekKey = periodKey.slice(0, 8);
-  const points = rule.habit ? cappedHabitAward(state, userId, rule.points, weekKey) : rule.points;
+  const points = rule.habit ? habitAwardPoints(state, userId, rule.points, periodKey.slice(0, 8)) : rule.points;
   const event: PointsEvent = { id: uid("pe"), userId, type: "crew_habit_ritual", points, reason: rule.action, ref, ts: now, source: "crew" };
   return {
     ...state,

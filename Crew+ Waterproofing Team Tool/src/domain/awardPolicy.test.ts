@@ -22,12 +22,12 @@ describe("hardened award policy", () => {
     expect(canCallerAwardRule(admin, "u4", "earn-ww-day")).toBe(false);
   });
 
-  it("clamps habit points at the server-side weekly cap", () => {
+  it("does not clamp habit points when no weekly cap is configured", () => {
     const state = createSeedState();
     const rule = state.earningRules.find((item) => item.id === "earn-daily")!;
     const events = [
       { id: "a", userId: "u3", type: "crew_habit_ritual", points: 298, reason: "existing", ref: "ritual:u3:v1:daily:2026-W31", ts: "2026-07-28", source: "crew" as const },
     ];
-    expect(resolveServerAwardPoints(rule, events, "u3", "2026-W31", 300)).toBe(2);
+    expect(resolveServerAwardPoints(rule, events, "u3", "2026-W31", null)).toBe(5);
   });
 });

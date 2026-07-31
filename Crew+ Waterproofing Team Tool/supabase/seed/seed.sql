@@ -38,14 +38,7 @@ insert into crew_earning_rule (id, action, points, source, habit, active) values
 ('earn-peer', 'Peer recognition received', 5, 'crew', false, true)
 on conflict (id) do update set action = excluded.action, points = excluded.points, source = excluded.source, habit = excluded.habit, active = excluded.active;
 
-update crew_earning_rule set weekly_cap = case id
-  when 'earn-log-week' then 40
-  when 'earn-tools' then 30
-  when 'earn-daily' then 150
-  when 'earn-weekly' then 80
-  when 'earn-monthly' then 60
-  else null
-end;
+update crew_earning_rule set weekly_cap = null;
 
 insert into crew_config (id, legal_name, display_name, app_name, primary_admin_name, primary_admin_email, timezone, week_starts_on, share_logins, share_wallet, official_brand_primary, official_brand_accent, intake_brand_primary, intake_brand_accent, points_anchor, intake_points_anchor, google_review_url, office_address, data_residency)
 values ('crew-config', 'Van-Isle Coating & Sealants Ltd.', 'Van Isle Waterproofing+', 'Crew+', 'Tara Clark', 'ops@vanislecoatings.com', 'Canada/Vancouver', 'Monday', true, true, '#14A2A4', '#1C1E20', '#1C5CAB', '#12A37A', 0.25, 0.25, 'https://www.google.com/maps/place//data=!4m3!3m2!1s0x548f6b3774eb6afd:0xbd3374f825d460ba!12e1?source=g.page.m._&laa=merchant-review-solicitation', '7 - 933 Ellery Street', 'Canada')
@@ -56,7 +49,7 @@ select p.id, e.type::points_event_type, e.points, e.reason, e.ref, e.ts::timesta
 from (values
   ('Jesse', 'crew_google_review', 200, 'Seeded 5-star Google review naming Jesse Dares', 'google_seed:u1:2026-07', '2026-07-29T10:00:00-07:00'),
   ('Jon', 'crew_google_review', 200, 'Seeded 5-star Google review naming Jon Gregoire', 'google_seed:u3:2026-07', '2026-07-29T10:05:00-07:00'),
-  ('J. Thorpe', 'crew_google_review', 200, 'TODO_CONFIRM seeded 5-star Google review for Jordan; defaulted to Jordan Thorpe', 'google_seed:TODO_CONFIRM_JORDAN_THORPE:u6:2026-07', '2026-07-29T10:10:00-07:00')
+  ('J. Thorpe', 'crew_google_review', 200, 'Seeded 5-star Google review naming Jordan Thorpe', 'google_seed:u6:2026-07', '2026-07-29T10:10:00-07:00')
 ) as e(profile_name, type, points, reason, ref, ts)
 join profiles p on p.name = e.profile_name
 on conflict (type, ref) do nothing;

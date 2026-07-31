@@ -140,7 +140,9 @@ Peer recognition received: +5
 Feedback, KPI hit, review on time, certs current, SWOT, written compliment: +5 each (TODO confirm)
 ```
 
-Weekly habit cap note: the cap remains configured at 300/week, but with rituals now worth +5 it is effectively non-binding. Confirm whether to lower it.
+Weekly cap note: the client confirmed there is no weekly cap on points. Habit and ritual earning is uncapped; idempotency still prevents duplicate awards for the same `(type, ref)`.
+
+Pending value confirmation: small-tier actions remain at `+5` while the client decides between `+5` and `+10`.
 
 Google review URL is stored in `crew_config.google_review_url`:
 
@@ -148,7 +150,7 @@ Google review URL is stored in `crew_config.google_review_url`:
 https://www.google.com/maps/place//data=!4m3!3m2!1s0x548f6b3774eb6afd:0xbd3374f825d460ba!12e1?source=g.page.m._&laa=merchant-review-solicitation
 ```
 
-One-time seeded Google review awards were added for Jesse Dares and Jon Gregoire. TODO confirm which Jordan should receive the third seeded review award; the seed defaults to Jordan Thorpe because he is the field-crew Jordan.
+One-time seeded Google review awards were added for Jesse Dares, Jon Gregoire, and Jordan Thorpe.
 
 Brand confirmation needed: the intake proposes `#1C5CAB` / `#12A37A`, but the suite keeps the official Van Isle brand `#14A2A4` / `#1C1E20` until the client signs off.
 

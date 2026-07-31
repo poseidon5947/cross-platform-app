@@ -298,9 +298,9 @@ function importEarning(state: CrewState, rows: Record<string, string>[], report:
       ...(existing ?? { id: slug(action), source: sourceFor(valueAt(row, "source app")), habit: false }),
       action,
       points,
-      weeklyCap: cap(valueAt(row, "weekly cap")),
+      weeklyCap: undefined,
       source: sourceFor(valueAt(row, "source app")),
-      habit: Boolean(cap(valueAt(row, "weekly cap"))),
+      habit: existing?.habit ?? ["daily value ritual", "weekly value exercise", "monthly value ritual", "clean material/tool logging week (no corrections)", "all tools returned, none damaged (weekly)"].includes(normalized(action)),
       active: yes(valueAt(row, "active")),
     } as EarningRule);
     report.imported += 1;
@@ -447,9 +447,6 @@ function periodFor(value: string): Kpi["period"] {
   return "monthly";
 }
 
-function cap(value: string) {
-  return value && value !== "-" && value !== "—" ? Number(value) || undefined : undefined;
-}
 
 function yes(value: string) {
   return ["y", "yes", "true", "combined leaderboard"].includes(value.toLowerCase());
