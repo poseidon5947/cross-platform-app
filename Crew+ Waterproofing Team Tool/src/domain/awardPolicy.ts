@@ -1,7 +1,7 @@
 import type { EarningRule, PointsEvent, Profile } from "../types";
 
-const selfServe = new Set(["earn-daily", "earn-weekly", "earn-monthly", "earn-feedback", "earn-cert-detail"]);
-const managerOnly = new Set(["earn-swot", "earn-review", "earn-kpi", "earn-google", "earn-compliment", "earn-safety", "earn-peer", "earn-certs"]);
+const selfServe = new Set(["earn-daily", "earn-weekly", "earn-monthly", "earn-feedback", "earn-cert-detail", "earn-swot"]);
+const managerOnly = new Set(["earn-review", "earn-kpi", "earn-google", "earn-compliment", "earn-safety", "earn-peer", "earn-certs"]);
 
 export function canCallerAwardRule(caller: Profile, crewMemberId: string, ruleKey: string) {
   const isAdminOrManager = caller.role === "admin" || caller.role === "manager";

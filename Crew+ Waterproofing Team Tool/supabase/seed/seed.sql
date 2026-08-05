@@ -116,21 +116,21 @@ insert into crew_bonus_period (year, annual_profit, pool_percent, status)
 values (2026, 250000, 0.05, 'draft')
 on conflict (year) do nothing;
 
-insert into crew_form (id, name, anonymous_allowed) values
-('form-swot','Quarterly SWOT',false),
-('form-feedback','Company feedback form',true)
-on conflict (id) do update set name = excluded.name, anonymous_allowed = excluded.anonymous_allowed;
+insert into crew_form (id, name, anonymous_allowed, cadence, due_month_days, description) values
+('form-swot','Quarterly SWOT',false,'quarterly',array['03-31','06-30','09-30','12-31'],'Share the team''s strengths, weaknesses, opportunities, and threats every quarter.'),
+('form-feedback','Company feedback form',true,'ad-hoc',null,null)
+on conflict (id) do update set name = excluded.name, anonymous_allowed = excluded.anonymous_allowed, cadence = excluded.cadence, due_month_days = excluded.due_month_days, description = excluded.description;
 
-insert into crew_form_question (id, form_id, sort_order, question, response_type, required, anonymous_allowed) values
-('form-swot-1','form-swot',1,'What are your Strengths right now?','Text',true,false),
-('form-swot-2','form-swot',2,'What are your Weaknesses / areas to grow?','Text',true,false),
-('form-swot-3','form-swot',3,'What Opportunities do you see (for you or the company)?','Text',true,false),
-('form-swot-4','form-swot',4,'What Threats or obstacles are in the way?','Text',true,false),
-('form-feedback-1','form-feedback',1,'What''s working well right now?','Text',true,true),
-('form-feedback-2','form-feedback',2,'What''s frustrating or slowing you down?','Text',true,true),
-('form-feedback-3','form-feedback',3,'One idea to make us better?','Text',false,true),
-('form-feedback-4','form-feedback',4,'How supported do you feel? (1-5)','Scale 1-5',true,true)
-on conflict (id) do update set question = excluded.question, response_type = excluded.response_type, required = excluded.required, anonymous_allowed = excluded.anonymous_allowed;
+insert into crew_form_question (id, form_id, sort_order, question, response_type, required, anonymous_allowed, word_limit) values
+('form-swot-1','form-swot',1,'Strengths','Text',true,false,500),
+('form-swot-2','form-swot',2,'Weaknesses','Text',true,false,500),
+('form-swot-3','form-swot',3,'Opportunities','Text',true,false,500),
+('form-swot-4','form-swot',4,'Threats','Text',true,false,500),
+('form-feedback-1','form-feedback',1,'What''s working well right now?','Text',true,true,null),
+('form-feedback-2','form-feedback',2,'What''s frustrating or slowing you down?','Text',true,true,null),
+('form-feedback-3','form-feedback',3,'One idea to make us better?','Text',false,true,null),
+('form-feedback-4','form-feedback',4,'How supported do you feel? (1-5)','Scale 1-5',true,true,null)
+on conflict (id) do update set question = excluded.question, response_type = excluded.response_type, required = excluded.required, anonymous_allowed = excluded.anonymous_allowed, word_limit = excluded.word_limit;
 
 insert into crew_integration_decision (id, name, needed, details) values
 ('database-supabase-firebase','Database (Supabase / Firebase)','Yes','Shared hosted DB with offline sync (per spec)'),
@@ -143,6 +143,14 @@ insert into crew_integration_decision (id, name, needed, details) values
 ('email-digests','Email digests','Yes','Manager weekly digest'),
 ('calendar-sync-google-outlook','Calendar sync (Google/Outlook)','Later','Reviews, cert expiries, birthdays')
 on conflict (id) do update set needed = excluded.needed, details = excluded.details;
+
+insert into crew_nudge (user_id, type, name, trigger_type, cadence, audience, channel, lead_time, active, title, due_at, read)
+select p.id, 'vacation', 'Vacation balance reminder', 'cadence', 'Monthly while vacation remains', 'Crew', 'Email + Text', 'Balance reminder only', true, 'Vacation days remaining', '2026-08-31T09:00:00-07:00'::timestamptz, false
+from profiles p
+where p.branch = 'field'
+  and not exists (
+    select 1 from crew_nudge n where n.user_id = p.id and n.type = 'vacation' and extract(year from n.due_at) = 2026
+  );
 
 insert into crew_certification (user_id, name, issued_at, expires_at, status, note)
 select p.id, c.name, c.issued_at::date, c.expires_at::date, c.status, c.note

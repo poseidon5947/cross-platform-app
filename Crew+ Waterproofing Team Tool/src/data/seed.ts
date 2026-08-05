@@ -13,6 +13,7 @@ import type {
   Kpi,
   Nudge,
   OrgRole,
+  PolicyDocument,
   Profile,
   RatingScaleDefinition,
   ReviewCompetency,
@@ -20,6 +21,7 @@ import type {
   Reward,
   Role,
   RolePermission,
+  TimeOffPolicy,
   ValueItem,
   ValueRitual,
 } from "../types";
@@ -220,11 +222,11 @@ export const bonusConfig: BonusConfig = {
 export const bonusRoleWeights: BonusRoleWeight[] = Object.entries(bonusConfig.roleWeights).map(([orgRole, weight]) => ({ orgRole: orgRole as OrgRole, weight }));
 
 export const reviewTypes: ReviewTypeConfig[] = [
-  reviewType("rt-30", "Probation 30-day", "New hires", "Day 30", "1-5", "Early fit & setup"),
-  reviewType("rt-60", "Probation 60-day", "New hires", "Day 60", "1-5", "Progress check"),
-  reviewType("rt-90", "Probation 90-day", "New hires", "Day 90", "1-5", "Confirm permanent"),
-  reviewType("rt-quarterly", "Quarterly check-in", "Everyone", "Each employee's quarter cycle", "1-5", "Coaching check-in; no payout"),
-  reviewType("rt-annual", "Annual review", "Everyone", "Two weeks before Dec payout", "1-5", "Employee Performance Scorecard; feeds Dec bonus"),
+  reviewType("rt-30", "Probation 30-day", "New hires", "Day 30", "Crew: Below / Meets / Exceeds; office: optional 1-5", "Early fit & setup"),
+  reviewType("rt-60", "Probation 60-day", "New hires", "Day 60", "Crew: Below / Meets / Exceeds; office: optional 1-5", "Progress check"),
+  reviewType("rt-90", "Probation 90-day", "New hires", "Day 90", "Crew: Below / Meets / Exceeds; office: optional 1-5", "Confirm permanent"),
+  reviewType("rt-quarterly", "Quarterly check-in", "Everyone", "Quarter ends: Mar 31, Jun 30, Sep 30, Dec 31", "Crew: Below / Meets / Exceeds; office: optional 1-5", "Coaching check-in; no payout"),
+  reviewType("rt-annual", "Annual review", "Everyone", "Two weeks before Dec payout", "Crew: Below / Meets / Exceeds; office: optional 1-5", "Employee Performance Scorecard; feeds Dec bonus"),
 ];
 
 export const ratingScale: RatingScaleDefinition[] = [
@@ -250,17 +252,17 @@ export const jobDescriptions: JobDescription[] = [
 ];
 
 export const forms: CrewForm[] = [
-  { id: "form-swot", name: "Quarterly SWOT", anonymousAllowed: false },
+  { id: "form-swot", name: "Quarterly SWOT", anonymousAllowed: false, cadence: "quarterly", dueMonthDays: ["03-31", "06-30", "09-30", "12-31"], description: "Share the team's strengths, weaknesses, opportunities, and threats every quarter." },
   { id: "form-feedback", name: "Company feedback form", anonymousAllowed: true },
   { id: "form-quarterly-scorecard", name: "Quarterly Review Scorecard", anonymousAllowed: false },
   { id: "form-annual-performance", name: "Employee Performance Scorecard", anonymousAllowed: false },
 ];
 
 export const formQuestions: CrewFormQuestion[] = [
-  question("form-swot", 1, "What are your Strengths right now?", "Text", true, false),
-  question("form-swot", 2, "What are your Weaknesses / areas to grow?", "Text", true, false),
-  question("form-swot", 3, "What Opportunities do you see (for you or the company)?", "Text", true, false),
-  question("form-swot", 4, "What Threats or obstacles are in the way?", "Text", true, false),
+  question("form-swot", 1, "Strengths", "Text", true, false, "both", 500),
+  question("form-swot", 2, "Weaknesses", "Text", true, false, "both", 500),
+  question("form-swot", 3, "Opportunities", "Text", true, false, "both", 500),
+  question("form-swot", 4, "Threats", "Text", true, false, "both", 500),
   question("form-feedback", 1, "What's working well right now?", "Text", true, true),
   question("form-feedback", 2, "What's frustrating or slowing you down?", "Text", true, true),
   question("form-feedback", 3, "One idea to make us better?", "Text", false, true),
@@ -268,13 +270,13 @@ export const formQuestions: CrewFormQuestion[] = [
   question("form-quarterly-scorecard", 1, "Check-In and Discussion", "Text", true, false, "both"),
   question("form-quarterly-scorecard", 2, "Company Support", "Text", true, false, "employee"),
   question("form-quarterly-scorecard", 3, "KPI Review: Attendance 100%, Daily paperwork 100%, Safety violations Zero, Customer complaints Zero, Rework under target, Vehicle inspections weekly, Training completed Yes", "KPI Table", true, false, "employee"),
-  question("form-quarterly-scorecard", 4, "Workmanship Review", "Scale 1-5", true, false, "employee"),
+  question("form-quarterly-scorecard", 4, "Workmanship Review", "Below / Meets / Exceeds", true, false, "employee"),
   question("form-quarterly-scorecard", 5, "Strengths", "Text", true, false, "employee"),
   question("form-quarterly-scorecard", 6, "Opportunities", "Text", true, false, "employee"),
   question("form-quarterly-scorecard", 7, "Quarterly Goals", "Text", true, false, "employee"),
-  question("form-quarterly-scorecard", 8, "Overall Rating", "Scale 1-5", true, false, "employee"),
+  question("form-quarterly-scorecard", 8, "Overall Rating", "Below / Meets / Exceeds", true, false, "employee"),
   question("form-quarterly-scorecard", 9, "Employee Comments", "Text", false, false, "employee"),
-  question("form-quarterly-scorecard", 10, "Review Job Description ratings", "Scale 1-5", true, false, "admin"),
+  question("form-quarterly-scorecard", 10, "Review Job Description ratings", "Below / Meets / Exceeds", true, false, "admin"),
   question("form-quarterly-scorecard", 11, "Living Our Core Values: Accountability, Professionalism, Respect, Teamwork, Continuous Improvement", "Checkbox", true, false, "admin"),
   question("form-quarterly-scorecard", 12, "Career Development", "Text", false, false, "admin"),
   question("form-quarterly-scorecard", 13, "Feedback for Management", "Text", false, false, "admin"),
@@ -292,6 +294,8 @@ export const nudgeTemplates: Nudge[] = [
   nudge("nudge-anniversary", "Work anniversary", "date-driven", "On date", "Manager", "Push", "Same day", "anniversary"),
   nudge("nudge-cert", "Cert expiry alert", "date-driven", "60/30/7 days + expiry", "Crew + Manager", "Push + Email", "60/30/7 days", "cert"),
   nudge("nudge-review", "Quarterly review countdown", "date-driven", "Within 2 weeks of quarter end", "Manager", "Push + Email", "14 days", "review"),
+  { id: "nudge-bullying-policy", name: "Annual bullying and harassment policy", triggerType: "date-driven", cadence: "Annually on August 31", audience: "All crew", channel: "In-app + Email", leadTime: "30/14/7 days", type: "policy", active: true, title: "Read and sign the workplace policy", dueAt: "2026-08-31T17:00:00-07:00", read: false },
+  { id: "nudge-vacation-balance", name: "Vacation balance reminder", triggerType: "cadence", cadence: "Monthly while vacation remains", audience: "Crew", channel: "Email + Text", leadTime: "Balance reminder only", type: "vacation", active: true, title: "Vacation days remaining", dueAt: "2026-08-31T09:00:00-07:00", read: false },
   nudge("nudge-probation", "Probation checkpoint", "date-driven", "Day 30/60/90", "Manager", "Push", "On day", "review"),
   nudge("nudge-digest", "Manager weekly digest", "cadence", "Monday", "Manager", "Email", "-", "benefits"),
 ];
@@ -308,6 +312,22 @@ export const integrations: IntegrationDecision[] = [
   integration("Calendar sync (Google/Outlook)", "Later", "Reviews, cert expiries, birthdays"),
   integration("Cost/report exports (PDF/CSV)", "Yes", "Review, compliance, bonus reports"),
   integration("Data residency", "Yes", "Confirm Canada (see Company tab)"),
+];
+
+export const policyDocuments: PolicyDocument[] = [
+  {
+    id: "policy-bullying-harassment",
+    title: "Workplace Bullying and Harassment Policy Statement",
+    version: "2026",
+    effectiveDate: "2026-01-30",
+    fileUrl: "/workplace-bullying-harassment-policy-2026.pdf",
+    annualDueMonthDay: "08-31",
+    active: true,
+  },
+];
+
+export const timeOffPolicies: TimeOffPolicy[] = [
+  { id: "time-off-2026", year: 2026, paidSickDays: 5, unpaidSickDays: 3, eligibilityDays: 90, renewalMonthDay: "01-01" },
 ];
 
 const certs: Certification[] = [
@@ -377,6 +397,11 @@ export function createSeedState(): CrewState {
     nudges: nudgeTemplates,
     forms,
     formQuestions,
+    formSubmissions: [],
+    policyDocuments,
+    policyAcknowledgments: [],
+    timeOffPolicies,
+    timeOffEntries: [],
     integrations,
     permissions: { cfoUserIds: ["u12"], hrOwnerUserIds: ["u8"], managerCanReviewCrew: true, rolePermissions },
   };
@@ -522,8 +547,8 @@ function jd(id: string, role: OrgRole, version: string, responsibility: string, 
   return { id, role, version, responsibility, requiredCertifications: splitList(certs), linkedKpis: splitList(kpis), reportsTo };
 }
 
-function question(formId: string, order: number, text: string, responseType: CrewFormQuestion["responseType"], required: boolean, anonymousAllowed: boolean, visibility: CrewFormQuestion["visibility"] = "both"): CrewFormQuestion {
-  return { id: `${formId}-${order}`, formId, order, question: text, responseType, required, anonymousAllowed, visibility };
+function question(formId: string, order: number, text: string, responseType: CrewFormQuestion["responseType"], required: boolean, anonymousAllowed: boolean, visibility: CrewFormQuestion["visibility"] = "both", wordLimit?: number): CrewFormQuestion {
+  return { id: `${formId}-${order}`, formId, order, question: text, responseType, required, anonymousAllowed, visibility, wordLimit };
 }
 
 function nudge(id: string, name: string, triggerType: Nudge["triggerType"], cadence: string, audience: string, channel: string, leadTime: string, type: Nudge["type"]): Nudge {

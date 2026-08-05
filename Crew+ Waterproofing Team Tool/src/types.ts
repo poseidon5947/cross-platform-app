@@ -39,6 +39,7 @@ export interface Profile {
   disciplinaryActionAt?: string;
   nextQuarterlyReviewDate?: string;
   reviewEligibility?: "Eligible" | "Not Eligible" | "TBD";
+  vacationDaysAnnual?: number;
 }
 
 export interface ValueItem {
@@ -125,7 +126,7 @@ export interface Review {
   };
   notes: string;
   swot?: string;
-  overallRating?: 1 | 2 | 3 | 4 | 5;
+  overallRating?: ReviewRating;
   visibilityNotes?: string;
 }
 
@@ -221,7 +222,7 @@ export interface Nudge {
   channel?: string;
   leadTime?: string;
   active?: boolean;
-  type: "ritual" | "review" | "cert" | "benefits" | "birthday" | "anniversary" | "feedback" | "swot";
+  type: "ritual" | "review" | "cert" | "benefits" | "birthday" | "anniversary" | "feedback" | "swot" | "policy" | "vacation";
   title: string;
   dueAt: string;
   read: boolean;
@@ -335,6 +336,9 @@ export interface CrewForm {
   id: string;
   name: string;
   anonymousAllowed: boolean;
+  cadence?: "quarterly" | "annual" | "ad-hoc";
+  dueMonthDays?: string[];
+  description?: string;
 }
 
 export interface CrewFormQuestion {
@@ -342,11 +346,61 @@ export interface CrewFormQuestion {
   formId: string;
   order: number;
   question: string;
-  responseType: "Text" | "Scale 1-5" | "Checkbox" | "Date" | "KPI Table";
+  responseType: "Text" | "Scale 1-5" | "Below / Meets / Exceeds" | "Checkbox" | "Date" | "KPI Table";
   required: boolean;
   anonymousAllowed: boolean;
   visibility?: "employee" | "admin" | "both";
   options?: string[];
+  wordLimit?: number;
+}
+
+export interface CrewFormSubmission {
+  id: string;
+  formId: string;
+  userId: string;
+  periodKey: string;
+  responses: Record<string, string>;
+  submittedAt: string;
+}
+
+export interface PolicyDocument {
+  id: string;
+  title: string;
+  version: string;
+  effectiveDate: string;
+  fileUrl: string;
+  annualDueMonthDay: string;
+  active: boolean;
+}
+
+export interface PolicyAcknowledgment {
+  id: string;
+  policyId: string;
+  userId: string;
+  year: number;
+  signedName: string;
+  signedAt: string;
+}
+
+export interface TimeOffPolicy {
+  id: string;
+  year: number;
+  paidSickDays: number;
+  unpaidSickDays: number;
+  eligibilityDays: number;
+  renewalMonthDay: string;
+}
+
+export type TimeOffKind = "paid_sick" | "unpaid_sick" | "vacation";
+
+export interface TimeOffEntry {
+  id: string;
+  userId: string;
+  kind: TimeOffKind;
+  days: number;
+  date: string;
+  note?: string;
+  createdAt: string;
 }
 
 export interface IntegrationDecision {
@@ -393,6 +447,11 @@ export interface CrewState {
   nudges: Nudge[];
   forms: CrewForm[];
   formQuestions: CrewFormQuestion[];
+  formSubmissions: CrewFormSubmission[];
+  policyDocuments: PolicyDocument[];
+  policyAcknowledgments: PolicyAcknowledgment[];
+  timeOffPolicies: TimeOffPolicy[];
+  timeOffEntries: TimeOffEntry[];
   integrations: IntegrationDecision[];
   permissions: PermissionConfig;
 }

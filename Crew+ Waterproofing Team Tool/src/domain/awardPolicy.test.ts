@@ -7,7 +7,9 @@ describe("hardened award policy", () => {
     const state = createSeedState();
     const jesse = state.users.find((user) => user.id === "u1")!;
     expect(canCallerAwardRule(jesse, "u1", "earn-daily")).toBe(true);
+    expect(canCallerAwardRule(jesse, "u1", "earn-swot")).toBe(true);
     expect(canCallerAwardRule(jesse, "u4", "earn-daily")).toBe(false);
+    expect(canCallerAwardRule(jesse, "u4", "earn-swot")).toBe(false);
   });
 
   it("requires manager/admin for manager-granted earns and redemptions", () => {

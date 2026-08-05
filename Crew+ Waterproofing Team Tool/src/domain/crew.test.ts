@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
-import { approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, nextRedemptionWindow, requestRedemption, reviewDueDates, walletBalance } from "./crew";
+import { acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, nextQuarterDeadline, nextRedemptionWindow, recordTimeOff, requestRedemption, reviewDueDates, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
 
 describe("Crew+ wallet", () => {
   it("sums earned and redeemed points from the append-only ledger", () => {
@@ -39,7 +39,43 @@ describe("Crew+ cadence, compliance, and privacy", () => {
     const dates = reviewDueDates("2026-01-01", 2026);
     expect(dates.map((item) => item.type)).toContain("30");
     expect(dates.filter((item) => item.type === "quarterly")).toHaveLength(4);
+    expect(dates.find((item) => item.type === "quarterly" && item.scheduledFor.endsWith("12-31"))).toBeTruthy();
     expect(dates.at(-1)?.type).toBe("annual");
+  });
+
+  it("submits one quarterly SWOT per deadline and enforces the 500-word cap", () => {
+    let state = createSeedState();
+    const responses = Object.fromEntries(state.formQuestions.filter((question) => question.formId === "form-swot").map((question) => [question.id, `${question.question} response`]));
+    state = submitQuarterlySwot(state, "u3", responses, "2026-08-04T09:00:00Z");
+    state = submitQuarterlySwot(state, "u3", responses, "2026-08-05T09:00:00Z");
+    expect(nextQuarterDeadline("2026-08-04")).toBe("2026-09-30");
+    expect(state.formSubmissions).toHaveLength(1);
+    expect(state.pointsEvents.filter((event) => event.ref === "swot:u3:2026-09-30")).toHaveLength(1);
+    expect(wordCount(Array(501).fill("word").join(" "))).toBe(501);
+  });
+
+  it("records one annual policy acknowledgment per crew member", () => {
+    let state = createSeedState();
+    state = acknowledgePolicy(state, "policy-bullying-harassment", "u3", "Jon Gregoire", "2026-08-04T09:00:00Z");
+    state = acknowledgePolicy(state, "policy-bullying-harassment", "u3", "Jon Gregoire", "2026-08-05T09:00:00Z");
+    expect(state.policyAcknowledgments).toHaveLength(1);
+    expect(state.policyAcknowledgments[0]).toMatchObject({ year: 2026, signedName: "Jon Gregoire" });
+  });
+
+  it("tracks annual sick and vacation balances after the 90-day eligibility date", () => {
+    let state = createSeedState();
+    state = { ...state, users: state.users.map((user) => user.id === "u3" ? { ...user, hireDate: "2026-01-01", vacationDaysAnnual: 10 } : user) };
+    expect(timeOffEligibilityDate("2026-01-01")).toBe("2026-04-01");
+    state = recordTimeOff(state, "u3", "paid_sick", 1, "2026-03-31");
+    expect(state.timeOffEntries).toHaveLength(0);
+    state = recordTimeOff(state, "u3", "paid_sick", 1, "2026-04-01");
+    state = recordTimeOff(state, "u3", "vacation", 2, "2026-08-10");
+    const summary = timeOffSummary(state, "u3", 2026);
+    expect(summary.paidSickRemaining).toBe(4);
+    expect(summary.unpaidSickRemaining).toBe(3);
+    expect(summary.vacationRemaining).toBe(8);
+    expect(vacationReminderText(state, "u3", 2026)).toContain("8 of 10 vacation days remaining");
+    expect(timeOffSummary(state, "u3", 2027).paidSickRemaining).toBe(5);
   });
 
   it("awards review completion idempotently", () => {

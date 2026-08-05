@@ -151,6 +151,7 @@ export const materials: Material[] = materialRows.map((row) => {
     pack: row[5],
     unitsPerPallet: row[6],
     cost: row[7],
+    strictTracking: true,
     qty: row[8],
     reorderPoint: row[9],
     bin: row[10],

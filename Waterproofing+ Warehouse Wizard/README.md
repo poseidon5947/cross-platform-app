@@ -194,7 +194,7 @@ The Admin tab provides:
 
 ## Tests
 
-Current tests cover stock movement, signed adjust/set exact count, reorder math, Vancouver period keys, points/streaks/reversals, truck-log auto-task completion, CSV validation, locked V2 material units, price-increase flags, and offline queue drain.
+Current tests cover stock movement, signed adjust/set exact count, reorder math, Vancouver period keys, points/streaks/reversals, truck-log auto-task completion, CSV validation, locked V2 material units, price-change flags, and offline queue drain.
 
 ## V2 Material Notes
 
@@ -207,3 +207,11 @@ Locked material units are now restricted to `Unit`, `Roll`, `Drum`, `Box`, and `
 - everything else -> `Unit`
 
 TODO_CONFIRM: confirm the provisional remap for legacy pail/board/bag-style units. TODO_CONFIRM: Roll now logs in whole units per V2; earlier drafts allowed 0.5 rolls.
+
+## V4 Client Update
+
+Target launch is August 15, 2026. The inventory cost history now preserves the original unit cost whenever a later import or manual edit raises or lowers the current cost, and the Today report labels both increases and decreases. V5 supersedes the earlier on-hand intake timing below.
+
+## V5 Client Update
+
+Warehouse intake is now due August 10. A populated `On Hand` / Column J marks an item for strict high-value tracking. Blank Column J rows remain available as reference records but are excluded from material logging, reorder alerts, and tracked-SKU counts. The locked unit list remains Unit, Roll, Drum, Box, and Sausage; items that do not fit another option default to Unit. The client will also provide the real tool roster.

@@ -168,6 +168,24 @@ Brand confirmation needed: the intake proposes `#1C5CAB` / `#12A37A`, but the su
 - TODO_CONFIRM: confirm whether the client wants a separate annual review score in addition to the quarterly average.
 - TODO_CONFIRM: quarterly scorecard core-value checkboxes use Accountability, Professionalism, Respect, Teamwork, Continuous Improvement, which differs from the new three brand values.
 
+## V4 Client Updates
+
+- Target launch: August 15, 2026.
+- Crew members maintain their own current address and emergency contact from the Profile screen.
+- Crew members can add certifications and record course date, expiry date, certificate number, and certificate photo/PDF evidence.
+- Quarterly SWOT is a fillable self-service form with a 500-word maximum for each category. Deadlines are March 31, June 30, September 30, and December 31.
+- The Workplace Bullying and Harassment Policy Statement is bundled in the portal. Every crew member must read and electronically acknowledge it annually by August 31, beginning in 2026.
+- Crew reviews use Below / Meets / Exceeds. Office roles retain the optional 1-5 scale.
+- QuickBooks Online authorization remains a go-live action requiring a client admin for about five minutes; only in-progress customer and job names are in scope.
+
+## V5 Client Updates
+
+- Crew+ tracks 5 paid sick days and 3 unpaid sick days per calendar year for each eligible crew member.
+- Eligibility begins after 90 consecutive calendar days with the company and applies to full-time, part-time, temporary, and casual workers.
+- Sick and vacation usage is stored as dated entries, so January 1 renewal creates a clean annual balance without deleting prior-year history.
+- Vacation allowance is configurable per employee. Vacation balance reminders are prepared for email and text; sick-day usage reminders are intentionally disabled.
+- V5 keeps the August 31 annual bullying/harassment acknowledgment and quarterly SWOT requirements from V4.
+
 ## Privacy
 
 Bonus dollars are admin/CFO-only. Non-admin/CFO users see only green/amber/red trajectory. The migration restricts bonus config/period reads through RLS to admin profiles whose `org_role` is `CFO` or `Operations`.

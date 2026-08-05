@@ -12,6 +12,11 @@ describe("Crew+ seed completeness", () => {
     expect(state.certificationTypes).toHaveLength(8);
     expect(state.forms).toHaveLength(4);
     expect(state.formQuestions).toHaveLength(25);
+    expect(state.formQuestions.filter((question) => question.formId === "form-swot").every((question) => question.wordLimit === 500)).toBe(true);
+    expect(state.forms.find((form) => form.id === "form-swot")?.dueMonthDays).toEqual(["03-31", "06-30", "09-30", "12-31"]);
+    expect(state.policyDocuments[0]).toMatchObject({ annualDueMonthDay: "08-31", version: "2026" });
+    expect(state.timeOffPolicies[0]).toMatchObject({ year: 2026, paidSickDays: 5, unpaidSickDays: 3, eligibilityDays: 90 });
+    expect(state.nudges.some((nudge) => nudge.type === "vacation" && nudge.channel === "Email + Text")).toBe(true);
     expect(state.earningRules.length).toBeGreaterThanOrEqual(17);
     expect(state.rewards.map((reward) => reward.name)).toEqual(["Cash - $50", "Cash - $100", "Gift Card - $50", "Gift Card - $100", "PTO - half day", "PTO - full day"]);
     expect(state.kpis.length).toBeGreaterThanOrEqual(20);

@@ -32,7 +32,7 @@ import {
 import {
   applyTransactions,
   applyTruckLog,
-  applyCostIncreaseFlag,
+  applyCostChangeFlag,
   batteryState,
   dailyProgress,
   evaluateDailyPoints,
@@ -49,7 +49,7 @@ import {
   stockStatus,
   todayKey,
   ALLOWED_MATERIAL_UNITS,
-  priceIncreaseMaterials,
+  priceChangeMaterials,
   stepForMaterialUnit,
 } from "./domain/business";
 import { isSupabaseConfigured, supabase } from "./integrations/supabase";
@@ -84,7 +84,7 @@ function sanitizeStoredState(state: AppState): AppState {
     ...state,
     materials: state.materials.map((material) => {
       const unit = normalizeMaterialUnit(String(material.unit)) ?? remapProvisionalMaterialUnit(`${material.unit} ${material.name}`);
-      return { ...material, unit, step: stepForMaterialUnit(unit) };
+      return { ...material, unit, step: stepForMaterialUnit(unit), strictTracking: material.strictTracking ?? true };
     }),
   };
 }
@@ -270,7 +270,7 @@ export function App() {
   };
 
   const saveMaterial = (material: Material, includeQty = true) => {
-    const materialToSave = applyCostIncreaseFlag(state.materials.find((item) => item.id === material.id), material);
+    const materialToSave = applyCostChangeFlag(state.materials.find((item) => item.id === material.id), material);
     patchState((current) => ({
       ...current,
       materials: current.materials.some((item) => item.id === material.id)
@@ -410,25 +410,26 @@ function ShellMessage({ title, detail }: { title: string; detail: string }) {
 }
 
 function Home({ state, userId, setTab, openGraph }: { state: AppState; userId: string; setTab: (tab: Tab) => void; openGraph: (t: GraphType) => void }) {
-  const lows = state.materials.filter((material) => stockStatus(material).key !== "good");
+  const trackedMaterials = state.materials.filter((material) => material.strictTracking !== false);
+  const lows = trackedMaterials.filter((material) => stockStatus(material).key !== "good");
   const today = todayKey();
   const usedToday = state.transactions.filter((tx) => tx.ts.slice(0, 10) === today && ["use", "deliver"].includes(tx.type)).reduce((sum, tx) => sum + tx.qty, 0);
   const losses = state.transactions.filter((tx) => tx.type === "loss" && Date.now() - new Date(tx.ts).getTime() < 30 * 86400000).reduce((sum, tx) => sum + tx.qty * (state.materials.find((material) => material.id === tx.materialId)?.cost ?? 0), 0);
   const progress = dailyProgress(state.truckTasks, state.taskCompletions, userId);
   const toolsOut = state.tools.filter((tool) => tool.status === "out").length;
   const chargeDue = state.tools.filter((tool) => tool.battery && batteryState(tool.lastCharged).key === "bad").length;
-  const priceUps = priceIncreaseMaterials(state.materials);
+  const priceChanges = priceChangeMaterials(state.materials);
   return <>
     <div className="banner"><b>{progress.pct === 100 ? "Daily tasks complete" : "Crew-first workflow"}</b><span>{progress.done}/{progress.total} daily tasks complete today.</span></div>
     <div className="kpis">
-      <Kpi label="SKUs tracked"  value={state.materials.length}  sub={`across ${Object.keys(categoryLabels).length} categories`} onClick={() => openGraph("inventory_stock")} />
+      <Kpi label="SKUs tracked"  value={trackedMaterials.length}  sub={`${state.materials.length - trackedMaterials.length} reference only`} onClick={() => openGraph("inventory_stock")} />
       <Kpi label="Need reorder"  value={lows.length}             sub={lows.length ? "below threshold" : "all stocked"} alert={lows.length > 0} onClick={() => openGraph("reorder_alert")} />
       <Kpi label="Units out today" value={usedToday}             sub="used + delivered" onClick={() => openGraph("activity_trend")} />
       <Kpi label="Losses (30d)"  value={money(losses)}           sub="damaged / spilled" alert={losses > 0} onClick={() => openGraph("losses_30d")} />
     </div>
     <section className="card card-interactive"><div className="sec-h"><h2>Reorder now</h2><button className="link" onClick={() => setTab("inventory")}>Open</button></div>{lows.slice(0, 5).map((material) => <MaterialMini key={material.id} material={material} />)}{lows.length === 0 && <div className="empty-state"><span className="empty-icon">✓</span><div className="empty-msg">All materials above reorder threshold</div></div>}</section>
     <section className="card card-interactive" onClick={() => openGraph("tools_status")}><div className="sec-h"><h2>Tools & equipment</h2><button className="link" onClick={(e) => { e.stopPropagation(); setTab("tools"); }}>Manage</button></div><div className="kpis compact"><Kpi label="Checked out" value={toolsOut} sub={`of ${state.tools.length}`} /><Kpi label="Charge due" value={chargeDue} sub="cordless batteries" alert={chargeDue > 0} /></div></section>
-    <section className="card"><div className="sec-h"><h2>Price increases</h2><button className="link" onClick={() => setTab("admin")}>Report</button></div>{priceUps.slice(0, 4).map((material) => <div className="line-item" key={material.id}><b>{material.name}</b><span className="pill warn">{money(material.previousCost ?? 0)} to {money(material.cost)}</span></div>)}{priceUps.length === 0 && <div className="empty-state"><span className="empty-icon">OK</span><div className="empty-msg">No material price increases flagged</div></div>}</section>
+    <section className="card"><div className="sec-h"><h2>Price changes</h2><button className="link" onClick={() => setTab("admin")}>Report</button></div>{priceChanges.slice(0, 4).map((material) => <div className="line-item" key={material.id}><b>{material.name}</b><span className={`pill ${material.cost > (material.previousCost ?? material.cost) ? "warn" : "good"}`}>{money(material.previousCost ?? 0)} to {money(material.cost)}</span></div>)}{priceChanges.length === 0 && <div className="empty-state"><span className="empty-icon">OK</span><div className="empty-msg">No material price changes flagged</div></div>}</section>
     <section className="card card-interactive"><div className="sec-h"><h2>Today's truck tasks</h2><button className="link" onClick={() => setTab("trucks")}>Open</button></div><ProgressRing pct={progress.pct} /></section>
     <section className="card card-interactive" onClick={() => openGraph("activity_trend")}><div className="sec-h"><h2>Recent activity</h2><button className="link" onClick={(e) => { e.stopPropagation(); setTab("admin"); }}>Exports</button></div>{state.transactions.slice(0, 6).map((tx) => <Activity key={tx.id} state={state} tx={tx} />)}{state.transactions.length === 0 && <div className="empty-state"><span className="empty-icon">📋</span><div className="empty-msg">No activity logged yet</div></div>}</section>
   </>;
@@ -448,7 +449,7 @@ function LogMaterials({ state, userId, submitTransactions, saveSite }: { state: 
   const [cart, setCart] = useState<Record<string, number>>({});
   const [query, setQuery] = useState("");
   const [newSite, setNewSite] = useState("");
-  const materials = state.materials.filter((material) => !query || material.name.toLowerCase().includes(query.toLowerCase()));
+  const materials = state.materials.filter((material) => material.strictTracking !== false && (!query || material.name.toLowerCase().includes(query.toLowerCase())));
   const total = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
   const add = (material: Material, sign = 1) => setCart((current) => ({ ...current, [material.id]: Math.max(0, (current[material.id] ?? 0) + sign * material.step) }));
   const submit = () => {
@@ -606,8 +607,8 @@ function Admin({ state, role, notify, remoteMode, saveMaterial, currentTheme, on
   const csv = useMemo(() => transactionsCsv(state), [state]);
   const [exportMonth, setExportMonth] = useState(new Date().toISOString().slice(0, 7));
   const monthlyCsv = useMemo(() => monthlyInventoryLogCsv(state, exportMonth), [state, exportMonth]);
-  const priceUps = priceIncreaseMaterials(state.materials);
-  const [report, setReport] = useState<string>(() => priceUps.length ? `${priceUps.length} price increase flag${priceUps.length === 1 ? "" : "s"} active` : "");
+  const priceChanges = priceChangeMaterials(state.materials);
+  const [report, setReport] = useState<string>(() => priceChanges.length ? `${priceChanges.length} price change${priceChanges.length === 1 ? "" : "s"} active` : "");
   if (!canManage(role)) return <section className="card">Manager or Admin access required.</section>;
   const upload = async (file?: File) => {
     if (!file) return;
@@ -629,7 +630,7 @@ function MaterialDetail({ material, role, setExactCount, saveMaterial }: { mater
 }
 
 function MaterialForm({ material, saveMaterial }: { material?: Material; saveMaterial: (material: Material, includeQty?: boolean) => void }) {
-  const [draft, setDraft] = useState<Material>(material ?? { id: id("m"), name: "", category: "waterproofing", unit: "Unit", step: 1, pack: "", unitsPerPallet: 0, cost: 0, qty: 0, reorderPoint: 1, bin: "" });
+  const [draft, setDraft] = useState<Material>(material ?? { id: id("m"), name: "", category: "waterproofing", unit: "Unit", step: 1, pack: "", unitsPerPallet: 0, cost: 0, strictTracking: true, qty: 0, reorderPoint: 1, bin: "" });
   const set = <K extends keyof Material>(key: K, value: Material[K]) => setDraft((current) => ({ ...current, [key]: value }));
   const setUnit = (unit: MaterialUnit) => setDraft((current) => ({ ...current, unit, step: stepForMaterialUnit(unit) }));
   return <div className="form-stack"><label className="fld">Name</label><input className="in" value={draft.name} onChange={(event) => set("name", event.target.value)} /><div className="row2"><div><label className="fld">Category</label><select className="in" value={draft.category} onChange={(event) => set("category", event.target.value as Category)}>{Object.entries(categoryLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div><div><label className="fld">Locked unit</label><select className="in" value={draft.unit} onChange={(event) => setUnit(event.target.value as MaterialUnit)}>{ALLOWED_MATERIAL_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select></div></div><div className="row2"><div><label className="fld">Step</label><input className="in" readOnly value={draft.step === 0.25 ? "Quarter" : "Whole"} /></div><div><label className="fld">Bin</label><input className="in" value={draft.bin} onChange={(event) => set("bin", event.target.value)} /></div></div><label className="fld">Pack note</label><input className="in" value={draft.pack} onChange={(event) => set("pack", event.target.value)} /><div className="row2"><NumberField label="Units/pallet" value={draft.unitsPerPallet} setValue={(value) => set("unitsPerPallet", value)} /><NumberField label="Cost" value={draft.cost} setValue={(value) => set("cost", value)} step={0.01} /></div><div className="row2"><NumberField label="On hand" value={draft.qty} setValue={(value) => set("qty", value)} step={draft.step} /><NumberField label="Reorder" value={draft.reorderPoint} setValue={(value) => set("reorderPoint", value)} step={draft.step} /></div><button className="btn primary block" onClick={() => saveMaterial(draft)}>Save material</button></div>;

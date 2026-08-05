@@ -1,4 +1,4 @@
-import type { Cadence, Certification, CertificationType, CrewState, PointsEvent, Profile, RedemptionStatus, Review, ReviewRating, ReviewType, RolePermissionKey } from "../types";
+import type { Cadence, Certification, CertificationType, CrewState, PointsEvent, Profile, RedemptionStatus, Review, ReviewRating, ReviewType, RolePermissionKey, TimeOffKind } from "../types";
 
 const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -85,7 +85,7 @@ export function reviewDueDates(hireDate: string, year: number) {
     { type: "quarterly" as ReviewType, scheduledFor: `${year}-03-31` },
     { type: "quarterly" as ReviewType, scheduledFor: `${year}-06-30` },
     { type: "quarterly" as ReviewType, scheduledFor: `${year}-09-30` },
-    { type: "quarterly" as ReviewType, scheduledFor: `${year}-12-15` },
+    { type: "quarterly" as ReviewType, scheduledFor: `${year}-12-31` },
     { type: "annual" as ReviewType, scheduledFor: `${year}-12-10` },
   ];
 }
@@ -144,6 +144,101 @@ export function submitFeedback(state: CrewState, userId: string, message: string
   // TODO confirm with client: feedback was included in the defaulted "+5 etc." group.
   const event: PointsEvent = { id: uid("pe"), userId, type: "crew_feedback", points: rulePoints(state, "earn-feedback", 5), reason: "Company feedback submitted", ref, ts: now, source: "crew" };
   return { ...state, pointsEvents: [event, ...state.pointsEvents] };
+}
+
+export function wordCount(value: string) {
+  return value.trim() ? value.trim().split(/\s+/).length : 0;
+}
+
+export function nextQuarterDeadline(todayIso: string) {
+  const year = Number(todayIso.slice(0, 4));
+  const monthDay = todayIso.slice(5, 10);
+  const deadline = ["03-31", "06-30", "09-30", "12-31"].find((date) => date >= monthDay);
+  return deadline ? `${year}-${deadline}` : `${year + 1}-03-31`;
+}
+
+export function submitQuarterlySwot(state: CrewState, userId: string, responses: Record<string, string>, now = new Date().toISOString()) {
+  const form = state.forms.find((item) => item.id === "form-swot");
+  const questions = state.formQuestions.filter((item) => item.formId === form?.id);
+  const complete = Boolean(form) && questions.every((question) => {
+    const response = responses[question.id]?.trim() ?? "";
+    return (!question.required || Boolean(response)) && (!question.wordLimit || wordCount(response) <= question.wordLimit);
+  });
+  const periodKey = nextQuarterDeadline(now.slice(0, 10));
+  if (!complete || state.formSubmissions.some((item) => item.formId === form?.id && item.userId === userId && item.periodKey === periodKey)) return state;
+
+  const ref = `swot:${userId}:${periodKey}`;
+  const points = shouldAward(state.pointsEvents, ref, "crew_swot") ? rulePoints(state, "earn-swot", 5) : 0;
+  const event: PointsEvent = { id: uid("pe"), userId, type: "crew_swot", points, reason: "Quarterly SWOT submitted on time", ref, ts: now, source: "crew" };
+  return {
+    ...state,
+    pointsEvents: points ? [event, ...state.pointsEvents] : state.pointsEvents,
+    formSubmissions: [{ id: uid("form"), formId: form!.id, userId, periodKey, responses, submittedAt: now }, ...state.formSubmissions],
+  };
+}
+
+export function policyDueDate(policy: CrewState["policyDocuments"][number], year: number) {
+  return `${year}-${policy.annualDueMonthDay}`;
+}
+
+export function acknowledgePolicy(state: CrewState, policyId: string, userId: string, signedName: string, now = new Date().toISOString()) {
+  const policy = state.policyDocuments.find((item) => item.id === policyId && item.active);
+  const user = state.users.find((item) => item.id === userId);
+  const year = Number(now.slice(0, 4));
+  if (!policy || !user || !signedName.trim() || state.policyAcknowledgments.some((item) => item.policyId === policyId && item.userId === userId && item.year === year)) return state;
+  return {
+    ...state,
+    policyAcknowledgments: [{ id: uid("ack"), policyId, userId, year, signedName: signedName.trim(), signedAt: now }, ...state.policyAcknowledgments],
+  };
+}
+
+export function timeOffEligibilityDate(hireDate: string | undefined, eligibilityDays = 90) {
+  if (!hireDate) return "";
+  const date = new Date(`${hireDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + eligibilityDays);
+  return date.toISOString().slice(0, 10);
+}
+
+export function timeOffSummary(state: CrewState, userId: string, year: number) {
+  const policy = state.timeOffPolicies.find((item) => item.year === year) ?? { id: `time-off-${year}`, year, paidSickDays: 5, unpaidSickDays: 3, eligibilityDays: 90, renewalMonthDay: "01-01" };
+  const user = state.users.find((item) => item.id === userId);
+  const entries = state.timeOffEntries.filter((item) => item.userId === userId && item.date.startsWith(String(year)));
+  const used = (kind: TimeOffKind) => entries.filter((item) => item.kind === kind).reduce((sum, item) => sum + item.days, 0);
+  const paidSickUsed = used("paid_sick");
+  const unpaidSickUsed = used("unpaid_sick");
+  const vacationUsed = used("vacation");
+  const vacationAllowance = user?.vacationDaysAnnual;
+  return {
+    policy,
+    eligibleFrom: timeOffEligibilityDate(user?.hireDate, policy.eligibilityDays),
+    paidSickUsed,
+    paidSickRemaining: Math.max(0, policy.paidSickDays - paidSickUsed),
+    unpaidSickUsed,
+    unpaidSickRemaining: Math.max(0, policy.unpaidSickDays - unpaidSickUsed),
+    vacationUsed,
+    vacationAllowance,
+    vacationRemaining: vacationAllowance == null ? null : Math.max(0, vacationAllowance - vacationUsed),
+  };
+}
+
+export function recordTimeOff(state: CrewState, userId: string, kind: TimeOffKind, days: number, date: string, note = "", now = new Date().toISOString()) {
+  if (!Number.isFinite(days) || days <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return state;
+  const year = Number(date.slice(0, 4));
+  const summary = timeOffSummary(state, userId, year);
+  if (!summary.eligibleFrom || date < summary.eligibleFrom) return state;
+  const remaining = kind === "paid_sick" ? summary.paidSickRemaining : kind === "unpaid_sick" ? summary.unpaidSickRemaining : summary.vacationRemaining;
+  if (remaining == null || days > remaining) return state;
+  return {
+    ...state,
+    timeOffEntries: [{ id: uid("leave"), userId, kind, days, date, note: note.trim() || undefined, createdAt: now }, ...state.timeOffEntries],
+  };
+}
+
+export function vacationReminderText(state: CrewState, userId: string, year: number) {
+  const user = state.users.find((item) => item.id === userId);
+  const summary = timeOffSummary(state, userId, year);
+  if (!user || summary.vacationRemaining == null) return "Vacation allowance pending.";
+  return `${user.name}: ${summary.vacationRemaining} of ${summary.vacationAllowance} vacation days remaining for ${year}.`;
 }
 
 export function giveRecognition(state: CrewState, fromUserId: string, toUserId: string, message: string, now = new Date().toISOString()) {
@@ -227,7 +322,7 @@ export function estimatedBonusDollars(state: CrewState, user: Profile) {
 export function averageQuarterlyRating(state: CrewState, userId: string, year: number) {
   const ratings = state.reviews
     .filter((review) => review.userId === userId && review.type === "quarterly" && review.status === "completed" && review.scheduledFor.startsWith(String(year)))
-    .map((review) => review.overallRating ?? averageRatings(Object.values(review.ratings)));
+    .map((review) => review.overallRating ? numericRating(review.overallRating) : averageRatings(Object.values(review.ratings)));
   const valid = ratings.filter((rating): rating is number => Number.isFinite(rating));
   return valid.length ? valid.reduce((sum, rating) => sum + rating, 0) / valid.length : 0;
 }

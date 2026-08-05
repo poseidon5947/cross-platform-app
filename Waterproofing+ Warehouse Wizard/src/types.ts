@@ -44,6 +44,7 @@ export interface Material {
   cost: number;
   previousCost?: number;
   priceChangedAt?: string;
+  strictTracking?: boolean;
   qty: number;
   reorderPoint: number;
   bin: string;

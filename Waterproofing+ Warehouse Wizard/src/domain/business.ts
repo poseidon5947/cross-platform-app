@@ -49,15 +49,15 @@ export function stepForMaterialUnit(unit: MaterialUnit): 0.25 | 1 {
   return unit === "Drum" ? 0.25 : 1;
 }
 
-export function applyCostIncreaseFlag(existing: Material | undefined, next: Material, now = new Date().toISOString()): Material {
-  if (existing && next.cost > existing.cost) {
+export function applyCostChangeFlag(existing: Material | undefined, next: Material, now = new Date().toISOString()): Material {
+  if (existing && next.cost !== existing.cost) {
     return { ...next, previousCost: existing.cost, priceChangedAt: now };
   }
   return { ...next, previousCost: existing?.previousCost, priceChangedAt: existing?.priceChangedAt };
 }
 
-export function priceIncreaseMaterials(materials: Material[]) {
-  return materials.filter((material) => material.previousCost != null && material.cost > material.previousCost);
+export function priceChangeMaterials(materials: Material[]) {
+  return materials.filter((material) => material.previousCost != null && material.cost !== material.previousCost);
 }
 
 export function stockStatus(material: Pick<Material, "qty" | "reorderPoint">) {
@@ -108,7 +108,7 @@ export function reorderLine(material: Material) {
 }
 
 export function reorderEstimate(materials: Material[], freight = 175) {
-  const lines = materials.filter((material) => stockStatus(material).key !== "good").map(reorderLine);
+  const lines = materials.filter((material) => material.strictTracking !== false && stockStatus(material).key !== "good").map(reorderLine);
   const subtotal = lines.reduce((sum, line) => sum + line.lineCost, 0);
   const gst = subtotal * 0.05;
   return { lines, subtotal, gst, freight, total: subtotal + gst + freight };

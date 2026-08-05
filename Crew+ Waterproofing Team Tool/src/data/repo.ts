@@ -24,7 +24,7 @@ export async function getCurrentSession() {
 }
 
 export async function loadRemoteState(currentUserId: string): Promise<Partial<CrewState>> {
-  const [profiles, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusConfigs, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, integrations, rolePermissions, jobDescriptions, configs] = await Promise.all([
+  const [profiles, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusConfigs, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, rolePermissions, jobDescriptions, configs] = await Promise.all([
     read("profiles", profileFromRow, "name"),
     read("points_events", pointsFromRow, "ts"),
     read("crew_reward", (row) => ({ id: row.id, name: row.name, points: Number(row.points), approxValue: row.approx_value ?? undefined, limitStock: row.limit_stock ?? undefined, active: row.active, note: row.note ?? undefined }), "points"),
@@ -44,14 +44,19 @@ export async function loadRemoteState(currentUserId: string): Promise<Partial<Cr
     read("crew_cert_type", (row) => ({ id: row.id, name: row.name, category: row.category, issuingBody: row.issuing_body ?? undefined, validityMonths: row.validity_months == null ? undefined : Number(row.validity_months), alertLeadDays: row.alert_lead_days ?? [], requiredForRoles: row.required_for_roles ?? [], notes: row.notes ?? undefined }), "name"),
     read("crew_recognition", (row) => ({ id: row.id, fromUserId: row.from_user_id, toUserId: row.to_user_id, message: row.message, ts: row.ts, pointsEventRef: row.points_event_ref ?? undefined }), "ts"),
     read("crew_nudge", (row) => ({ id: row.id, userId: row.user_id ?? undefined, name: row.name ?? row.title, triggerType: row.trigger_type ?? undefined, cadence: row.cadence ?? undefined, audience: row.audience ?? undefined, channel: row.channel ?? undefined, leadTime: row.lead_time ?? undefined, active: row.active ?? true, type: row.type, title: row.title, dueAt: row.due_at, read: row.read }), "due_at"),
-    read("crew_form", (row) => ({ id: row.id, name: row.name, anonymousAllowed: row.anonymous_allowed }), "name"),
-    read("crew_form_question", (row) => ({ id: row.id, formId: row.form_id, order: Number(row.sort_order), question: row.question, responseType: row.response_type, required: row.required, anonymousAllowed: row.anonymous_allowed, visibility: row.visibility ?? "both", options: row.options ?? undefined }), "sort_order"),
+    read("crew_form", (row) => ({ id: row.id, name: row.name, anonymousAllowed: row.anonymous_allowed, cadence: row.cadence ?? undefined, dueMonthDays: row.due_month_days ?? undefined, description: row.description ?? undefined }), "name"),
+    read("crew_form_question", (row) => ({ id: row.id, formId: row.form_id, order: Number(row.sort_order), question: row.question, responseType: row.response_type, required: row.required, anonymousAllowed: row.anonymous_allowed, visibility: row.visibility ?? "both", options: row.options ?? undefined, wordLimit: row.word_limit == null ? undefined : Number(row.word_limit) }), "sort_order"),
+    read("crew_form_submission", (row) => ({ id: row.id, formId: row.form_id, userId: row.user_id, periodKey: row.period_key, responses: row.responses ?? {}, submittedAt: row.submitted_at }), "submitted_at"),
+    read("crew_policy_document", (row) => ({ id: row.id, title: row.title, version: row.version, effectiveDate: row.effective_date, fileUrl: row.file_url, annualDueMonthDay: row.annual_due_month_day, active: row.active }), "title"),
+    read("crew_policy_acknowledgment", (row) => ({ id: row.id, policyId: row.policy_id, userId: row.user_id, year: Number(row.year), signedName: row.signed_name, signedAt: row.signed_at }), "signed_at"),
+    read("crew_time_off_policy", (row) => ({ id: row.id, year: Number(row.year), paidSickDays: Number(row.paid_sick_days), unpaidSickDays: Number(row.unpaid_sick_days), eligibilityDays: Number(row.eligibility_days), renewalMonthDay: row.renewal_month_day }), "year"),
+    read("crew_time_off_entry", (row) => ({ id: row.id, userId: row.user_id, kind: row.kind, days: Number(row.days), date: row.entry_date, note: row.note ?? undefined, createdAt: row.created_at }), "entry_date"),
     read("crew_integration_decision", (row) => ({ id: row.id, name: row.name, needed: row.needed, details: row.details }), "name"),
     read("crew_role_permission", (row) => ({ orgRole: row.org_role, appRole: row.app_role, reportsTo: row.reports_to, permissions: row.permissions ?? {} }), "org_role"),
     read("crew_job_description", (row) => ({ id: row.id, role: row.org_role, version: row.jd_version, responsibility: row.responsibility, requiredCertifications: row.required_certifications ?? [], linkedKpis: row.linked_kpis ?? [], reportsTo: row.reports_to }), "org_role"),
     read("crew_config", (row) => ({ id: row.id, legalName: row.legal_name, displayName: row.display_name, appName: row.app_name, primaryAdminName: row.primary_admin_name, primaryAdminEmail: row.primary_admin_email, timezone: row.timezone, weekStartsOn: row.week_starts_on, shareLogins: row.share_logins, shareWallet: row.share_wallet, officialBrandPrimary: row.official_brand_primary, officialBrandAccent: row.official_brand_accent, intakeBrandPrimary: row.intake_brand_primary, intakeBrandAccent: row.intake_brand_accent, pointsAnchor: Number(row.points_anchor), intakePointsAnchor: Number(row.intake_points_anchor), googleReviewUrl: row.google_review_url ?? "", officeAddress: row.office_address ?? undefined, dataResidency: row.data_residency ?? undefined }), "id"),
   ]);
-  return { currentUserId, config: configs[0], users: profiles, rolePermissions, jobDescriptions, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusConfig: bonusConfigs[0], bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, integrations };
+  return { currentUserId, config: configs[0], users: profiles, rolePermissions, jobDescriptions, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusConfig: bonusConfigs[0], bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations };
 }
 
 export async function awardPoints(payload: { userId: string; ruleKey: string; ref: string; weekKey?: string }) {
@@ -103,6 +108,7 @@ const profileFromRow = (row: any): Profile => ({
   disciplinaryActionAt: row.disciplinary_action_at ?? undefined,
   nextQuarterlyReviewDate: row.next_quarterly_review_date ?? undefined,
   reviewEligibility: row.review_eligibility ?? undefined,
+  vacationDaysAnnual: row.vacation_days_annual == null ? undefined : Number(row.vacation_days_annual),
 });
 
 const pointsFromRow = (row: any): PointsEvent => ({

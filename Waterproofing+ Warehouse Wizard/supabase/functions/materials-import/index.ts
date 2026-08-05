@@ -76,18 +76,20 @@ serve(async (req) => {
     const [headers, ...body] = rows;
     if (!headers) return Response.json({ imported: 0, skipped: [{ row: 1, reason: "CSV is empty" }] }, { headers: cors });
     const normalized = headers.map(normalize);
+    const onHandAliases = ["on hand", "on hand (current quantity)", "qty", "column j"];
+    const hasOnHandColumn = normalized.some((header) => onHandAliases.includes(header));
     const skipped: Array<{ row: number; reason: string }> = [];
     const payload = body.flatMap((values, index) => {
       const record = Object.fromEntries(normalized.map((header, col) => [header, values[col] ?? ""]));
       const name = pick(record, ["name", "inventory", "material", "item"]);
       const category = categories[normalize(pick(record, ["category"]) || pick(record, ["service"]))];
-      const unit = pick(record, ["unit", "unit (locked)", "locked unit"]) || "unit";
-      const stepBasis = `${unit} ${name}`;
-      const defaultStep = /barrel|gallon|drum|\bgal\b|[0-9]\s*gal/i.test(stepBasis) ? 0.25 : /roll|litre/i.test(stepBasis) ? 0.5 : 1;
-      const step = num(pick(record, ["step", "logging step"]), defaultStep);
+      const unitInput = pick(record, ["unit", "unit (locked)", "locked unit"]) || "Unit";
+      const unit = ["Unit", "Roll", "Drum", "Box", "Sausage"].find((value) => value.toLowerCase() === unitInput.trim().toLowerCase());
+      const step = unit === "Drum" ? 0.25 : 1;
+      const onHandRaw = pick(record, onHandAliases);
       if (!name) skipped.push({ row: index + 2, reason: "Missing material name" });
       else if (!category) skipped.push({ row: index + 2, reason: "Unknown category" });
-      else if (![0.25, 0.5, 1].includes(step)) skipped.push({ row: index + 2, reason: "Step must be 0.25, 0.5, or 1" });
+      else if (!unit) skipped.push({ row: index + 2, reason: `Invalid locked unit '${unitInput}'. Use Unit, Roll, Drum, Box, or Sausage.` });
       else return [{
         name,
         category,
@@ -96,14 +98,34 @@ serve(async (req) => {
         pack: pick(record, ["pack", "units per", "vendor", "secondary supplier"]),
         units_per_pallet: num(pick(record, ["units per pallet", "units_per_pallet"]), 0),
         cost: num(pick(record, ["cost", "unit cost ($)", "unit cost"]), 0),
+        imported_on_hand: onHandRaw,
+        strict_tracking: hasOnHandColumn ? Boolean(onHandRaw.trim()) : true,
         reorder_point: num(pick(record, ["reorder", "reorder point", "reorder at (3 remaining in inventory)"]), 3),
         bin: pick(record, ["bin", "warehouse location", "location"]),
       }];
       return [];
     });
-    const { error } = await supabase.from("materials").upsert(payload, { onConflict: "name" });
+    const names = payload.map((item) => item.name);
+    const { data: existingRows, error: existingError } = names.length
+      ? await supabase.from("materials").select("name,cost,previous_cost,price_changed_at,qty,strict_tracking").in("name", names)
+      : { data: [], error: null };
+    if (existingError) throw existingError;
+    const existingByName = new Map((existingRows ?? []).map((item) => [item.name, item]));
+    const now = new Date().toISOString();
+    const rowsToSave = payload.map(({ imported_on_hand, ...item }) => {
+      const existing = existingByName.get(item.name);
+      const changed = existing && Number(existing.cost) !== item.cost;
+      return {
+        ...item,
+        qty: existing ? Number(existing.qty) : num(imported_on_hand, 0),
+        strict_tracking: hasOnHandColumn ? item.strict_tracking : existing?.strict_tracking ?? true,
+        previous_cost: changed ? Number(existing.cost) : existing?.previous_cost ?? null,
+        price_changed_at: changed ? now : existing?.price_changed_at ?? null,
+      };
+    });
+    const { error } = await supabase.from("materials").upsert(rowsToSave, { onConflict: "name" });
     if (error) throw error;
-    return Response.json({ imported: payload.length, skipped }, { headers: cors });
+    return Response.json({ imported: rowsToSave.length, skipped }, { headers: cors });
   } catch (err) {
     if (err instanceof Response) return err;
     return Response.json({ error: String(err?.message ?? err) }, { status: 500, headers: cors });

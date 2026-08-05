@@ -1,4 +1,4 @@
-import { applyCostIncreaseFlag, id, normalizeMaterialUnit, stepForMaterialUnit } from "../domain/business";
+import { applyCostChangeFlag, id, normalizeMaterialUnit, stepForMaterialUnit } from "../domain/business";
 import type { Category, ImportReport, Material } from "../types";
 
 const categoryAliases: Record<string, Category> = {
@@ -84,6 +84,8 @@ export function validateMaterialsCsv(text: string, existing: Material[] = []): I
   const [headers, ...body] = rows;
   if (!headers) return { imported: 0, skipped: [{ row: 1, reason: "CSV is empty" }], materials: [] };
   const normalizedHeaders = headers.map(normalize);
+  const onHandAliases = ["on hand", "on hand (current quantity)", "qty", "column j"];
+  const hasOnHandColumn = normalizedHeaders.some((header) => onHandAliases.includes(header));
   const materials: Material[] = [];
   const skipped: ImportReport["skipped"] = [];
   const existingByName = new Map(existing.map((material) => [normalize(material.name), material]));
@@ -101,7 +103,8 @@ export function validateMaterialsCsv(text: string, existing: Material[] = []): I
     else if (!unit) skipped.push({ row: index + 2, reason: `Invalid locked unit '${unitRaw}'. Use Unit, Roll, Drum, Box, or Sausage.` });
     else {
       const existingMaterial = existingByName.get(normalize(name));
-      materials.push(applyCostIncreaseFlag(existingMaterial, {
+      const onHandRaw = pick(record, onHandAliases);
+      materials.push(applyCostChangeFlag(existingMaterial, {
         id: existingMaterial?.id ?? (pick(record, ["inventory id", "sku", "id"]) || id("m")),
         name,
         category,
@@ -110,6 +113,7 @@ export function validateMaterialsCsv(text: string, existing: Material[] = []): I
         pack: pick(record, ["pack", "units per", "vendor", "secondary supplier"]),
         unitsPerPallet: num(pick(record, ["units per pallet", "units_per_pallet"]), 0),
         cost: num(pick(record, ["cost", "unit cost ($)", "unit cost"]), existingMaterial?.cost ?? 0),
+        strictTracking: hasOnHandColumn ? Boolean(onHandRaw.trim()) : existingMaterial?.strictTracking ?? true,
         qty: existingMaterial?.qty ?? num(pick(record, ["on hand", "on hand (current quantity)", "qty"]), 0),
         reorderPoint: num(pick(record, ["reorder", "reorder point", "reorder at (3 remaining in inventory)"]), existingMaterial?.reorderPoint ?? 3),
         bin: pick(record, ["bin", "warehouse location", "location"]) || existingMaterial?.bin || "",

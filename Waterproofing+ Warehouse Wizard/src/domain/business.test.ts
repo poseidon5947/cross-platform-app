@@ -110,6 +110,29 @@ describe("csv import validation", () => {
     expect(report.materials[0]).toMatchObject({ unit: "Roll", step: 1 });
     expect(report.skipped[0].reason).toContain("Invalid locked unit");
   });
+
+  it("records the original cost when an imported price decreases", () => {
+    const existing = createSeedState().materials[0];
+    const lowerCost = Math.max(0.01, existing.cost - 1);
+    const csv = [
+      "Inventory,Category,Unit (locked),Unit Cost ($),Reorder At (3 remaining in inventory),Warehouse Location",
+      `"${existing.name}",Waterproofing,${existing.unit},${lowerCost},${existing.reorderPoint},${existing.bin}`,
+    ].join("\n");
+    const report = validateMaterialsCsv(csv, [existing]);
+    expect(report.materials[0].previousCost).toBe(existing.cost);
+    expect(report.materials[0].cost).toBe(lowerCost);
+  });
+
+  it("uses Column J / On Hand to select strict high-value inventory", () => {
+    const csv = [
+      "Inventory,Category,Unit (locked),Unit Cost ($),On Hand (current quantity),Reorder At (3 remaining in inventory),Warehouse Location",
+      "High Value Drum,Waterproofing,Drum,500,2,1,A1",
+      "Reference Item,Waterproofing,Unit,5,,1,A2",
+    ].join("\n");
+    const report = validateMaterialsCsv(csv);
+    expect(report.materials.find((item) => item.name === "High Value Drum")?.strictTracking).toBe(true);
+    expect(report.materials.find((item) => item.name === "Reference Item")?.strictTracking).toBe(false);
+  });
 });
 
 describe("offline queue", () => {

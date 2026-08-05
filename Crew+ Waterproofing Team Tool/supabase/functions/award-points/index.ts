@@ -7,8 +7,8 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const selfServeCrewRules = new Set(["earn-daily", "earn-weekly", "earn-monthly", "earn-feedback", "earn-cert-detail"]);
-const managerCrewRules = new Set(["earn-swot", "earn-review", "earn-kpi", "earn-google", "earn-compliment", "earn-safety", "earn-peer", "earn-certs"]);
+const selfServeCrewRules = new Set(["earn-daily", "earn-weekly", "earn-monthly", "earn-feedback", "earn-cert-detail", "earn-swot"]);
+const managerCrewRules = new Set(["earn-review", "earn-kpi", "earn-google", "earn-compliment", "earn-safety", "earn-peer", "earn-certs"]);
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -254,7 +254,7 @@ function eventTypeForRule(ruleKey: string) {
     "earn-monthly": "crew_habit_ritual",
     "earn-feedback": "crew_feedback",
     "earn-cert-detail": "crew_cert_detail",
-    "earn-swot": "crew_review_completed",
+    "earn-swot": "crew_swot",
     "earn-review": "crew_review_completed",
     "earn-kpi": "crew_kpi_hit",
     "earn-google": "crew_google_review",

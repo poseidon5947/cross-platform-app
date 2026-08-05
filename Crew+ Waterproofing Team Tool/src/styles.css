@@ -157,6 +157,7 @@ main {
   color: #fff;
   background: #0f1a2a;
   box-shadow: var(--shadow-lg);
+  overflow-y: auto;
 }
 
 .brand {
@@ -946,6 +947,105 @@ textarea:disabled {
   align-content: start;
 }
 
+.compliance-page {
+  padding: 18px 18px 0;
+}
+
+.compliance-page > .library {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.policy-panel,
+.policy-sign,
+.swot-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.policy-sign {
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) auto;
+  align-items: end;
+}
+
+.form-status,
+.deadline-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.swot-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.swot-grid textarea {
+  min-height: 160px;
+}
+
+.add-cert {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin: 14px 0 4px;
+}
+
+.cert-record > .field-stack {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 10px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.cert-record > .field-stack button,
+.cert-record > .field-stack > small {
+  grid-column: 1 / -1;
+}
+
+.time-off-page {
+  padding: 18px 18px 0;
+}
+
+.time-off-page > .library {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.time-off-card,
+.leave-history {
+  display: grid;
+  gap: 14px;
+}
+
+.leave-balances {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.leave-balances .score-tile {
+  min-height: 94px;
+}
+
+.time-off-entry {
+  display: grid;
+  grid-template-columns: minmax(130px, .8fr) 90px 150px minmax(170px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.vacation-reminder {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .cert-summary {
   display: flex;
   flex-wrap: wrap;
@@ -1041,6 +1141,23 @@ textarea:disabled {
     padding: 14px;
   }
 
+  .compliance-page {
+    padding: 14px 14px 0;
+  }
+
+  .time-off-page {
+    padding: 14px 14px 0;
+  }
+
+  .policy-sign,
+  .swot-grid,
+  .add-cert,
+  .cert-record > .field-stack,
+  .time-off-entry,
+  .leave-balances {
+    grid-template-columns: 1fr;
+  }
+
   .section-head,
   .builder-head,
   .review-row {
@@ -1071,7 +1188,7 @@ textarea:disabled {
     bottom: 0;
     z-index: 60;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 6px;
     padding: 8px 8px calc(8px + var(--safe-b));
     background: #0f1a2a;
