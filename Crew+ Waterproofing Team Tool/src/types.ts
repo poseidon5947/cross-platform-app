@@ -403,6 +403,72 @@ export interface TimeOffEntry {
   createdAt: string;
 }
 
+export type IncidentLocation = "on_site" | "in_shop" | "on_the_road" | "other";
+export type DamagedPropertyType = "company_vehicle" | "personal_vehicle" | "company_tool" | "customer_property" | "other";
+
+export interface IncidentWitness {
+  name: string;
+  contact: string;
+  statementTaken: boolean;
+}
+
+export interface IncidentReport {
+  id: string;
+  reportedByUserId: string;
+  dateOfReport: string;
+  dateOfIncident: string;
+  timeOfIncident: string;
+  location: IncidentLocation;
+  locationOther?: string;
+  jobTitle: string;
+  supervisorForeman: string;
+  propertyType: DamagedPropertyType;
+  propertyTypeOther?: string;
+  assetDescription: string;
+  assetIdOrPlate?: string;
+  propertyOwner: string;
+  incidentDescription: string;
+  damageType: string;
+  estimatedCost?: number;
+  anyoneInjured: boolean;
+  otherPartyInvolved: boolean;
+  otherPartyDetails?: string;
+  photosTaken: boolean;
+  photoFileNames?: string[];
+  witnessStatementsAttached: boolean;
+  policeReportFiled: boolean;
+  fileReportNumber?: string;
+  immediateActionTaken: string;
+  correctiveActions: string;
+  correctiveActionOwner?: string;
+  correctiveActionDueDate?: string;
+  witnesses: IncidentWitness[];
+  supervisorName?: string;
+  supervisorSignedName?: string;
+  supervisorSignedAt?: string;
+  supervisorComments?: string;
+  reviewedByUserId?: string;
+  reviewedByPosition?: string;
+  furtherActionRequired?: boolean;
+  furtherActionDetails?: string;
+  createdAt: string;
+}
+
+export type IncidentReportInput = Omit<
+  IncidentReport,
+  | "id"
+  | "reportedByUserId"
+  | "createdAt"
+  | "supervisorName"
+  | "supervisorSignedName"
+  | "supervisorSignedAt"
+  | "supervisorComments"
+  | "reviewedByUserId"
+  | "reviewedByPosition"
+  | "furtherActionRequired"
+  | "furtherActionDetails"
+>;
+
 export interface IntegrationDecision {
   id: string;
   name: string;
@@ -452,6 +518,7 @@ export interface CrewState {
   policyAcknowledgments: PolicyAcknowledgment[];
   timeOffPolicies: TimeOffPolicy[];
   timeOffEntries: TimeOffEntry[];
+  incidentReports: IncidentReport[];
   integrations: IntegrationDecision[];
   permissions: PermissionConfig;
 }

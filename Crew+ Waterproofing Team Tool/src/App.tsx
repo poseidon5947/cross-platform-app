@@ -3,14 +3,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createSeedState } from "./data/seed";
 import { applyIntakeCsvTabs } from "./data/intakeImport";
 import { getCurrentSession, loadRemoteState, signInWithPassword, signOut } from "./data/repo";
-import { acknowledgePolicy, approveRedemption, awardCertDetail, awardCertsCurrent, awardKpiHit, bonusPercentForAverage, bonusTrajectory, canApproveRedemptions, canRunReviews, canSeeBonusDollars, certAlertLevelFromType, completeReview, completeRitual, confirmCustomerReview, estimatedBonusDollars, giveRecognition, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, averageQuarterlyRating, leaderboard, nextQuarterDeadline, nextRedemptionWindow, policyDueDate, quarterlyLeaderboard, recordTimeOff, requestRedemption, rulePoints, submitFeedback, submitQuarterlySwot, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./domain/crew";
-import type { Certification, CrewState, Profile, ReviewRating, TimeOffKind } from "./types";
+import { acknowledgePolicy, approveRedemption, awardCertDetail, awardCertsCurrent, awardKpiHit, bonusPercentForAverage, bonusTrajectory, canApproveRedemptions, canRunReviews, canSeeBonusDollars, certAlertLevelFromType, completeReview, completeRitual, confirmCustomerReview, estimatedBonusDollars, giveRecognition, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, averageQuarterlyRating, leaderboard, nextQuarterDeadline, nextRedemptionWindow, policyDueDate, quarterlyLeaderboard, recordTimeOff, requestRedemption, reviewIncidentReport, rulePoints, submitFeedback, submitIncidentReport, submitQuarterlySwot, superviseIncidentReport, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./domain/crew";
+import type { Certification, CrewState, DamagedPropertyType, IncidentLocation, IncidentReport, IncidentReportInput, IncidentWitness, Profile, ReviewRating, TimeOffKind } from "./types";
 import { isSupabaseConfigured } from "./integrations/supabase";
 
 const STORAGE_KEY = "crew-plus-state-v1";
 const REMOTE_MODE = isSupabaseConfigured();
 const DEMO_PICKER = !REMOTE_MODE || import.meta.env.VITE_DEMO_MODE === "true";
-type Tab = "home" | "profile" | "wallet" | "rituals" | "reviews" | "forms" | "timeoff" | "bonus" | "certs" | "rewards" | "feedback" | "admin";
+type Tab = "home" | "profile" | "wallet" | "rituals" | "reviews" | "forms" | "timeoff" | "incidents" | "bonus" | "certs" | "rewards" | "feedback" | "admin";
 const INTAKE_TAB_NAMES = [
   "1. Company & App Config",
   "2. Roles & Access",
@@ -54,7 +54,7 @@ export function App() {
           <div><h1>Crew+</h1><p>People & Performance</p></div>
         </div>
         <nav>
-          {(["home", "profile", "wallet", "rituals", "reviews", "forms", "timeoff", "bonus", "certs", "rewards", "feedback", "admin"] as const).map((item) => (
+          {(["home", "profile", "wallet", "rituals", "reviews", "forms", "timeoff", "incidents", "bonus", "certs", "rewards", "feedback", "admin"] as const).map((item) => (
             <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}><span className="nav-label">{titleFor(item)}</span>{item === "rewards" && pendingRedemptions ? <span className="nav-count">{pendingRedemptions}</span> : null}</button>
           ))}
         </nav>
@@ -83,6 +83,7 @@ export function App() {
         {tab === "reviews" && <Reviews state={state} user={currentUser} setState={setState} />}
         {tab === "forms" && <Forms state={state} user={currentUser} setState={setState} />}
         {tab === "timeoff" && <TimeOff state={state} user={currentUser} setState={setState} />}
+        {tab === "incidents" && <Incidents state={state} user={currentUser} setState={setState} />}
         {tab === "bonus" && <Bonus state={state} user={currentUser} setState={setState} />}
         {tab === "certs" && <Compliance state={state} user={currentUser} setState={setState} />}
         {tab === "rewards" && <Rewards state={state} user={currentUser} setState={setState} />}
@@ -91,7 +92,7 @@ export function App() {
       </main>
 
       <footer className="mobile-nav">
-        {(["home", "profile", "timeoff", "forms", "certs"] as const).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>{titleFor(item)}</button>)}
+        {(["home", "profile", "timeoff", "incidents", "certs"] as const).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>{titleFor(item)}</button>)}
       </footer>
     </div>
   );
@@ -195,6 +196,39 @@ function TimeOffUserCard({ state, viewer, user, year, setState }: { state: CrewS
   const entries = state.timeOffEntries.filter((item) => item.userId === user.id && item.date.startsWith(String(year)));
   const setVacationAllowance = (value: number | undefined) => setState((next) => ({ ...next, users: next.users.map((item) => item.id === user.id ? { ...item, vacationDaysAnnual: value } : item) }));
   return <section className="panel card time-off-card"><div className="section-head"><div><h3>{user.name}</h3><small>{summary.eligibleFrom ? `Eligible from ${summary.eligibleFrom}` : "Hire date needed for eligibility"}</small></div><span className={`pill ${eligible ? "good" : "warn"}`}>{eligible ? "Eligible" : "Not eligible"}</span></div><div className="leave-balances"><div className="score-tile"><strong>{summary.paidSickRemaining}</strong><span>paid sick left</span></div><div className="score-tile"><strong>{summary.unpaidSickRemaining}</strong><span>unpaid sick left</span></div><div className="score-tile"><strong>{summary.vacationRemaining ?? "TBD"}</strong><span>vacation left</span></div></div>{canManageAllowance && <label>Annual vacation allowance<input type="number" min="0" step="0.5" value={user.vacationDaysAnnual ?? ""} placeholder="Client roster pending" onChange={(event) => setVacationAllowance(event.target.value === "" ? undefined : Number(event.target.value))} /></label>}<div className="time-off-entry"><select value={kind} onChange={(event) => setKind(event.target.value as TimeOffKind)}><option value="vacation">Vacation</option><option value="paid_sick">Paid sick</option><option value="unpaid_sick">Unpaid sick</option></select><input type="number" min="0.5" step="0.5" value={days} onChange={(event) => setDays(Number(event.target.value))} /><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /><input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional note" /><button disabled={!eligible || (kind === "vacation" && summary.vacationRemaining == null)} onClick={() => { setState((next) => recordTimeOff(next, user.id, kind, days, date, note)); setNote(""); }}>Log time</button></div>{summary.vacationRemaining != null && <p className="vacation-reminder">Email/text: {vacationReminderText(state, user.id, year)}</p>}<div className="leave-history">{entries.map((entry) => <div className="line" key={entry.id}><b>{entry.kind.replaceAll("_", " ")}</b><span>{entry.days} day{entry.days === 1 ? "" : "s"}</span><small>{entry.date}{entry.note ? ` - ${entry.note}` : ""}</small></div>)}{entries.length === 0 && <p className="empty-state">No time-off usage logged for {year}.</p>}</div></section>;
+}
+
+function Incidents({ state, user, setState }: { state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const canViewAll = user.role === "admin" || user.role === "manager";
+  const canReview = canViewAll;
+  const visibleReports = (state.incidentReports ?? []).filter((report) => canViewAll || report.reportedByUserId === user.id);
+  const [draft, setDraft] = useState<IncidentReportDraft>(() => incidentDraft(today));
+  const requiredComplete = Boolean(draft.dateOfReport && draft.dateOfIncident && draft.timeOfIncident && draft.jobTitle.trim() && draft.supervisorForeman.trim() && draft.assetDescription.trim() && draft.propertyOwner.trim() && draft.incidentDescription.trim() && draft.damageType.trim() && draft.immediateActionTaken.trim() && draft.correctiveActions.trim() && (draft.location !== "other" || draft.locationOther?.trim()) && (draft.propertyType !== "other" || draft.propertyTypeOther?.trim()));
+  const set = (patch: Partial<IncidentReportDraft>) => setDraft((current) => ({ ...current, ...patch }));
+  const setWitness = (index: number, patch: Partial<IncidentWitness>) => setDraft((current) => ({ ...current, witnesses: current.witnesses.map((witness, currentIndex) => currentIndex === index ? { ...witness, ...patch } : witness) }));
+  const submit = () => {
+    const estimatedCost = draft.estimatedCost.trim() ? Number(draft.estimatedCost) : undefined;
+    const input: IncidentReportInput = {
+      ...draft,
+      estimatedCost: Number.isFinite(estimatedCost) ? estimatedCost : undefined,
+      photoFileNames: (draft.photoFileNames ?? []).filter(Boolean),
+      witnesses: draft.witnesses,
+    };
+    setState((next) => submitIncidentReport(next, user.id, input));
+    setDraft(incidentDraft(today));
+  };
+
+  return <div className="incident-page"><section className="panel card wide incident-form"><div className="section-head"><div><h3>Damage and Incident Report</h3><p className="muted">Use this for vehicle, tool, customer property, shop, road, or site damage.</p></div><span className="pill">Safety-critical</span></div><div className="incident-sections"><fieldset><legend>General Information</legend><div className="field-grid"><label>Date of report<input type="date" value={draft.dateOfReport} onChange={(event) => set({ dateOfReport: event.target.value })} /></label><label>Date of incident<input type="date" value={draft.dateOfIncident} onChange={(event) => set({ dateOfIncident: event.target.value })} /></label><label>Time of incident<input type="time" value={draft.timeOfIncident} onChange={(event) => set({ timeOfIncident: event.target.value })} /></label><label>Location<select value={draft.location} onChange={(event) => set({ location: event.target.value as IncidentLocation })}><option value="on_site">On site</option><option value="in_shop">In shop</option><option value="on_the_road">On the road</option><option value="other">Other</option></select></label>{draft.location === "other" && <label>Other location<input value={draft.locationOther} onChange={(event) => set({ locationOther: event.target.value })} /></label>}<label>Job title / site<input value={draft.jobTitle} onChange={(event) => set({ jobTitle: event.target.value })} /></label><label>Supervisor / foreman<input value={draft.supervisorForeman} onChange={(event) => set({ supervisorForeman: event.target.value })} /></label></div></fieldset><fieldset><legend>Type of Property Damaged</legend><div className="field-grid"><label>Property type<select value={draft.propertyType} onChange={(event) => set({ propertyType: event.target.value as DamagedPropertyType })}><option value="company_vehicle">Company vehicle</option><option value="personal_vehicle">Personal vehicle</option><option value="company_tool">Company tool</option><option value="customer_property">Customer property</option><option value="other">Other</option></select></label>{draft.propertyType === "other" && <label>Other property type<input value={draft.propertyTypeOther} onChange={(event) => set({ propertyTypeOther: event.target.value })} /></label>}<label>Asset description<input value={draft.assetDescription} onChange={(event) => set({ assetDescription: event.target.value })} /></label><label>Asset ID / plate<input value={draft.assetIdOrPlate} onChange={(event) => set({ assetIdOrPlate: event.target.value })} /></label><label>Property owner<input value={draft.propertyOwner} onChange={(event) => set({ propertyOwner: event.target.value })} /></label></div></fieldset><fieldset><legend>Description of Incident</legend><textarea value={draft.incidentDescription} onChange={(event) => set({ incidentDescription: event.target.value })} placeholder="Describe what happened, where people/equipment were positioned, and any contributing conditions." /></fieldset><fieldset><legend>Damage Details</legend><div className="field-grid"><label>Damage type<input value={draft.damageType} onChange={(event) => set({ damageType: event.target.value })} /></label><label>Estimated cost<input type="number" min="0" step="0.01" value={draft.estimatedCost} onChange={(event) => set({ estimatedCost: event.target.value })} /></label><label className="check"><input type="checkbox" checked={draft.anyoneInjured} onChange={(event) => set({ anyoneInjured: event.target.checked })} /> Anyone injured</label><label className="check"><input type="checkbox" checked={draft.otherPartyInvolved} onChange={(event) => set({ otherPartyInvolved: event.target.checked })} /> Other party involved</label>{draft.otherPartyInvolved && <label>Other party details<textarea value={draft.otherPartyDetails} onChange={(event) => set({ otherPartyDetails: event.target.value })} /></label>}</div></fieldset><fieldset><legend>Photos and Evidence</legend><div className="field-grid"><label className="check"><input type="checkbox" checked={draft.photosTaken} onChange={(event) => set({ photosTaken: event.target.checked })} /> Photos taken</label><label>Evidence photo file<input type="file" onChange={(event) => set({ photosTaken: Boolean(event.target.files?.length) || draft.photosTaken, photoFileNames: event.target.files?.[0] ? [event.target.files[0].name] : [] })} /></label><label className="check"><input type="checkbox" checked={draft.witnessStatementsAttached} onChange={(event) => set({ witnessStatementsAttached: event.target.checked })} /> Witness statements attached</label><label className="check"><input type="checkbox" checked={draft.policeReportFiled} onChange={(event) => set({ policeReportFiled: event.target.checked })} /> Police report filed</label>{draft.policeReportFiled && <label>File / report number<input value={draft.fileReportNumber} onChange={(event) => set({ fileReportNumber: event.target.value })} /></label>}</div>{(draft.photoFileNames ?? []).length > 0 && <p className="muted">Selected: {(draft.photoFileNames ?? []).join(", ")}</p>}</fieldset><fieldset><legend>Immediate Action Taken</legend><textarea value={draft.immediateActionTaken} onChange={(event) => set({ immediateActionTaken: event.target.value })} /></fieldset><fieldset><legend>Corrective / Preventive Actions</legend><div className="field-grid"><label className="wide-field">Corrective actions<textarea value={draft.correctiveActions} onChange={(event) => set({ correctiveActions: event.target.value })} /></label><label>Owner<input value={draft.correctiveActionOwner} onChange={(event) => set({ correctiveActionOwner: event.target.value })} /></label><label>Due date<input type="date" value={draft.correctiveActionDueDate} onChange={(event) => set({ correctiveActionDueDate: event.target.value })} /></label></div></fieldset><fieldset><legend>Witness Information</legend><div className="witness-list">{draft.witnesses.map((witness, index) => <div className="witness-row" key={index}><input value={witness.name} onChange={(event) => setWitness(index, { name: event.target.value })} placeholder="Name" /><input value={witness.contact} onChange={(event) => setWitness(index, { contact: event.target.value })} placeholder="Contact" /><label className="check"><input type="checkbox" checked={witness.statementTaken} onChange={(event) => setWitness(index, { statementTaken: event.target.checked })} /> Statement taken</label><button type="button" disabled={draft.witnesses.length === 1} onClick={() => setDraft((current) => ({ ...current, witnesses: current.witnesses.filter((_, currentIndex) => currentIndex !== index) }))}>Remove</button></div>)}</div><button type="button" onClick={() => setDraft((current) => ({ ...current, witnesses: [...current.witnesses, emptyWitness()] }))}>Add witness</button></fieldset></div><button className="primary block" disabled={!requiredComplete} onClick={submit}>Submit report</button></section><section className="panel card wide"><div className="section-head"><div><h3>Submitted Reports</h3><p className="muted">{canViewAll ? "Manager/admin view shows all submitted reports." : "Crew view shows reports you submitted."}</p></div><span className="pill">{visibleReports.length} visible</span></div>{visibleReports.length ? <div className="incident-list">{visibleReports.map((report) => <IncidentReportCard key={report.id} state={state} report={report} user={user} canReview={canReview} setState={setState} />)}</div> : <p className="empty-state">No damage or incident reports yet.</p>}</section></div>;
+}
+
+function IncidentReportCard({ state, report, user, canReview, setState }: { state: CrewState; report: IncidentReport; user: Profile; canReview: boolean; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
+  const [signedName, setSignedName] = useState(user.name);
+  const [supervisorComments, setSupervisorComments] = useState("");
+  const [position, setPosition] = useState<string>(user.orgRole);
+  const [furtherActionRequired, setFurtherActionRequired] = useState(Boolean(report.furtherActionRequired));
+  const [furtherActionDetails, setFurtherActionDetails] = useState(report.furtherActionDetails ?? "");
+  return <article className="incident-card"><div className="section-head"><div><h3>{report.assetDescription}</h3><small>{report.dateOfIncident} at {report.timeOfIncident} - reported by {nameOf(state, report.reportedByUserId)}</small></div><span className={`pill ${report.reviewedByUserId ? "good" : report.supervisorSignedAt ? "warn" : ""}`}>{report.reviewedByUserId ? "Reviewed" : report.supervisorSignedAt ? "Supervisor signed" : "Submitted"}</span></div><div className="incident-summary"><p>{report.incidentDescription}</p><div className="facts"><span>{labelForIncidentLocation(report.location)}</span><span>{labelForPropertyType(report.propertyType)}</span><span>{report.damageType}</span>{report.estimatedCost != null && <span>${report.estimatedCost.toLocaleString("en-CA")}</span>}</div><div className="line"><b>Immediate action</b><span>{report.immediateActionTaken}</span></div><div className="line"><b>Corrective action</b><span>{report.correctiveActions}</span><small>{report.correctiveActionOwner}{report.correctiveActionDueDate ? ` - due ${report.correctiveActionDueDate}` : ""}</small></div>{report.photoFileNames?.length ? <div className="line"><b>Evidence photos</b><span>{report.photoFileNames.join(", ")}</span></div> : null}{report.witnesses.length ? <div className="line"><b>Witnesses</b><span>{report.witnesses.map((witness) => `${witness.name}${witness.statementTaken ? " (statement)" : ""}`).join(", ")}</span></div> : null}</div><div className="review-split"><section><h4>Supervisor Review</h4>{report.supervisorSignedAt ? <p className="toast good">Signed by {report.supervisorSignedName} on {report.supervisorSignedAt.slice(0, 10)}{report.supervisorComments ? ` - ${report.supervisorComments}` : ""}</p> : canReview ? <div className="field-stack"><label>Signed name<input value={signedName} onChange={(event) => setSignedName(event.target.value)} /></label><label>Comments<textarea value={supervisorComments} onChange={(event) => setSupervisorComments(event.target.value)} /></label><button onClick={() => setState((next) => superviseIncidentReport(next, report.id, user.id, signedName, supervisorComments))}>Supervisor sign-off</button></div> : <p className="empty-state">Awaiting supervisor review.</p>}</section><section><h4>Management Review</h4>{report.reviewedByUserId ? <p className="toast good">Reviewed by {nameOf(state, report.reviewedByUserId)} as {report.reviewedByPosition}. Further action: {report.furtherActionRequired ? "Yes" : "No"}{report.furtherActionDetails ? ` - ${report.furtherActionDetails}` : ""}</p> : canReview ? <div className="field-stack"><label>Reviewer position<input value={position} onChange={(event) => setPosition(event.target.value)} /></label><label className="check"><input type="checkbox" checked={furtherActionRequired} onChange={(event) => setFurtherActionRequired(event.target.checked)} /> Further action required</label><label>Details<textarea value={furtherActionDetails} onChange={(event) => setFurtherActionDetails(event.target.value)} /></label><button onClick={() => setState((next) => reviewIncidentReport(next, report.id, user.id, position, furtherActionRequired, furtherActionDetails))}>Complete management review</button></div> : <p className="empty-state">Awaiting management review.</p>}</section></div></article>;
 }
 
 function Bonus({ state, user, setState }: { state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
@@ -306,6 +340,7 @@ function withIntakeDefaults(state: CrewState): CrewState {
     policyAcknowledgments: state.policyAcknowledgments ?? defaults.policyAcknowledgments,
     timeOffPolicies: state.timeOffPolicies ?? defaults.timeOffPolicies,
     timeOffEntries: state.timeOffEntries ?? defaults.timeOffEntries,
+    incidentReports: state.incidentReports ?? defaults.incidentReports,
     integrations: state.integrations ?? defaults.integrations,
     permissions: { ...defaults.permissions, ...(state.permissions ?? {}) },
     walletConfig: { ...defaults.walletConfig, ...(state.walletConfig ?? {}) },
@@ -315,6 +350,7 @@ function withIntakeDefaults(state: CrewState): CrewState {
 function titleFor(tab: string) {
   if (tab === "home") return "Home";
   if (tab === "timeoff") return "Time Off";
+  if (tab === "incidents") return "Incidents";
   return tab[0].toUpperCase() + tab.slice(1);
 }
 
@@ -324,6 +360,53 @@ function nameOf(state: CrewState, userId: string) {
 
 function rewardName(state: CrewState, rewardId: string) {
   return state.rewards.find((reward) => reward.id === rewardId)?.name ?? "Reward";
+}
+
+type IncidentReportDraft = Omit<IncidentReportInput, "estimatedCost"> & { estimatedCost: string };
+
+function incidentDraft(today: string): IncidentReportDraft {
+  return {
+    dateOfReport: today,
+    dateOfIncident: today,
+    timeOfIncident: "",
+    location: "on_site",
+    locationOther: "",
+    jobTitle: "",
+    supervisorForeman: "",
+    propertyType: "company_vehicle",
+    propertyTypeOther: "",
+    assetDescription: "",
+    assetIdOrPlate: "",
+    propertyOwner: "",
+    incidentDescription: "",
+    damageType: "",
+    estimatedCost: "",
+    anyoneInjured: false,
+    otherPartyInvolved: false,
+    otherPartyDetails: "",
+    photosTaken: false,
+    photoFileNames: [],
+    witnessStatementsAttached: false,
+    policeReportFiled: false,
+    fileReportNumber: "",
+    immediateActionTaken: "",
+    correctiveActions: "",
+    correctiveActionOwner: "",
+    correctiveActionDueDate: "",
+    witnesses: [emptyWitness()],
+  };
+}
+
+function emptyWitness(): IncidentWitness {
+  return { name: "", contact: "", statementTaken: false };
+}
+
+function labelForIncidentLocation(location: IncidentLocation) {
+  return location === "on_site" ? "On site" : location === "in_shop" ? "In shop" : location === "on_the_road" ? "On the road" : "Other";
+}
+
+function labelForPropertyType(type: DamagedPropertyType) {
+  return type === "company_vehicle" ? "Company vehicle" : type === "personal_vehicle" ? "Personal vehicle" : type === "company_tool" ? "Company tool" : type === "customer_property" ? "Customer property" : "Other";
 }
 
 function toneForCert(level: string) {

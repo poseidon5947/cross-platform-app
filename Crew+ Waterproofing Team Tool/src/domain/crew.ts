@@ -1,4 +1,4 @@
-import type { Cadence, Certification, CertificationType, CrewState, PointsEvent, Profile, RedemptionStatus, Review, ReviewRating, ReviewType, RolePermissionKey, TimeOffKind } from "../types";
+import type { Cadence, Certification, CertificationType, CrewState, IncidentReportInput, IncidentWitness, PointsEvent, Profile, RedemptionStatus, Review, ReviewRating, ReviewType, RolePermissionKey, TimeOffKind } from "../types";
 
 const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -234,6 +234,75 @@ export function recordTimeOff(state: CrewState, userId: string, kind: TimeOffKin
   };
 }
 
+export function submitIncidentReport(state: CrewState, reportedByUserId: string, input: IncidentReportInput, now = new Date().toISOString()) {
+  const user = state.users.find((item) => item.id === reportedByUserId);
+  const required = [
+    input.dateOfReport,
+    input.dateOfIncident,
+    input.timeOfIncident,
+    input.jobTitle,
+    input.supervisorForeman,
+    input.assetDescription,
+    input.propertyOwner,
+    input.incidentDescription,
+    input.damageType,
+    input.immediateActionTaken,
+    input.correctiveActions,
+  ];
+  if (!user || required.some((value) => !value.trim())) return state;
+  if (input.location === "other" && !input.locationOther?.trim()) return state;
+  if (input.propertyType === "other" && !input.propertyTypeOther?.trim()) return state;
+  const witnesses = sanitizeWitnesses(input.witnesses);
+  return {
+    ...state,
+    incidentReports: [{
+      ...input,
+      id: uid("incident"),
+      reportedByUserId,
+      locationOther: cleanOptional(input.locationOther),
+      propertyTypeOther: cleanOptional(input.propertyTypeOther),
+      assetIdOrPlate: cleanOptional(input.assetIdOrPlate),
+      otherPartyDetails: cleanOptional(input.otherPartyDetails),
+      fileReportNumber: cleanOptional(input.fileReportNumber),
+      correctiveActionOwner: cleanOptional(input.correctiveActionOwner),
+      correctiveActionDueDate: cleanOptional(input.correctiveActionDueDate),
+      photoFileNames: input.photoFileNames?.filter(Boolean),
+      witnesses,
+      createdAt: now,
+    }, ...(state.incidentReports ?? [])],
+  };
+}
+
+export function superviseIncidentReport(state: CrewState, reportId: string, supervisorId: string, signedName: string, comments = "", now = new Date().toISOString()) {
+  const supervisor = state.users.find((item) => item.id === supervisorId);
+  if (!supervisor || !signedName.trim()) return state;
+  return {
+    ...state,
+    incidentReports: (state.incidentReports ?? []).map((report) => report.id === reportId ? {
+      ...report,
+      supervisorName: supervisor.name,
+      supervisorSignedName: signedName.trim(),
+      supervisorSignedAt: now,
+      supervisorComments: cleanOptional(comments),
+    } : report),
+  };
+}
+
+export function reviewIncidentReport(state: CrewState, reportId: string, reviewerId: string, position: string, furtherActionRequired: boolean, details = "") {
+  const reviewer = state.users.find((item) => item.id === reviewerId);
+  if (!reviewer || !["admin", "manager"].includes(reviewer.role) || !position.trim()) return state;
+  return {
+    ...state,
+    incidentReports: (state.incidentReports ?? []).map((report) => report.id === reportId ? {
+      ...report,
+      reviewedByUserId: reviewerId,
+      reviewedByPosition: position.trim(),
+      furtherActionRequired,
+      furtherActionDetails: cleanOptional(details),
+    } : report),
+  };
+}
+
 export function vacationReminderText(state: CrewState, userId: string, year: number) {
   const user = state.users.find((item) => item.id === userId);
   const summary = timeOffSummary(state, userId, year);
@@ -363,6 +432,17 @@ export function hasRolePermission(state: CrewState, user: Profile, key: RolePerm
 
 function rewardName(state: CrewState, rewardId: string) {
   return state.rewards.find((item) => item.id === rewardId)?.name ?? "Reward";
+}
+
+function cleanOptional(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
+}
+
+function sanitizeWitnesses(witnesses: IncidentWitness[]) {
+  return witnesses
+    .map((witness) => ({ name: witness.name.trim(), contact: witness.contact.trim(), statementTaken: witness.statementTaken }))
+    .filter((witness) => witness.name || witness.contact);
 }
 
 function daysUntil(dateIso: string, todayIso: string) {

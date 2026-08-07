@@ -402,6 +402,7 @@ export function createSeedState(): CrewState {
     policyAcknowledgments: [],
     timeOffPolicies,
     timeOffEntries: [],
+    incidentReports: [],
     integrations,
     permissions: { cfoUserIds: ["u12"], hrOwnerUserIds: ["u8"], managerCanReviewCrew: true, rolePermissions },
   };

@@ -1013,6 +1013,76 @@ textarea:disabled {
   padding-left: 0;
 }
 
+.incident-page {
+  display: grid;
+  gap: 18px;
+  padding: 18px 18px 0;
+}
+
+.incident-form,
+.incident-sections,
+.incident-list,
+.incident-card,
+.incident-summary {
+  display: grid;
+  gap: 14px;
+}
+
+.incident-sections fieldset {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.incident-sections legend {
+  padding: 0 6px;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.wide-field,
+.field-grid textarea {
+  grid-column: 1 / -1;
+}
+
+.witness-list,
+.witness-row {
+  display: grid;
+  gap: 8px;
+}
+
+.witness-row {
+  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(150px, auto) auto;
+  align-items: center;
+}
+
+.incident-card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.incident-card h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.review-split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .time-off-card,
 .leave-history {
   display: grid;
@@ -1145,7 +1215,8 @@ textarea:disabled {
     padding: 14px 14px 0;
   }
 
-  .time-off-page {
+  .time-off-page,
+  .incident-page {
     padding: 14px 14px 0;
   }
 
@@ -1154,7 +1225,10 @@ textarea:disabled {
   .add-cert,
   .cert-record > .field-stack,
   .time-off-entry,
-  .leave-balances {
+  .leave-balances,
+  .field-grid,
+  .witness-row,
+  .review-split {
     grid-template-columns: 1fr;
   }
 
