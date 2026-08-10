@@ -194,7 +194,7 @@ create table integration_connections (
   updated_at timestamptz not null default now()
 );
 
-create or replace function current_role()
+create or replace function app_current_role()
 returns app_role
 language sql
 stable
@@ -211,7 +211,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select current_role() in ('admin','manager')
+  select app_current_role() in ('admin','manager')
 $$;
 
 create or replace function is_admin()
@@ -221,7 +221,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select current_role() = 'admin'
+  select app_current_role() = 'admin'
 $$;
 
 create or replace function apply_stock_transaction()

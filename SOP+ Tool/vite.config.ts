@@ -6,6 +6,6 @@ export default defineConfig({
   server: {
     port: 5174,
     host: "127.0.0.1",
-    allowedHosts: [".ngrok-free.dev", "matrix-demote-ripcord.ngrok-free.dev"],
+    allowedHosts: [".ngrok-free.dev", "matrix-demote-ripcord.ngrok-free.dev", ".trycloudflare.com"],
   },
 });

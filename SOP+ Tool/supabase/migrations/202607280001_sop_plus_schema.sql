@@ -91,7 +91,7 @@ create index if not exists idx_sop_assigned_to on sop(assigned_to);
 create index if not exists idx_sop_category on sop(category_id);
 create index if not exists idx_sop_step_sop_sort on sop_step(sop_id, sort_order);
 create index if not exists idx_sop_media_step on sop_media(step_id);
-create unique index if not exists points_events_sop_completed_ref_idx on points_events(ref) where type::text = 'sop_completed';
+create unique index if not exists points_events_sop_completed_ref_idx on points_events(ref) where type = 'sop_completed'::points_event_type;
 
 alter table prompt_set enable row level security;
 alter table sop_category enable row level security;
