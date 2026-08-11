@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
-import { acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, nextQuarterDeadline, nextRedemptionWindow, recordTimeOff, requestRedemption, reviewDueDates, reviewIncidentReport, submitIncidentReport, submitQuarterlySwot, superviseIncidentReport, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
+import { acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, nextQuarterDeadline, nextRedemptionWindow, recordTimeOff, requestRedemption, reviewDueDates, submitIncidentReport, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
 import type { IncidentReportInput } from "../types";
 
 describe("Crew+ wallet", () => {
@@ -128,72 +128,65 @@ describe("Crew+ cadence, compliance, and privacy", () => {
 });
 
 describe("Crew+ damage and incident reports", () => {
-  it("lets any crew member submit a damage and incident report", () => {
+  it("lets any crew member submit the simplified incident report", () => {
     let state = createSeedState();
-    state = submitIncidentReport(state, "u3", incidentInput(), "2026-08-07T09:00:00Z");
+    state = submitIncidentReport(state, "u3", incidentInput(), "2026-08-10T09:00:00Z");
     expect(state.incidentReports).toHaveLength(1);
     expect(state.incidentReports[0]).toMatchObject({
       reportedByUserId: "u3",
-      assetDescription: "Truck passenger mirror",
-      createdAt: "2026-08-07T09:00:00Z",
+      employeeName: "Jon Gregoire",
+      employeeRole: "Senior Technician",
+      incidentCause: "Backing into tight staging area",
+      reportedByName: "Jon Gregoire",
+      createdAt: "2026-08-10T09:00:00Z",
     });
   });
 
-  it("records supervisor sign-off with signed name and timestamp", () => {
-    let state = submitIncidentReport(createSeedState(), "u3", incidentInput(), "2026-08-07T09:00:00Z");
-    state = superviseIncidentReport(state, state.incidentReports[0].id, "u1", "Jesse Dares", "Reviewed on site.", "2026-08-07T10:00:00Z");
+  it("lets a Crew Lead confirm receipt", () => {
+    let state = submitIncidentReport(createSeedState(), "u3", incidentInput(), "2026-08-10T09:00:00Z");
+    state = confirmIncidentReceipt(state, state.incidentReports[0].id, "u1", "2026-08-10T10:00:00Z");
     expect(state.incidentReports[0]).toMatchObject({
-      supervisorName: "Jesse",
-      supervisorSignedName: "Jesse Dares",
-      supervisorSignedAt: "2026-08-07T10:00:00Z",
-      supervisorComments: "Reviewed on site.",
+      confirmedByUserId: "u1",
+      confirmedByName: "Jesse",
+      confirmedAt: "2026-08-10T10:00:00Z",
     });
   });
 
-  it("lets management review set the further-action flag", () => {
-    let state = submitIncidentReport(createSeedState(), "u3", incidentInput(), "2026-08-07T09:00:00Z");
-    state = reviewIncidentReport(state, state.incidentReports[0].id, "u8", "Operations / Admin", true, "Book mirror repair and review spotter process.");
+  it("lets an owner confirm receipt", () => {
+    let state = submitIncidentReport(createSeedState(), "u3", incidentInput(), "2026-08-10T09:00:00Z");
+    state = confirmIncidentReceipt(state, state.incidentReports[0].id, "u7", "2026-08-10T11:00:00Z");
     expect(state.incidentReports[0]).toMatchObject({
-      reviewedByUserId: "u8",
-      reviewedByPosition: "Operations / Admin",
-      furtherActionRequired: true,
-      furtherActionDetails: "Book mirror repair and review spotter process.",
+      confirmedByUserId: "u7",
+      confirmedByName: "J. Rogers",
+      confirmedAt: "2026-08-10T11:00:00Z",
     });
   });
 
-  it("does not allow a non-manager crew member to complete management review", () => {
-    let state = submitIncidentReport(createSeedState(), "u3", incidentInput(), "2026-08-07T09:00:00Z");
-    state = reviewIncidentReport(state, state.incidentReports[0].id, "u4", "Technician", true, "Should not save.");
-    expect(state.incidentReports[0].reviewedByUserId).toBeUndefined();
-    expect(state.incidentReports[0].furtherActionRequired).toBeUndefined();
+  it("does not allow an admin without Crew Lead or Owner org role to confirm receipt", () => {
+    let state = submitIncidentReport(createSeedState(), "u3", incidentInput(), "2026-08-10T09:00:00Z");
+    state = confirmIncidentReceipt(state, state.incidentReports[0].id, "u8", "2026-08-10T12:00:00Z");
+    expect(state.incidentReports[0].confirmedByUserId).toBeUndefined();
+    expect(state.incidentReports[0].confirmedAt).toBeUndefined();
   });
 });
 
 function incidentInput(): IncidentReportInput {
   return {
-    dateOfReport: "2026-08-07",
+    employeeName: "Jon Gregoire",
+    employeeRole: "Senior Technician",
+    employeePhone: "613-539-5322",
+    location: "Dock waterproofing site",
     dateOfIncident: "2026-08-06",
     timeOfIncident: "14:30",
-    location: "on_site",
-    jobTitle: "Dock waterproofing",
-    supervisorForeman: "Jesse Dares",
-    propertyType: "company_vehicle",
-    assetDescription: "Truck passenger mirror",
-    assetIdOrPlate: "VIW-12",
-    propertyOwner: "Van-Isle",
-    incidentDescription: "Mirror clipped a post while backing into a tight staging area.",
-    damageType: "Cracked mirror housing",
-    estimatedCost: 250,
-    anyoneInjured: false,
-    otherPartyInvolved: false,
-    photosTaken: true,
+    incidentCause: "Backing into tight staging area",
+    incidentDetails: "Truck mirror clipped a post while backing into a tight staging area.",
+    actionTaken: "Moved truck, inspected for safe operation, and notified foreman.",
+    policeNotified: false,
+    followUpRequired: "Use a spotter when backing into tight staging areas.",
     photoFileNames: ["mirror.jpg"],
-    witnessStatementsAttached: true,
-    policeReportFiled: false,
-    immediateActionTaken: "Moved truck, inspected for safe operation, notified foreman.",
-    correctiveActions: "Use a spotter when backing into tight staging areas.",
-    correctiveActionOwner: "Crew Lead",
-    correctiveActionDueDate: "2026-08-14",
-    witnesses: [{ name: "Shane Smith", contact: "778-000-0000", statementTaken: true }],
+    reportedByUserId: "u3",
+    reportedByName: "Jon Gregoire",
+    reportedByRole: "Senior Technician",
+    reportedByPhone: "613-539-5322",
   };
 }

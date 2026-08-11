@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createSeedState } from "./data/seed";
 import { applyIntakeCsvTabs } from "./data/intakeImport";
-import { getCurrentSession, loadRemoteState, signInWithPassword, signOut } from "./data/repo";
-import { acknowledgePolicy, approveRedemption, awardCertDetail, awardCertsCurrent, awardKpiHit, bonusPercentForAverage, bonusTrajectory, canApproveRedemptions, canRunReviews, canSeeBonusDollars, certAlertLevelFromType, completeReview, completeRitual, confirmCustomerReview, estimatedBonusDollars, giveRecognition, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, averageQuarterlyRating, leaderboard, nextQuarterDeadline, nextRedemptionWindow, policyDueDate, quarterlyLeaderboard, recordTimeOff, requestRedemption, reviewIncidentReport, rulePoints, submitFeedback, submitIncidentReport, submitQuarterlySwot, superviseIncidentReport, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./domain/crew";
-import type { Certification, CrewState, DamagedPropertyType, IncidentLocation, IncidentReport, IncidentReportInput, IncidentWitness, Profile, ReviewRating, TimeOffKind } from "./types";
+import { getCurrentSession, loadRemoteState, signInWithPassword, signOut, syncCrewState } from "./data/repo";
+import { acknowledgePolicy, approveRedemption, awardCertDetail, awardCertsCurrent, awardKpiHit, bonusPercentForAverage, bonusTrajectory, canApproveRedemptions, canRunReviews, canSeeBonusDollars, certAlertLevelFromType, completeReview, completeRitual, confirmCustomerReview, confirmIncidentReceipt, estimatedBonusDollars, giveRecognition, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, averageQuarterlyRating, leaderboard, nextQuarterDeadline, nextRedemptionWindow, policyDueDate, quarterlyLeaderboard, recordTimeOff, requestRedemption, rulePoints, submitFeedback, submitIncidentReport, submitQuarterlySwot, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./domain/crew";
+import type { Certification, CrewState, IncidentReport, IncidentReportInput, Profile, ReviewRating, TimeOffKind } from "./types";
 import { isSupabaseConfigured } from "./integrations/supabase";
 
 const STORAGE_KEY = "crew-plus-state-v1";
@@ -131,7 +131,15 @@ function useRemoteState(fallback: CrewState) {
     queryClient.removeQueries({ queryKey: ["crew-plus-state"] });
   }
 
-  const setState: React.Dispatch<React.SetStateAction<CrewState>> = () => setError("Remote writes use Edge Functions/RPC in production; demo edits stay local.");
+  const setState: React.Dispatch<React.SetStateAction<CrewState>> = (update) => {
+    const prev = state;
+    const next = typeof update === "function" ? (update as (current: CrewState) => CrewState)(prev) : update;
+    if (next === prev) return;
+    queryClient.setQueryData(["crew-plus-state", sessionUserId], { ...query.data, ...next });
+    syncCrewState(prev, next)
+      .catch((err) => setError(err instanceof Error ? err.message : "Could not save changes."))
+      .finally(() => queryClient.invalidateQueries({ queryKey: ["crew-plus-state", sessionUserId] }));
+  };
 
   return { state, setState, sessionUserId, loading: query.isFetching && !query.data && Boolean(sessionUserId), error, login, logout };
 }
@@ -201,34 +209,21 @@ function TimeOffUserCard({ state, viewer, user, year, setState }: { state: CrewS
 function Incidents({ state, user, setState }: { state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
   const today = new Date().toISOString().slice(0, 10);
   const canViewAll = user.role === "admin" || user.role === "manager";
-  const canReview = canViewAll;
   const visibleReports = (state.incidentReports ?? []).filter((report) => canViewAll || report.reportedByUserId === user.id);
-  const [draft, setDraft] = useState<IncidentReportDraft>(() => incidentDraft(today));
-  const requiredComplete = Boolean(draft.dateOfReport && draft.dateOfIncident && draft.timeOfIncident && draft.jobTitle.trim() && draft.supervisorForeman.trim() && draft.assetDescription.trim() && draft.propertyOwner.trim() && draft.incidentDescription.trim() && draft.damageType.trim() && draft.immediateActionTaken.trim() && draft.correctiveActions.trim() && (draft.location !== "other" || draft.locationOther?.trim()) && (draft.propertyType !== "other" || draft.propertyTypeOther?.trim()));
+  const [draft, setDraft] = useState<IncidentReportDraft>(() => incidentDraft(user, today));
+  const requiredComplete = Boolean(draft.employeeName.trim() && draft.employeeRole.trim() && draft.location.trim() && draft.dateOfIncident && draft.timeOfIncident && draft.incidentCause.trim() && draft.incidentDetails.trim() && draft.actionTaken.trim() && draft.reportedByName.trim() && draft.reportedByRole.trim());
   const set = (patch: Partial<IncidentReportDraft>) => setDraft((current) => ({ ...current, ...patch }));
-  const setWitness = (index: number, patch: Partial<IncidentWitness>) => setDraft((current) => ({ ...current, witnesses: current.witnesses.map((witness, currentIndex) => currentIndex === index ? { ...witness, ...patch } : witness) }));
   const submit = () => {
-    const estimatedCost = draft.estimatedCost.trim() ? Number(draft.estimatedCost) : undefined;
-    const input: IncidentReportInput = {
-      ...draft,
-      estimatedCost: Number.isFinite(estimatedCost) ? estimatedCost : undefined,
-      photoFileNames: (draft.photoFileNames ?? []).filter(Boolean),
-      witnesses: draft.witnesses,
-    };
-    setState((next) => submitIncidentReport(next, user.id, input));
-    setDraft(incidentDraft(today));
+    setState((next) => submitIncidentReport(next, user.id, { ...draft, photoFileNames: (draft.photoFileNames ?? []).filter(Boolean) }));
+    setDraft(incidentDraft(user, today));
   };
 
-  return <div className="incident-page"><section className="panel card wide incident-form"><div className="section-head"><div><h3>Damage and Incident Report</h3><p className="muted">Use this for vehicle, tool, customer property, shop, road, or site damage.</p></div><span className="pill">Safety-critical</span></div><div className="incident-sections"><fieldset><legend>General Information</legend><div className="field-grid"><label>Date of report<input type="date" value={draft.dateOfReport} onChange={(event) => set({ dateOfReport: event.target.value })} /></label><label>Date of incident<input type="date" value={draft.dateOfIncident} onChange={(event) => set({ dateOfIncident: event.target.value })} /></label><label>Time of incident<input type="time" value={draft.timeOfIncident} onChange={(event) => set({ timeOfIncident: event.target.value })} /></label><label>Location<select value={draft.location} onChange={(event) => set({ location: event.target.value as IncidentLocation })}><option value="on_site">On site</option><option value="in_shop">In shop</option><option value="on_the_road">On the road</option><option value="other">Other</option></select></label>{draft.location === "other" && <label>Other location<input value={draft.locationOther} onChange={(event) => set({ locationOther: event.target.value })} /></label>}<label>Job title / site<input value={draft.jobTitle} onChange={(event) => set({ jobTitle: event.target.value })} /></label><label>Supervisor / foreman<input value={draft.supervisorForeman} onChange={(event) => set({ supervisorForeman: event.target.value })} /></label></div></fieldset><fieldset><legend>Type of Property Damaged</legend><div className="field-grid"><label>Property type<select value={draft.propertyType} onChange={(event) => set({ propertyType: event.target.value as DamagedPropertyType })}><option value="company_vehicle">Company vehicle</option><option value="personal_vehicle">Personal vehicle</option><option value="company_tool">Company tool</option><option value="customer_property">Customer property</option><option value="other">Other</option></select></label>{draft.propertyType === "other" && <label>Other property type<input value={draft.propertyTypeOther} onChange={(event) => set({ propertyTypeOther: event.target.value })} /></label>}<label>Asset description<input value={draft.assetDescription} onChange={(event) => set({ assetDescription: event.target.value })} /></label><label>Asset ID / plate<input value={draft.assetIdOrPlate} onChange={(event) => set({ assetIdOrPlate: event.target.value })} /></label><label>Property owner<input value={draft.propertyOwner} onChange={(event) => set({ propertyOwner: event.target.value })} /></label></div></fieldset><fieldset><legend>Description of Incident</legend><textarea value={draft.incidentDescription} onChange={(event) => set({ incidentDescription: event.target.value })} placeholder="Describe what happened, where people/equipment were positioned, and any contributing conditions." /></fieldset><fieldset><legend>Damage Details</legend><div className="field-grid"><label>Damage type<input value={draft.damageType} onChange={(event) => set({ damageType: event.target.value })} /></label><label>Estimated cost<input type="number" min="0" step="0.01" value={draft.estimatedCost} onChange={(event) => set({ estimatedCost: event.target.value })} /></label><label className="check"><input type="checkbox" checked={draft.anyoneInjured} onChange={(event) => set({ anyoneInjured: event.target.checked })} /> Anyone injured</label><label className="check"><input type="checkbox" checked={draft.otherPartyInvolved} onChange={(event) => set({ otherPartyInvolved: event.target.checked })} /> Other party involved</label>{draft.otherPartyInvolved && <label>Other party details<textarea value={draft.otherPartyDetails} onChange={(event) => set({ otherPartyDetails: event.target.value })} /></label>}</div></fieldset><fieldset><legend>Photos and Evidence</legend><div className="field-grid"><label className="check"><input type="checkbox" checked={draft.photosTaken} onChange={(event) => set({ photosTaken: event.target.checked })} /> Photos taken</label><label>Evidence photo file<input type="file" onChange={(event) => set({ photosTaken: Boolean(event.target.files?.length) || draft.photosTaken, photoFileNames: event.target.files?.[0] ? [event.target.files[0].name] : [] })} /></label><label className="check"><input type="checkbox" checked={draft.witnessStatementsAttached} onChange={(event) => set({ witnessStatementsAttached: event.target.checked })} /> Witness statements attached</label><label className="check"><input type="checkbox" checked={draft.policeReportFiled} onChange={(event) => set({ policeReportFiled: event.target.checked })} /> Police report filed</label>{draft.policeReportFiled && <label>File / report number<input value={draft.fileReportNumber} onChange={(event) => set({ fileReportNumber: event.target.value })} /></label>}</div>{(draft.photoFileNames ?? []).length > 0 && <p className="muted">Selected: {(draft.photoFileNames ?? []).join(", ")}</p>}</fieldset><fieldset><legend>Immediate Action Taken</legend><textarea value={draft.immediateActionTaken} onChange={(event) => set({ immediateActionTaken: event.target.value })} /></fieldset><fieldset><legend>Corrective / Preventive Actions</legend><div className="field-grid"><label className="wide-field">Corrective actions<textarea value={draft.correctiveActions} onChange={(event) => set({ correctiveActions: event.target.value })} /></label><label>Owner<input value={draft.correctiveActionOwner} onChange={(event) => set({ correctiveActionOwner: event.target.value })} /></label><label>Due date<input type="date" value={draft.correctiveActionDueDate} onChange={(event) => set({ correctiveActionDueDate: event.target.value })} /></label></div></fieldset><fieldset><legend>Witness Information</legend><div className="witness-list">{draft.witnesses.map((witness, index) => <div className="witness-row" key={index}><input value={witness.name} onChange={(event) => setWitness(index, { name: event.target.value })} placeholder="Name" /><input value={witness.contact} onChange={(event) => setWitness(index, { contact: event.target.value })} placeholder="Contact" /><label className="check"><input type="checkbox" checked={witness.statementTaken} onChange={(event) => setWitness(index, { statementTaken: event.target.checked })} /> Statement taken</label><button type="button" disabled={draft.witnesses.length === 1} onClick={() => setDraft((current) => ({ ...current, witnesses: current.witnesses.filter((_, currentIndex) => currentIndex !== index) }))}>Remove</button></div>)}</div><button type="button" onClick={() => setDraft((current) => ({ ...current, witnesses: [...current.witnesses, emptyWitness()] }))}>Add witness</button></fieldset></div><button className="primary block" disabled={!requiredComplete} onClick={submit}>Submit report</button></section><section className="panel card wide"><div className="section-head"><div><h3>Submitted Reports</h3><p className="muted">{canViewAll ? "Manager/admin view shows all submitted reports." : "Crew view shows reports you submitted."}</p></div><span className="pill">{visibleReports.length} visible</span></div>{visibleReports.length ? <div className="incident-list">{visibleReports.map((report) => <IncidentReportCard key={report.id} state={state} report={report} user={user} canReview={canReview} setState={setState} />)}</div> : <p className="empty-state">No damage or incident reports yet.</p>}</section></div>;
+  return <div className="incident-page"><section className="panel card wide incident-form"><div className="section-head"><div><h3>Damage and Incident Report</h3><p className="muted">Submit the simplified incident report for Crew Lead or Owner receipt confirmation.</p></div><span className="pill">Receipt required</span></div><div className="incident-sections"><fieldset><legend>Employee Details</legend><div className="field-grid"><label>Employee name<input value={draft.employeeName} onChange={(event) => set({ employeeName: event.target.value })} /></label><label>Employee role<input value={draft.employeeRole} onChange={(event) => set({ employeeRole: event.target.value })} /></label><label>Employee phone<input type="tel" value={draft.employeePhone ?? ""} onChange={(event) => set({ employeePhone: event.target.value })} /></label></div></fieldset><fieldset><legend>Incident Details</legend><div className="field-grid"><label className="wide-field">Location<input value={draft.location} onChange={(event) => set({ location: event.target.value })} /></label><label>Date of incident<input type="date" value={draft.dateOfIncident} onChange={(event) => set({ dateOfIncident: event.target.value })} /></label><label>Time of incident<input type="time" value={draft.timeOfIncident} onChange={(event) => set({ timeOfIncident: event.target.value })} /></label><label className="wide-field">Incident cause<input value={draft.incidentCause} onChange={(event) => set({ incidentCause: event.target.value })} /></label><label className="wide-field">Incident details<textarea value={draft.incidentDetails} onChange={(event) => set({ incidentDetails: event.target.value })} /></label><label className="wide-field">Action taken<textarea value={draft.actionTaken} onChange={(event) => set({ actionTaken: event.target.value })} /></label><label className="check"><input type="checkbox" checked={draft.policeNotified} onChange={(event) => set({ policeNotified: event.target.checked })} /> Police notified</label><label className="wide-field">Follow-up required<textarea value={draft.followUpRequired ?? ""} onChange={(event) => set({ followUpRequired: event.target.value })} /></label><label className="wide-field">Photo file<input type="file" onChange={(event) => set({ photoFileNames: event.target.files?.[0] ? [event.target.files[0].name] : [] })} /></label></div>{(draft.photoFileNames ?? []).length > 0 && <p className="muted">Selected: {(draft.photoFileNames ?? []).join(", ")}</p>}</fieldset><fieldset><legend>Reported By</legend><div className="field-grid"><label>Reported by name<input value={draft.reportedByName} onChange={(event) => set({ reportedByName: event.target.value })} /></label><label>Reported by role<input value={draft.reportedByRole} onChange={(event) => set({ reportedByRole: event.target.value })} /></label><label>Reported by phone<input type="tel" value={draft.reportedByPhone ?? ""} onChange={(event) => set({ reportedByPhone: event.target.value })} /></label></div></fieldset></div><button className="primary block" disabled={!requiredComplete} onClick={submit}>Submit report</button></section><section className="panel card wide"><div className="section-head"><div><h3>Submitted Reports</h3><p className="muted">{canViewAll ? "Manager/admin view shows all submitted reports." : "Crew view shows reports you submitted."}</p></div><span className="pill">{visibleReports.length} visible</span></div>{visibleReports.length ? <div className="incident-list">{visibleReports.map((report) => <IncidentReportCard key={report.id} state={state} report={report} user={user} setState={setState} />)}</div> : <p className="empty-state">No incident reports yet.</p>}</section></div>;
 }
 
-function IncidentReportCard({ state, report, user, canReview, setState }: { state: CrewState; report: IncidentReport; user: Profile; canReview: boolean; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
-  const [signedName, setSignedName] = useState(user.name);
-  const [supervisorComments, setSupervisorComments] = useState("");
-  const [position, setPosition] = useState<string>(user.orgRole);
-  const [furtherActionRequired, setFurtherActionRequired] = useState(Boolean(report.furtherActionRequired));
-  const [furtherActionDetails, setFurtherActionDetails] = useState(report.furtherActionDetails ?? "");
-  return <article className="incident-card"><div className="section-head"><div><h3>{report.assetDescription}</h3><small>{report.dateOfIncident} at {report.timeOfIncident} - reported by {nameOf(state, report.reportedByUserId)}</small></div><span className={`pill ${report.reviewedByUserId ? "good" : report.supervisorSignedAt ? "warn" : ""}`}>{report.reviewedByUserId ? "Reviewed" : report.supervisorSignedAt ? "Supervisor signed" : "Submitted"}</span></div><div className="incident-summary"><p>{report.incidentDescription}</p><div className="facts"><span>{labelForIncidentLocation(report.location)}</span><span>{labelForPropertyType(report.propertyType)}</span><span>{report.damageType}</span>{report.estimatedCost != null && <span>${report.estimatedCost.toLocaleString("en-CA")}</span>}</div><div className="line"><b>Immediate action</b><span>{report.immediateActionTaken}</span></div><div className="line"><b>Corrective action</b><span>{report.correctiveActions}</span><small>{report.correctiveActionOwner}{report.correctiveActionDueDate ? ` - due ${report.correctiveActionDueDate}` : ""}</small></div>{report.photoFileNames?.length ? <div className="line"><b>Evidence photos</b><span>{report.photoFileNames.join(", ")}</span></div> : null}{report.witnesses.length ? <div className="line"><b>Witnesses</b><span>{report.witnesses.map((witness) => `${witness.name}${witness.statementTaken ? " (statement)" : ""}`).join(", ")}</span></div> : null}</div><div className="review-split"><section><h4>Supervisor Review</h4>{report.supervisorSignedAt ? <p className="toast good">Signed by {report.supervisorSignedName} on {report.supervisorSignedAt.slice(0, 10)}{report.supervisorComments ? ` - ${report.supervisorComments}` : ""}</p> : canReview ? <div className="field-stack"><label>Signed name<input value={signedName} onChange={(event) => setSignedName(event.target.value)} /></label><label>Comments<textarea value={supervisorComments} onChange={(event) => setSupervisorComments(event.target.value)} /></label><button onClick={() => setState((next) => superviseIncidentReport(next, report.id, user.id, signedName, supervisorComments))}>Supervisor sign-off</button></div> : <p className="empty-state">Awaiting supervisor review.</p>}</section><section><h4>Management Review</h4>{report.reviewedByUserId ? <p className="toast good">Reviewed by {nameOf(state, report.reviewedByUserId)} as {report.reviewedByPosition}. Further action: {report.furtherActionRequired ? "Yes" : "No"}{report.furtherActionDetails ? ` - ${report.furtherActionDetails}` : ""}</p> : canReview ? <div className="field-stack"><label>Reviewer position<input value={position} onChange={(event) => setPosition(event.target.value)} /></label><label className="check"><input type="checkbox" checked={furtherActionRequired} onChange={(event) => setFurtherActionRequired(event.target.checked)} /> Further action required</label><label>Details<textarea value={furtherActionDetails} onChange={(event) => setFurtherActionDetails(event.target.value)} /></label><button onClick={() => setState((next) => reviewIncidentReport(next, report.id, user.id, position, furtherActionRequired, furtherActionDetails))}>Complete management review</button></div> : <p className="empty-state">Awaiting management review.</p>}</section></div></article>;
+function IncidentReportCard({ state, report, user, setState }: { state: CrewState; report: IncidentReport; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
+  const canConfirm = canConfirmIncidentReceipt(user);
+  return <article className="incident-card"><div className="section-head"><div><h3>{report.employeeName}</h3><small>{report.dateOfIncident} at {report.timeOfIncident} - reported by {report.reportedByName}</small></div><span className={`pill ${report.confirmedAt ? "good" : "warn"}`}>{report.confirmedAt ? "Confirmed" : "Unconfirmed"}</span></div><div className="incident-summary"><div className="facts"><span>{report.employeeRole}</span><span>{report.location}</span><span>{report.policeNotified ? "Police notified" : "Police not notified"}</span></div><div className="line"><b>Cause</b><span>{report.incidentCause}</span></div><div className="line"><b>Details</b><span>{report.incidentDetails}</span></div><div className="line"><b>Action taken</b><span>{report.actionTaken}</span></div>{report.followUpRequired ? <div className="line"><b>Follow-up required</b><span>{report.followUpRequired}</span></div> : null}{report.photoFileNames?.length ? <div className="line"><b>Photos</b><span>{report.photoFileNames.join(", ")}</span></div> : null}</div><section className="receipt-box"><h4>Confirm Receipt</h4>{report.confirmedAt ? <p className="toast good">Confirmed by {report.confirmedByName} on {report.confirmedAt.slice(0, 10)}.</p> : canConfirm ? <button onClick={() => setState((next) => confirmIncidentReceipt(next, report.id, user.id))}>Confirm receipt</button> : <p className="empty-state">Awaiting Crew Lead or Owner confirmation.</p>}</section></article>;
 }
 
 function Bonus({ state, user, setState }: { state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
@@ -362,51 +357,31 @@ function rewardName(state: CrewState, rewardId: string) {
   return state.rewards.find((reward) => reward.id === rewardId)?.name ?? "Reward";
 }
 
-type IncidentReportDraft = Omit<IncidentReportInput, "estimatedCost"> & { estimatedCost: string };
+type IncidentReportDraft = IncidentReportInput;
 
-function incidentDraft(today: string): IncidentReportDraft {
+function incidentDraft(user: Profile, today: string): IncidentReportDraft {
   return {
-    dateOfReport: today,
+    employeeName: user.name,
+    employeeRole: user.orgRole,
+    employeePhone: user.phone ?? "",
+    location: "",
     dateOfIncident: today,
     timeOfIncident: "",
-    location: "on_site",
-    locationOther: "",
-    jobTitle: "",
-    supervisorForeman: "",
-    propertyType: "company_vehicle",
-    propertyTypeOther: "",
-    assetDescription: "",
-    assetIdOrPlate: "",
-    propertyOwner: "",
-    incidentDescription: "",
-    damageType: "",
-    estimatedCost: "",
-    anyoneInjured: false,
-    otherPartyInvolved: false,
-    otherPartyDetails: "",
-    photosTaken: false,
+    incidentCause: "",
+    incidentDetails: "",
+    actionTaken: "",
+    policeNotified: false,
+    followUpRequired: "",
     photoFileNames: [],
-    witnessStatementsAttached: false,
-    policeReportFiled: false,
-    fileReportNumber: "",
-    immediateActionTaken: "",
-    correctiveActions: "",
-    correctiveActionOwner: "",
-    correctiveActionDueDate: "",
-    witnesses: [emptyWitness()],
+    reportedByUserId: user.id,
+    reportedByName: user.name,
+    reportedByRole: user.orgRole,
+    reportedByPhone: user.phone ?? "",
   };
 }
 
-function emptyWitness(): IncidentWitness {
-  return { name: "", contact: "", statementTaken: false };
-}
-
-function labelForIncidentLocation(location: IncidentLocation) {
-  return location === "on_site" ? "On site" : location === "in_shop" ? "In shop" : location === "on_the_road" ? "On the road" : "Other";
-}
-
-function labelForPropertyType(type: DamagedPropertyType) {
-  return type === "company_vehicle" ? "Company vehicle" : type === "personal_vehicle" ? "Personal vehicle" : type === "company_tool" ? "Company tool" : type === "customer_property" ? "Customer property" : "Other";
+function canConfirmIncidentReceipt(user: Profile) {
+  return ["Crew Lead", "CEO / Owner", "CEO"].includes(user.orgRole);
 }
 
 function toneForCert(level: string) {

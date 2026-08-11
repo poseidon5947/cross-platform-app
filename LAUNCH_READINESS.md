@@ -1,16 +1,16 @@
 # Launch Readiness
 
-Client target dates updated August 6, 2026:
+Client target dates updated August 10, 2026:
 
-- Warehouse Wizard: Friday, August 14, 2026
-- Crew+: Friday, August 28, 2026
-- SOP+: August 22, 2026
+- Warehouse Wizard: client inputs by August 18, client testing August 19-20, crew live use Friday, August 21, 2026
+- Crew+: client inputs by August 25, client testing August 26-27, crew live use Friday, August 28, 2026
+- SOP+: August 22, 2026 (unchanged; no new SOP+ content in V7)
 
 ## Client Inputs Still Scheduled
 
-- Warehouse high-value on-hand quantities in Column J: August 13
-- Warehouse real tool roster: August 13
-- Crew+ remaining values, KPI, job-description, and nudge feedback: after August 17
+- Warehouse high-value on-hand quantities in Column J: August 18
+- Warehouse real tool roster: August 18
+- Crew+ remaining Values, KPI, Job Descriptions, and Nudge feedback: August 25
 - QuickBooks Online authorization: about five minutes with a client admin at go-live
 
 ## Included From V4
@@ -36,4 +36,12 @@ Client target dates updated August 6, 2026:
 - Crew+ goal launch revised to Friday, August 28; remaining Values, KPIs, Job Descriptions, and Nudge feedback lands after August 17
 - V5 people rules and Warehouse inventory rules carry forward unchanged
 
-SOP+ remains unchanged at August 22, per the existing one-week-behind note. No new SOP+ content was supplied in the V6 client package.
+## Included From V7
+
+- Client confirmed the simplified Damage and Incident Report is done; no further changes requested
+- Warehouse Wizard timeline revised: client inputs by August 18, client testing August 19-20, crew live use August 21
+- Crew+ timeline revised: client inputs by August 25, client testing August 26-27, crew live use August 28 (same launch date as V6, now with an explicit client testing window beforehand)
+- All V4/V5/V6 Warehouse and Crew+ rules (Column J logic, locked unit list, sick/vacation tracking, bullying policy, SWOT, incident report) carry forward unchanged; V7 restates them against the new dates rather than changing them
+- **New request, not yet built:** client wants to onboard new hires directly through Crew+ (send a login, have the new hire complete the New Employee Form in-app: hire date, start date, hourly wage, contact info, DOB, SIN, driver's license number, allergies/medical conditions, e-signed direct-deposit and BuilderTrend-hours acknowledgments, emergency contact) plus upload their direct deposit form and a photo of their driver's license (front and back)
+
+SOP+ remains unchanged at August 22 per the existing one-week-behind note. No new SOP+ content was supplied in the V6 or V7 client packages.

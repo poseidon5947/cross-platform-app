@@ -403,71 +403,31 @@ export interface TimeOffEntry {
   createdAt: string;
 }
 
-export type IncidentLocation = "on_site" | "in_shop" | "on_the_road" | "other";
-export type DamagedPropertyType = "company_vehicle" | "personal_vehicle" | "company_tool" | "customer_property" | "other";
-
-export interface IncidentWitness {
-  name: string;
-  contact: string;
-  statementTaken: boolean;
-}
-
 export interface IncidentReport {
   id: string;
-  reportedByUserId: string;
-  dateOfReport: string;
+  employeeName: string;
+  employeeRole: string;
+  employeePhone?: string;
+  location: string;
   dateOfIncident: string;
   timeOfIncident: string;
-  location: IncidentLocation;
-  locationOther?: string;
-  jobTitle: string;
-  supervisorForeman: string;
-  propertyType: DamagedPropertyType;
-  propertyTypeOther?: string;
-  assetDescription: string;
-  assetIdOrPlate?: string;
-  propertyOwner: string;
-  incidentDescription: string;
-  damageType: string;
-  estimatedCost?: number;
-  anyoneInjured: boolean;
-  otherPartyInvolved: boolean;
-  otherPartyDetails?: string;
-  photosTaken: boolean;
+  incidentCause: string;
+  incidentDetails: string;
+  actionTaken: string;
+  policeNotified: boolean;
+  followUpRequired?: string;
   photoFileNames?: string[];
-  witnessStatementsAttached: boolean;
-  policeReportFiled: boolean;
-  fileReportNumber?: string;
-  immediateActionTaken: string;
-  correctiveActions: string;
-  correctiveActionOwner?: string;
-  correctiveActionDueDate?: string;
-  witnesses: IncidentWitness[];
-  supervisorName?: string;
-  supervisorSignedName?: string;
-  supervisorSignedAt?: string;
-  supervisorComments?: string;
-  reviewedByUserId?: string;
-  reviewedByPosition?: string;
-  furtherActionRequired?: boolean;
-  furtherActionDetails?: string;
+  reportedByUserId: string;
+  reportedByName: string;
+  reportedByRole: string;
+  reportedByPhone?: string;
+  confirmedByUserId?: string;
+  confirmedByName?: string;
+  confirmedAt?: string;
   createdAt: string;
 }
 
-export type IncidentReportInput = Omit<
-  IncidentReport,
-  | "id"
-  | "reportedByUserId"
-  | "createdAt"
-  | "supervisorName"
-  | "supervisorSignedName"
-  | "supervisorSignedAt"
-  | "supervisorComments"
-  | "reviewedByUserId"
-  | "reviewedByPosition"
-  | "furtherActionRequired"
-  | "furtherActionDetails"
->;
+export type IncidentReportInput = Omit<IncidentReport, "id" | "createdAt" | "confirmedByUserId" | "confirmedByName" | "confirmedAt">;
 
 export interface IntegrationDecision {
   id: string;

@@ -2,7 +2,7 @@
 
 *Thanks for the V2 doc and the bonus program — that resolved a lot. This revised version confirms what's now locked, notes what I'm building from your V2, and lists the few new things that came up. You can answer right in this doc (space under each item).*
 
-**Last updated:** Aug 7, 2026
+**Last updated:** Aug 11, 2026
 **Priorities:** 🔴 = unblocks real data · 🟡 = fills in the People/Crew tool · 🟢 = quick confirm · ⚪ = heads-up
 
 ---
@@ -15,7 +15,7 @@
 - **Google reviews:** link received; starting credits — **Jon & Jordan Thorpe 400 each, Jesse 200**
 - **Values direction:** your 3 values (Clear · Helpful · Professional) with a Monday-meeting value-share
 - **Bonus program:** received (% of gross wages by review score)
-- **Damage & Incident Report:** received and added to Crew+ as an in-app report with supervisor and management review
+- **Damage & Incident Report:** simplified version built and confirmed done by client — crew submit, Crew Lead or Owner confirms receipt
 
 ## 🔧 What I'm now building from your V2
 
@@ -30,7 +30,7 @@
 ## Still needed / new questions
 
 ### 🔴 1. Unit mapping for the existing catalogue
-The 121 items we already loaded use lots of units (pail, tube, panel, litre, gallon, board, etc.), but you've now set the only options to **Unit, Roll, Drum, Box, Sausage**. When you send the final Warehouse data by **August 13**, please make sure **every item maps to one of those 5**. Two quick confirms:
+The 121 items we already loaded use lots of units (pail, tube, panel, litre, gallon, board, etc.), but you've now set the only options to **Unit, Roll, Drum, Box, Sausage**. When you send the final Warehouse data by **August 18**, please make sure **every item maps to one of those 5**. Two quick confirms:
 - Is **Drum** the unit that should allow **quarter amounts (.25 / .5 / .75)**? (That was previously barrels/gallons.)
 - Anything that was a "pail/tube/panel/etc." — which of the 5 should it become? (Or you'll set each directly in the sheet.)
 
@@ -38,7 +38,7 @@ The 121 items we already loaded use lots of units (pail, tube, panel, litre, gal
 >
 
 ### 🔴 2. Inventory quantities, costs, and tool roster
-Client-provided Warehouse Wizard data is now scheduled for **August 13**: Column J on-hand quantities, unit costs, and the real tool roster. Goal launch is **Friday, August 14**.
+Client-provided Warehouse Wizard data is now scheduled for **August 18**, with your own testing window August 19-20. Goal crew-live date is **Friday, August 21**.
 
 *Your input:*
 >
@@ -52,7 +52,7 @@ Your model is clear (Meets 3 → up to 2% · Exceeds 4 → up to 4% · Exception
 >
 
 ### 🟡 4. KPI targets, job descriptions, values, and nudges
-Crew+ remaining feedback is now expected **after August 17**. Goal launch is **Friday, August 28**, so send the confirmed KPI targets, job-description edits, values wording, and nudge/cadence feedback as soon as ready after August 17.
+Crew+ remaining feedback is now expected by **August 25**, with your own testing window August 26-27. Goal crew-live date is **Friday, August 28**, so send the confirmed KPI targets, job-description edits, values wording, and nudge/cadence feedback by the 25th.
 
 *Your input:*
 >
@@ -74,6 +74,16 @@ Loading your real roster (Jesse, Shane, Jon, Josh, Logan, Thorpe, Rogers). Cours
 
 ### ⚪ 7. QuickBooks live connection
 Ready after the sheets are 100% complete — noted. No action now.
+
+*Your input:*
+>
+
+### 🔴 8. New hire onboarding through Crew+ (new request, not yet built)
+You asked whether new hires can complete the New Employee Form and upload their direct deposit form + driver's license photo directly in Crew+ instead of the current print/sign/scan process. This is doable, but since it involves SIN, banking, and driver's license data, a few things need your sign-off before I build it:
+- **Who can see this data once submitted?** My assumption: admin/HR only (same tier as compensation data today), not managers or crew generally. Confirm that's right.
+- **Document storage:** the direct-deposit form and license photos would go into private, access-restricted storage (not visible in any list crew can browse). Confirm that's sufficient, or if you need something more specific (e.g., auto-delete after payroll setup).
+- **E-signatures:** the two sign-here lines (direct deposit authorization, BuilderTrend hours acknowledgment) — same lightweight "type your name to sign" pattern already used for the harassment policy acknowledgment, or do you need something more formal?
+- **Invite flow:** you'd trigger onboarding by giving me a name + email; I generate a temporary login the same way we set up your current 13 accounts, the new hire signs in and completes the form themselves. Confirm that's the flow you want.
 
 *Your input:*
 >

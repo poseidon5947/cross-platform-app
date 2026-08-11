@@ -1054,17 +1054,6 @@ textarea:disabled {
   grid-column: 1 / -1;
 }
 
-.witness-list,
-.witness-row {
-  display: grid;
-  gap: 8px;
-}
-
-.witness-row {
-  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(150px, auto) auto;
-  align-items: center;
-}
-
 .incident-card {
   padding: 14px;
   border: 1px solid var(--line);
@@ -1077,10 +1066,12 @@ textarea:disabled {
   font-size: 14px;
 }
 
-.review-split {
+.receipt-box {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
 }
 
 .time-off-card,
@@ -1227,8 +1218,7 @@ textarea:disabled {
   .time-off-entry,
   .leave-balances,
   .field-grid,
-  .witness-row,
-  .review-split {
+  .receipt-box {
     grid-template-columns: 1fr;
   }
 
