@@ -224,9 +224,12 @@ export const tools: ToolItem[] = [
 ];
 
 export const trucks: Truck[] = [
-  { id: "tr1", name: "Truck 1 - Ford F-350", km: 184250, lastServiced: "2026-06-20", lastOil: 184000 },
-  { id: "tr2", name: "Truck 2 - RAM 2500", km: 97430, lastServiced: "2026-05-02", lastOil: 96800 },
-  { id: "tr3", name: "Van 3 - Transit", km: 61200, lastServiced: "2026-07-01", lastOil: 60900 },
+  { id: "tr1", name: "Ford F150 XL SuperCab 4WD (2011) - LY1180", km: 0, lastServiced: "", lastOil: 0 },
+  { id: "tr2", name: "Toyota Dyna RHD (1990) - XP1329", km: 0, lastServiced: "", lastOil: 0 },
+  { id: "tr3", name: "Dodge RAM 2500 SLT Reg Cab 2WD (2008) - WB5878", km: 0, lastServiced: "", lastOil: 0 },
+  { id: "tr4", name: "Ford Other Type 2 2WD (2001) - KH2916", km: 0, lastServiced: "", lastOil: 0 },
+  { id: "tr5", name: "Chevrolet Astro Cargo Van Ext 2WD (1998) - KH2918", km: 0, lastServiced: "", lastOil: 0 },
+  { id: "tr6", name: "Ford E350 Club Wagon (2000) - KH2919", km: 0, lastServiced: "", lastOil: 0 },
 ];
 
 export const truckTasks: TruckTask[] = [
@@ -282,6 +285,7 @@ export function createSeedState(): AppState {
     streaks: users.map((user) => ({ userId: user.id, count: user.id === "c1" ? 4 : 0, last: null, awardedOn: null })),
     currentUserId: "c0",
     offlineQueue: [],
+    maintenanceRequests: [],
   };
 }
 

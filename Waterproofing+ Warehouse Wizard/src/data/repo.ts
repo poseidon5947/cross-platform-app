@@ -1,5 +1,5 @@
 import { supabase } from "../integrations/supabase";
-import type { AppState, Material, OfflineCommand, PointsEvent, Service, Site, Streak, TaskCompletion, ToolItem, Transaction, Truck, TruckLog, TruckTask, User } from "../types";
+import type { AppState, MaintenanceRequest, Material, OfflineCommand, PointsEvent, Service, Site, Streak, TaskCompletion, ToolItem, Transaction, Truck, TruckLog, TruckTask, User } from "../types";
 
 function requireClient() {
   if (!supabase) throw new Error("Supabase is not configured.");
@@ -67,8 +67,23 @@ const profileFromRow = (row: any): User => ({
   name: row.name,
   email: row.email,
   role: row.role,
+  orgRole: row.org_role ?? undefined,
   color: row.color,
   points: Number(row.points ?? 0),
+});
+
+const maintenanceFromRow = (row: any): MaintenanceRequest => ({
+  id: row.id,
+  targetType: row.target_type,
+  targetId: row.target_id,
+  targetLabel: row.target_label,
+  description: row.description,
+  requestedBy: row.requested_by,
+  requestedAt: row.requested_at,
+  status: row.status,
+  respondedBy: row.responded_by ?? undefined,
+  respondedAt: row.responded_at ?? undefined,
+  responseNote: row.response_note ?? undefined,
 });
 
 const siteFromRow = (row: any): Site => ({
@@ -153,7 +168,7 @@ async function read<T>(table: string, mapper: (row: any) => T, order = "created_
 }
 
 export async function loadRemoteState(currentUserId: string): Promise<AppState> {
-  const [materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streakRows] =
+  const [materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streakRows, maintenanceRequests] =
     await Promise.all([
       read("materials", materialFromRow),
       read("sites", siteFromRow),
@@ -167,8 +182,33 @@ export async function loadRemoteState(currentUserId: string): Promise<AppState> 
       read("task_completions", completionFromRow, "completed_at"),
       read("points_events", pointsFromRow, "ts"),
       read("streaks", (row) => ({ userId: row.user_id, count: row.count, last: row.last, awardedOn: row.awarded_on })),
+      read("maintenance_request", maintenanceFromRow, "requested_at"),
     ]);
-  return { materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streaks: streakRows, currentUserId, offlineQueue: [] };
+  return { materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streaks: streakRows, currentUserId, offlineQueue: [], maintenanceRequests };
+}
+
+export async function insertMaintenanceRequest(request: MaintenanceRequest) {
+  const { error } = await requireClient().from("maintenance_request").insert({
+    id: request.id,
+    target_type: request.targetType,
+    target_id: request.targetId,
+    target_label: request.targetLabel,
+    description: request.description,
+    requested_by: request.requestedBy,
+    requested_at: request.requestedAt,
+    status: request.status,
+  });
+  if (error) throw error;
+}
+
+export async function respondMaintenanceRequest(request: MaintenanceRequest) {
+  const { error } = await requireClient().from("maintenance_request").update({
+    status: request.status,
+    responded_by: request.respondedBy ?? null,
+    responded_at: request.respondedAt ?? null,
+    response_note: request.responseNote ?? null,
+  }).eq("id", request.id);
+  if (error) throw error;
 }
 
 export async function loadProfile(userId: string) {

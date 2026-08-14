@@ -1,5 +1,7 @@
 import type {
   AppState,
+  MaintenanceRequest,
+  MaintenanceTargetType,
   Material,
   OfflineCommand,
   PointsEvent,
@@ -12,6 +14,7 @@ import type {
   TruckLog,
   TruckTask,
   TxType,
+  User,
 } from "../types";
 import { canonicalWarehouseRef, legacyOrCanonicalRefs } from "./pointsAwardPolicy";
 import type { MaterialUnit } from "../types";
@@ -282,5 +285,53 @@ export function applyTruckLog(
       : [...state.streaks, evaluated.streak],
     autoTaskIds,
     pointsEventsCreated: evaluated.events,
+  };
+}
+
+const MAINTENANCE_RESOLVER_ORG_ROLES = new Set(["Crew Lead", "CEO / Owner", "CEO"]);
+
+export function canResolveMaintenanceRequests(user: Pick<User, "orgRole">) {
+  return Boolean(user.orgRole && MAINTENANCE_RESOLVER_ORG_ROLES.has(user.orgRole));
+}
+
+export function submitMaintenanceRequest(
+  state: AppState,
+  userId: string,
+  targetType: MaintenanceTargetType,
+  targetId: string,
+  targetLabel: string,
+  description: string,
+  now = new Date().toISOString(),
+): AppState {
+  if (!description.trim() || !targetId) return state;
+  const request: MaintenanceRequest = {
+    id: `maint-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    targetType,
+    targetId,
+    targetLabel,
+    description: description.trim(),
+    requestedBy: userId,
+    requestedAt: now,
+    status: "open",
+  };
+  return { ...state, maintenanceRequests: [request, ...state.maintenanceRequests] };
+}
+
+export function respondToMaintenanceRequest(
+  state: AppState,
+  responderId: string,
+  requestId: string,
+  responseNote: string,
+  now = new Date().toISOString(),
+): AppState {
+  const responder = state.users.find((item) => item.id === responderId);
+  if (!responder || !canResolveMaintenanceRequests(responder)) return state;
+  return {
+    ...state,
+    maintenanceRequests: state.maintenanceRequests.map((item) =>
+      item.id === requestId
+        ? { ...item, status: "resolved" as const, respondedBy: responderId, respondedAt: now, responseNote: responseNote.trim() || undefined }
+        : item,
+    ),
   };
 }

@@ -77,8 +77,26 @@ export interface User {
   name: string;
   email: string;
   role: Role;
+  orgRole?: string;
   color: string;
   points: number;
+}
+
+export type MaintenanceTargetType = "truck" | "tool";
+export type MaintenanceStatus = "open" | "resolved";
+
+export interface MaintenanceRequest {
+  id: string;
+  targetType: MaintenanceTargetType;
+  targetId: string;
+  targetLabel: string;
+  description: string;
+  requestedBy: string;
+  requestedAt: string;
+  status: MaintenanceStatus;
+  respondedBy?: string;
+  respondedAt?: string;
+  responseNote?: string;
 }
 
 export interface Transaction {
@@ -183,6 +201,7 @@ export interface AppState {
   streaks: Streak[];
   currentUserId: string;
   offlineQueue: OfflineCommand[];
+  maintenanceRequests: MaintenanceRequest[];
 }
 
 export type OfflineCommand =
