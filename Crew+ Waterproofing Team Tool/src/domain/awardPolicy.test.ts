@@ -30,6 +30,6 @@ describe("hardened award policy", () => {
     const events = [
       { id: "a", userId: "u3", type: "crew_habit_ritual", points: 298, reason: "existing", ref: "ritual:u3:v1:daily:2026-W31", ts: "2026-07-28", source: "crew" as const },
     ];
-    expect(resolveServerAwardPoints(rule, events, "u3", "2026-W31", null)).toBe(5);
+    expect(resolveServerAwardPoints(rule, events, "u3", "2026-W31", null)).toBe(10);
   });
 });

@@ -1,0 +1,92 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      crew: ${{ steps.filter.outputs.crew }}
+      warehouse: ${{ steps.filter.outputs.warehouse }}
+      sop: ${{ steps.filter.outputs.sop }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            crew:
+              - 'Crew+ Waterproofing Team Tool/**'
+            warehouse:
+              - 'Waterproofing+ Warehouse Wizard/**'
+            sop:
+              - 'SOP+ Tool/**'
+
+  deploy-crew:
+    needs: changes
+    if: needs.changes.outputs.crew == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "Crew+ Waterproofing Team Tool"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
+      - run: npx wrangler deploy --assets=dist --name=crew-plus-vanisle --compatibility-date=2026-08-13
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  deploy-warehouse:
+    needs: changes
+    if: needs.changes.outputs.warehouse == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "Waterproofing+ Warehouse Wizard"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      - run: npx wrangler deploy --assets=dist --name=warehouse-wizard-vanisle --compatibility-date=2026-08-13
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  deploy-sop:
+    needs: changes
+    if: needs.changes.outputs.sop == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "SOP+ Tool"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      - run: npx wrangler deploy --assets=dist --name=sop-plus-vanisle --compatibility-date=2026-08-13
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

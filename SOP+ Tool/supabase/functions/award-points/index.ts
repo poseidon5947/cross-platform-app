@@ -63,7 +63,7 @@ async function awardSopCompleted(service: any, caller: any, body: Record<string,
   return insertIdempotent(service, {
     userId: sop.created_by,
     type: "sop_completed",
-    points: 20,
+    points: 50,
     reason: `SOP approved: ${sop.title ?? sopId}`,
     ref: sopId,
     contract: "suite.points.v1",

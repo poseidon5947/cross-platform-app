@@ -211,7 +211,12 @@ await upsert("crew_cert_type", state.certificationTypes.map((item) => ({
   notes: item.notes ?? null,
 })));
 
-await upsert("crew_review", state.reviews.map((item) => ({
+const isIsoDate = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+const reviewsWithDates = state.reviews.filter((item) => isIsoDate(item.scheduledFor));
+if (reviewsWithDates.length < state.reviews.length) {
+  console.log(`Skipped ${state.reviews.length - reviewsWithDates.length} review(s) with a placeholder date (e.g. "TBD") — scheduled_for is not-null in the DB.`);
+}
+await upsert("crew_review", reviewsWithDates.map((item) => ({
   id: cryptoId(item.id),
   user_id: mapUser(item.userId),
   manager_id: mapUser(item.managerId),
@@ -282,7 +287,7 @@ await upsert("crew_integration_decision", state.integrations.map((item) => ({
 })));
 
 await upsert("crew_nudge", state.nudges.map((item) => ({
-  id: item.id,
+  id: cryptoId(item.id),
   user_id: item.userId ? mapUser(item.userId) : mapUser("u8"),
   type: item.type,
   name: item.name ?? item.title,

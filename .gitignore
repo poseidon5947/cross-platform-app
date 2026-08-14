@@ -15,6 +15,7 @@ dist/
 # Tool caches
 .vite/
 **/.vite/
+**/supabase/.temp/
 
 # OS/editor noise
 .DS_Store

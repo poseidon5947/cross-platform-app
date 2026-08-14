@@ -172,7 +172,6 @@ function importTeam(state: CrewState, rows: Record<string, string>[], report: In
       emergencyContactName: valueAt(row, "emergency contact name") || existing?.emergencyContactName,
       emergencyContactEmail: valueAt(row, "emergency contact email") || existing?.emergencyContactEmail,
       emergencyContactPhone: valueAt(row, "emergency contact phone") || existing?.emergencyContactPhone,
-      payBand: valueAt(row, "[admin] pay band") || existing?.payBand,
       bonusRoleWeight: numberOrUndefined(valueAt(row, "[admin] bonus role weight")) ?? existing?.bonusRoleWeight,
     });
     report.imported += 1;

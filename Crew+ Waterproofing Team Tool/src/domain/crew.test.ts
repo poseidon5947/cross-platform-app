@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
-import { acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, nextQuarterDeadline, nextRedemptionWindow, recordTimeOff, requestRedemption, reviewDueDates, submitIncidentReport, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
-import type { IncidentReportInput } from "../types";
+import { acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, recordTimeOff, requestRedemption, reviewDueDates, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
+import type { IncidentReportInput, OnboardingInput } from "../types";
 
 describe("Crew+ wallet", () => {
   it("sums earned and redeemed points from the append-only ledger", () => {
@@ -110,7 +110,7 @@ describe("Crew+ cadence, compliance, and privacy", () => {
     state = awardCertDetail(state, "u3", "cert-jon-fa", "2026-07-29T09:00:00Z");
     state = awardCertDetail(state, "u3", "cert-jon-fa", "2026-07-29T10:00:00Z");
     expect(state.pointsEvents.filter((event) => event.ref === "cert_detail:u3:cert-jon-fa")).toHaveLength(1);
-    expect(walletBalance(state.pointsEvents, "u3")).toBe(410);
+    expect(walletBalance(state.pointsEvents, "u3")).toBe(415);
   });
 
   it("uses the intake permission matrix for finer-grained gates", () => {
@@ -169,6 +169,53 @@ describe("Crew+ damage and incident reports", () => {
     expect(state.incidentReports[0].confirmedAt).toBeUndefined();
   });
 });
+
+describe("Crew+ onboarding", () => {
+  it("lets a crew member submit their own onboarding form once", () => {
+    let state = createSeedState();
+    expect(onboardingComplete(state, "u3")).toBe(false);
+    state = submitOnboarding(state, "u3", onboardingInput(), "2026-08-11T09:00:00Z");
+    expect(onboardingComplete(state, "u3")).toBe(true);
+    expect(state.onboarding[0]).toMatchObject({ userId: "u3", sin: "123456789", completedAt: "2026-08-11T09:00:00Z" });
+  });
+
+  it("rejects a second submission once onboarding is already complete", () => {
+    let state = createSeedState();
+    state = submitOnboarding(state, "u3", onboardingInput(), "2026-08-11T09:00:00Z");
+    const before = state.onboarding.length;
+    state = submitOnboarding(state, "u3", onboardingInput(), "2026-08-11T10:00:00Z");
+    expect(state.onboarding.length).toBe(before);
+  });
+
+  it("rejects an incomplete submission", () => {
+    let state = createSeedState();
+    state = submitOnboarding(state, "u3", { ...onboardingInput(), sin: "" }, "2026-08-11T09:00:00Z");
+    expect(onboardingComplete(state, "u3")).toBe(false);
+  });
+});
+
+function onboardingInput(): OnboardingInput {
+  return {
+    userId: "u3",
+    dateOfBirth: "1995-04-08",
+    address: "123 Main St",
+    city: "Victoria",
+    postalCode: "V8V 1A1",
+    sin: "123456789",
+    driversLicenseNumber: "1234-56789-01234",
+    allergiesMedical: "None",
+    hourlyWage: 32,
+    startDate: "2026-08-15",
+    vacationPayAcknowledged: true,
+    directDepositSignedName: "Jon Gregoire",
+    directDepositSignedAt: "2026-08-11T09:00:00Z",
+    hoursTrackingSignedName: "Jon Gregoire",
+    hoursTrackingSignedAt: "2026-08-11T09:00:00Z",
+    emergencyContactName: "Alex Gregoire",
+    emergencyContactRelationship: "Sibling",
+    emergencyContactPhone: "613-555-0100",
+  };
+}
 
 function incidentInput(): IncidentReportInput {
   return {

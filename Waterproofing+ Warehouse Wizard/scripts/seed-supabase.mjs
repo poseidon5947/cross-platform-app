@@ -1,7 +1,7 @@
-import fs from "node:fs";
 import vm from "node:vm";
 import crypto from "node:crypto";
-import ts from "typescript";
+import { fileURLToPath } from "node:url";
+import esbuild from "esbuild";
 import { createClient } from "@supabase/supabase-js";
 
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -11,11 +11,23 @@ if (!url || !serviceRole) {
   process.exit(1);
 }
 
-const source = fs.readFileSync(new URL("../src/data/seed.ts", import.meta.url), "utf8");
-const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-const sandbox = { exports: {}, require: () => ({}) };
-vm.runInNewContext(js, sandbox);
-const state = sandbox.exports.createSeedState();
+// Bundle seed.ts with its local imports (e.g. ./business.ts) resolved for
+// real, rather than transpiling it in isolation with a stubbed require().
+const bundle = await esbuild.build({
+  entryPoints: [fileURLToPath(new URL("../src/data/seed.ts", import.meta.url))],
+  bundle: true,
+  write: false,
+  platform: "node",
+  format: "cjs",
+  target: "es2022",
+});
+const js = bundle.outputFiles[0].text;
+const moduleObj = { exports: {} };
+const sandbox = { exports: moduleObj.exports, module: moduleObj, require: () => ({}), console };
+vm.createContext(sandbox);
+vm.runInContext(js, sandbox);
+const seedExports = moduleObj.exports.createSeedState ? moduleObj.exports : sandbox.exports;
+const state = seedExports.createSeedState();
 const supabase = createClient(url, serviceRole);
 
 function uuid(localId) {
@@ -59,7 +71,7 @@ await upsert("tools", state.tools.map((t) => ({
   condition: t.condition,
   last_charged: t.lastCharged ?? null,
   note: t.note ?? null,
-  out_by: mapId(t.outBy),
+  out_by: null, // demo seed user ids don't correspond to real auth.users rows
   out_job: mapId(t.outJob),
   out_service: t.outService ?? null,
   out_ts: t.outTs ?? null,

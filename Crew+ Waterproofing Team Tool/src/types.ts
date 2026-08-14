@@ -1,5 +1,6 @@
 export type Role = "admin" | "manager" | "crew";
-export type OrgRole = "Senior Technician" | "Technician" | "Assistant Technician" | "Crew Lead" | "Operations / Admin" | "Operations" | "CFO" | "CEO / Owner" | "CEO" | "Caulker";
+export type OrgRole = "Senior Technician" | "Technician" | "Assistant Technician" | "Crew Lead" | "Operations / Admin" | "Operations" | "CFO" | "CEO / Owner" | "CEO" | "Caulker" | "Estimator";
+export type EmploymentType = "full_time" | "part_time" | "temp" | "seasonal";
 export type Cadence = "daily" | "weekly" | "monthly";
 export type ReviewType = "30" | "60" | "90" | "quarterly" | "annual";
 export type ReviewRating = 1 | 2 | 3 | 4 | 5 | "below" | "meets" | "exceeds";
@@ -32,14 +33,26 @@ export interface Profile {
   emergencyContactName?: string;
   emergencyContactEmail?: string;
   emergencyContactPhone?: string;
-  payBand?: string;
   bonusRoleWeight?: number;
-  grossAnnualWages?: number;
   underNotice?: boolean;
   disciplinaryActionAt?: string;
   nextQuarterlyReviewDate?: string;
   reviewEligibility?: "Eligible" | "Not Eligible" | "TBD";
   vacationDaysAnnual?: number;
+  employmentType?: EmploymentType;
+  newHireUntil?: string;
+  accessUpgradedAt?: string;
+}
+
+export interface CompensationRecord {
+  id: string;
+  userId: string;
+  grossAnnualWages?: number;
+  payBand?: string;
+  retentionBonusAmount?: number;
+  retentionBonusPayoutDate?: string;
+  costOfLivingIncrease?: number;
+  updatedAt: string;
 }
 
 export interface ValueItem {
@@ -403,6 +416,35 @@ export interface TimeOffEntry {
   createdAt: string;
 }
 
+export interface OnboardingRecord {
+  id: string;
+  userId: string;
+  dateOfBirth: string;
+  address: string;
+  city: string;
+  postalCode: string;
+  sin: string;
+  driversLicenseNumber: string;
+  allergiesMedical?: string;
+  hourlyWage: number;
+  startDate: string;
+  vacationPayAcknowledged: boolean;
+  directDepositSignedName: string;
+  directDepositSignedAt: string;
+  hoursTrackingSignedName: string;
+  hoursTrackingSignedAt: string;
+  directDepositFileName?: string;
+  driversLicenseFrontFileName?: string;
+  driversLicenseBackFileName?: string;
+  emergencyContactName: string;
+  emergencyContactRelationship?: string;
+  emergencyContactPhone: string;
+  emergencyContactEmail?: string;
+  completedAt: string;
+}
+
+export type OnboardingInput = Omit<OnboardingRecord, "id" | "completedAt">;
+
 export interface IncidentReport {
   id: string;
   employeeName: string;
@@ -479,6 +521,8 @@ export interface CrewState {
   timeOffPolicies: TimeOffPolicy[];
   timeOffEntries: TimeOffEntry[];
   incidentReports: IncidentReport[];
+  onboarding: OnboardingRecord[];
+  compensation: CompensationRecord[];
   integrations: IntegrationDecision[];
   permissions: PermissionConfig;
 }

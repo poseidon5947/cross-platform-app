@@ -1,5 +1,6 @@
 import type {
   BonusConfig,
+  EmploymentType,
   BonusRoleWeight,
   Certification,
   CertificationType,
@@ -71,6 +72,7 @@ const roleWeights: Record<OrgRole, number> = {
   "CEO / Owner": 0,
   CEO: 0,
   Caulker: 0.9,
+  Estimator: 1,
 };
 
 export const rolePermissions: RolePermission[] = [
@@ -95,11 +97,11 @@ export const demoUsers: Profile[] = [
   member("u8", "EMP-008", "Tara", "Clark", "Tara", "Operations / Admin", "Office", "CEO / Owner", "04-03", "ops@vanislecoatings.com", "778-688-0759", "#14A2A4"),
   member("u9", "EMP-009", "Bobby", "Wagner", "Bobby", "Caulker", "Field", "CEO / Owner", "02-11", "bymsid@gmail.com", "250-589-3697", "#456b8c"),
   member("u10", "EMP-010", "Ray", "Boudreault", "Ray", "Caulker", "Field", "CEO / Owner", "", "rayboudreault@yahoo.ca", "250-880-2489", "#7c6f52"),
-  member("u11", "EMP-011", "Jacob", "V", "Jacob V", "Technician", "Field", "CEO / Owner", "", "jacob.valentin.soto@gmail.com", "(250) 882-8666", "#c53030"),
+  member("u11", "EMP-011", "Jacob", "Soto", "Jacob", "Technician", "Field", "CEO / Owner", "", "jacob.valentin.soto@gmail.com", "(250) 882-8666", "#c53030", "temp"),
   member("u12", "EMP-012", "Finance", "Admin", "CFO", "CFO", "Office", "CEO / Owner", "", "finance@vanislecoatings.com", "", "#37526d"),
   member("u13", "EMP-013", "Matthew", "Chester", "Matthew", "Crew Lead", "Field", "CEO / Owner", "", "matthew.chester@skynetcfo.com", "", "#245b84"),
-  member("u14", "EMP-014", "Desmond", "Scott", "Desmond", "Technician", "Field", "CEO / Owner", "", "desmondscot@gmail.com", "", "#6b7280"),
-  member("u15", "EMP-015", "Ken", "Taylor", "Ken", "Technician", "Field", "CEO / Owner", "", "ken.taylor@example.com", "", "#8b5e34"),
+  member("u14", "EMP-014", "Desmond", "Scott", "Desmond", "Estimator", "Office", "CEO / Owner", "", "desmondscot@gmail.com", "", "#6b7280", "part_time"),
+  member("u15", "EMP-015", "Ken", "Taylor", "Ken", "Technician", "Field", "CEO / Owner", "", "ken.taylor@example.com", "", "#8b5e34", "seasonal"),
 ].map(applyReviewRoster);
 
 export const certificationTypes: CertificationType[] = [
@@ -130,22 +132,20 @@ export const earningRules: EarningRule[] = [
   earn("earn-ww-streak", "5-day truck-task streak bonus", 25, "warehouse"),
   earn("earn-log-week", "Clean material/tool logging week (no corrections)", 40, "warehouse", undefined, true),
   earn("earn-tools", "All tools returned, none damaged (weekly)", 30, "warehouse", undefined, true),
-  earn("earn-daily", "Daily value ritual", 5, "crew", undefined, true),
-  earn("earn-weekly", "Weekly value exercise", 5, "crew", undefined, true),
-  earn("earn-monthly", "Monthly value ritual", 5, "crew", undefined, true),
-  earn("earn-cert-detail", "Certification details completed", 5, "crew"),
-  // TODO confirm with client: "etc. +5" was applied to these non-named small-tier rules.
-  earn("earn-swot", "Quarterly SWOT on time", 5, "crew"),
-  earn("earn-feedback", "Company feedback form submitted", 5, "crew"),
-  earn("earn-certs", "All certs current (monthly, no lapses)", 5, "crew"),
-  earn("earn-review", "Review completed on time", 5, "crew"),
-  earn("earn-kpi", "KPI target hit", 5, "crew"),
+  earn("earn-daily", "Daily value ritual", 10, "crew", undefined, true),
+  earn("earn-weekly", "Weekly value exercise", 10, "crew", undefined, true),
+  earn("earn-monthly", "Monthly value ritual", 10, "crew", undefined, true),
+  earn("earn-cert-detail", "Certification details completed", 10, "crew"),
+  earn("earn-swot", "Quarterly SWOT on time", 10, "crew"),
+  earn("earn-feedback", "Company feedback form submitted", 10, "crew"),
+  earn("earn-certs", "All certs current (monthly, no lapses)", 10, "crew"),
+  earn("earn-review", "Review completed on time", 10, "crew"),
+  earn("earn-kpi", "KPI target hit", 10, "crew"),
   earn("earn-google", "5-star Google review naming you", 200, "crew"),
-  // TODO confirm with client: written compliments were treated as small-tier "etc. +5".
-  earn("earn-compliment", "Written customer compliment", 5, "crew"),
-  earn("earn-safety", "Crew safety milestone", 5, "crew"),
-  earn("earn-peer", "Peer recognition received", 5, "crew"),
-  earn("earn-sop", "SOP created & approved", 20, "sop"),
+  earn("earn-compliment", "Written customer compliment", 10, "crew"),
+  earn("earn-safety", "Crew safety milestone", 10, "crew"),
+  earn("earn-peer", "Peer recognition received", 10, "crew"),
+  earn("earn-sop", "SOP created & approved", 50, "sop"),
 ];
 
 export const rewards: Reward[] = [
@@ -403,6 +403,8 @@ export function createSeedState(): CrewState {
     timeOffPolicies,
     timeOffEntries: [],
     incidentReports: [],
+    onboarding: [],
+    compensation: [],
     integrations,
     permissions: { cfoUserIds: ["u12"], hrOwnerUserIds: ["u8"], managerCanReviewCrew: true, rolePermissions },
   };
@@ -427,7 +429,7 @@ function rolePerm(orgRole: OrgRole, reportsTo: string, allowed: string[], others
   return { orgRole, appRole: roleToAppRole[orgRole] ?? "crew", reportsTo, permissions };
 }
 
-function member(id: string, employeeId: string, firstName: string, lastName: string, name: string, orgRole: OrgRole, department: string, reportsTo: string, birthday: string, email: string, phone: string, color: string): Profile {
+function member(id: string, employeeId: string, firstName: string, lastName: string, name: string, orgRole: OrgRole, department: string, reportsTo: string, birthday: string, email: string, phone: string, color: string, employmentType: EmploymentType = "full_time"): Profile {
   return {
     id,
     employeeId,
@@ -445,8 +447,8 @@ function member(id: string, employeeId: string, firstName: string, lastName: str
     managerId: managerIdFor(reportsTo),
     color,
     birthday: birthday || undefined,
-    payBand: undefined,
     bonusRoleWeight: roleWeights[orgRole],
+    employmentType,
   };
 }
 
@@ -464,12 +466,12 @@ function applyReviewRoster(profile: Profile): Profile {
     "Ray Boudreault": { date: "2026-07-31", eligibility: "Eligible" },
     "Shane Smith": { date: "2026-09-30", eligibility: "Eligible" },
     "Desmond Scott": { eligibility: "Not Eligible" },
-    "Jacob V": { eligibility: "Not Eligible" },
+    "Jacob Soto": { eligibility: "Not Eligible" },
     "Ken Taylor": { eligibility: "Not Eligible" },
   };
   const fullName = `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim();
   const meta = byName[profile.name] ?? byName[fullName];
-  return meta ? { ...profile, nextQuarterlyReviewDate: meta.date, reviewEligibility: meta.eligibility, grossAnnualWages: undefined, underNotice: false } : profile;
+  return meta ? { ...profile, nextQuarterlyReviewDate: meta.date, reviewEligibility: meta.eligibility, underNotice: false } : profile;
 }
 
 function quarterlyReviewSeeds() {

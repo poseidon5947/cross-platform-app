@@ -1,4 +1,4 @@
-import type { Cadence, Certification, CertificationType, CrewState, IncidentReportInput, PointsEvent, Profile, RedemptionStatus, Review, ReviewRating, ReviewType, RolePermissionKey, TimeOffKind } from "../types";
+import type { Cadence, Certification, CertificationType, CompensationRecord, CrewState, IncidentReportInput, OnboardingInput, PointsEvent, Profile, RedemptionStatus, Review, ReviewRating, ReviewType, RolePermissionKey, TimeOffKind } from "../types";
 
 const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -278,6 +278,35 @@ export function confirmIncidentReceipt(state: CrewState, reportId: string, confi
   };
 }
 
+export function onboardingComplete(state: CrewState, userId: string) {
+  return Boolean((state.onboarding ?? []).find((item) => item.userId === userId)?.completedAt);
+}
+
+export function submitOnboarding(state: CrewState, userId: string, input: OnboardingInput, now = new Date().toISOString()) {
+  const user = state.users.find((item) => item.id === userId);
+  const required = [
+    input.dateOfBirth, input.address, input.city, input.postalCode, input.sin, input.driversLicenseNumber,
+    input.startDate, input.directDepositSignedName, input.hoursTrackingSignedName,
+    input.emergencyContactName, input.emergencyContactPhone,
+  ];
+  if (!user || onboardingComplete(state, userId) || required.some((value) => !value.trim()) || !(input.hourlyWage > 0) || !input.vacationPayAcknowledged) return state;
+  return {
+    ...state,
+    onboarding: [{
+      ...input,
+      id: uid("onboard"),
+      userId,
+      allergiesMedical: cleanOptional(input.allergiesMedical),
+      directDepositFileName: cleanOptional(input.directDepositFileName),
+      driversLicenseFrontFileName: cleanOptional(input.driversLicenseFrontFileName),
+      driversLicenseBackFileName: cleanOptional(input.driversLicenseBackFileName),
+      emergencyContactRelationship: cleanOptional(input.emergencyContactRelationship),
+      emergencyContactEmail: cleanOptional(input.emergencyContactEmail),
+      completedAt: now,
+    }, ...(state.onboarding ?? [])],
+  };
+}
+
 export function vacationReminderText(state: CrewState, userId: string, year: number) {
   const user = state.users.find((item) => item.id === userId);
   const summary = timeOffSummary(state, userId, year);
@@ -356,11 +385,67 @@ export function bonusTrajectory(ratings: ReviewRating[]) {
   return "red";
 }
 
+export function grossAnnualWagesFor(state: CrewState, userId: string) {
+  return (state.compensation ?? []).find((item) => item.userId === userId)?.grossAnnualWages;
+}
+
+export function isNewHireRestricted(user: Profile, todayIso: string) {
+  return Boolean(user.newHireUntil && todayIso < user.newHireUntil && !user.accessUpgradedAt);
+}
+
+export function newHireReviewsDue(state: CrewState, todayIso: string) {
+  return state.users.filter((user) => user.newHireUntil && todayIso >= user.newHireUntil && !user.accessUpgradedAt);
+}
+
+export function promoteToFullAccess(state: CrewState, userId: string, adminId: string, now = new Date().toISOString()) {
+  const admin = state.users.find((item) => item.id === adminId);
+  if (!admin || admin.role !== "admin") return state;
+  return { ...state, users: state.users.map((item) => item.id === userId ? { ...item, accessUpgradedAt: now } : item) };
+}
+
+const NOTIFICATION_EXCLUDED_EMPLOYMENT_TYPES = new Set(["temp", "seasonal"]);
+
+export function receivesRoutineNotifications(user: Profile) {
+  return !user.employmentType || !NOTIFICATION_EXCLUDED_EMPLOYMENT_TYPES.has(user.employmentType);
+}
+
+export function bonusAdminReviewNoticeActive(todayIso: string) {
+  const year = todayIso.slice(0, 4);
+  return todayIso >= `${year}-11-16` && todayIso <= `${year}-11-30`;
+}
+
+export function bonusEmployeeNoticeActive(user: Profile, todayIso: string) {
+  if (!receivesRoutineNotifications(user) || !user.hireDate) return false;
+  const year = todayIso.slice(0, 4);
+  if (todayIso < `${year}-10-31` || todayIso > `${year}-11-30`) return false;
+  const sixMonthsBeforeToday = new Date(`${todayIso}T00:00:00Z`);
+  sixMonthsBeforeToday.setUTCMonth(sixMonthsBeforeToday.getUTCMonth() - 6);
+  return user.hireDate <= sixMonthsBeforeToday.toISOString().slice(0, 10);
+}
+
+export function setEmploymentStatus(state: CrewState, adminId: string, userId: string, status: NonNullable<Profile["status"]>) {
+  const admin = state.users.find((item) => item.id === adminId);
+  if (!admin || admin.role !== "admin") return state;
+  return { ...state, users: state.users.map((item) => item.id === userId ? { ...item, status } : item) };
+}
+
+export function setCompensation(state: CrewState, adminId: string, userId: string, patch: Partial<Pick<CompensationRecord, "grossAnnualWages" | "payBand" | "retentionBonusAmount" | "retentionBonusPayoutDate" | "costOfLivingIncrease">>, now = new Date().toISOString()) {
+  const admin = state.users.find((item) => item.id === adminId);
+  if (!admin || admin.role !== "admin") return state;
+  const existing = (state.compensation ?? []).find((item) => item.userId === userId);
+  const updated: CompensationRecord = { id: existing?.id ?? uid("comp"), userId, ...existing, ...patch, updatedAt: now };
+  return {
+    ...state,
+    compensation: existing ? state.compensation.map((item) => item.userId === userId ? updated : item) : [updated, ...(state.compensation ?? [])],
+  };
+}
+
 export function estimatedBonusDollars(state: CrewState, user: Profile) {
   const average = averageQuarterlyRating(state, user.id, state.bonusPeriods[0]?.year ?? 2026);
   const percent = bonusPercentForAverage(average);
-  if (!isBonusEligible(state, user, state.bonusPeriods[0]?.year ?? 2026) || !user.grossAnnualWages) return 0;
-  return Math.round(user.grossAnnualWages * percent * 100) / 100;
+  const grossAnnualWages = grossAnnualWagesFor(state, user.id);
+  if (!isBonusEligible(state, user, state.bonusPeriods[0]?.year ?? 2026) || !grossAnnualWages) return 0;
+  return Math.round(grossAnnualWages * percent * 100) / 100;
 }
 
 export function averageQuarterlyRating(state: CrewState, userId: string, year: number) {

@@ -2,15 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createSeedState } from "./data/seed";
 import { applyIntakeCsvTabs } from "./data/intakeImport";
-import { getCurrentSession, loadRemoteState, signInWithPassword, signOut, syncCrewState } from "./data/repo";
-import { acknowledgePolicy, approveRedemption, awardCertDetail, awardCertsCurrent, awardKpiHit, bonusPercentForAverage, bonusTrajectory, canApproveRedemptions, canRunReviews, canSeeBonusDollars, certAlertLevelFromType, completeReview, completeRitual, confirmCustomerReview, confirmIncidentReceipt, estimatedBonusDollars, giveRecognition, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, averageQuarterlyRating, leaderboard, nextQuarterDeadline, nextRedemptionWindow, policyDueDate, quarterlyLeaderboard, recordTimeOff, requestRedemption, rulePoints, submitFeedback, submitIncidentReport, submitQuarterlySwot, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./domain/crew";
-import type { Certification, CrewState, IncidentReport, IncidentReportInput, Profile, ReviewRating, TimeOffKind } from "./types";
+import { getCurrentSession, loadRemoteState, removePushSubscription, savePushSubscription, sendTestPush, signInWithPassword, signOut, syncCrewState } from "./data/repo";
+import { acknowledgePolicy, approveRedemption, awardCertDetail, awardCertsCurrent, awardKpiHit, bonusPercentForAverage, bonusTrajectory, canApproveRedemptions, canRunReviews, canSeeBonusDollars, certAlertLevelFromType, completeReview, completeRitual, confirmCustomerReview, confirmIncidentReceipt, estimatedBonusDollars, giveRecognition, hasRolePermission, impliedRewardValue, isNewHireRestricted, isRedemptionWindowOpen, averageQuarterlyRating, leaderboard, newHireReviewsDue, nextQuarterDeadline, nextRedemptionWindow, policyDueDate, promoteToFullAccess, quarterlyLeaderboard, bonusAdminReviewNoticeActive, bonusEmployeeNoticeActive, setEmploymentStatus, recordTimeOff, requestRedemption, rulePoints, submitFeedback, submitIncidentReport, setCompensation, submitOnboarding, submitQuarterlySwot, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./domain/crew";
+import type { Certification, CrewState, IncidentReport, IncidentReportInput, OnboardingInput, Profile, ReviewRating, TimeOffKind } from "./types";
 import { isSupabaseConfigured } from "./integrations/supabase";
 
 const STORAGE_KEY = "crew-plus-state-v1";
 const REMOTE_MODE = isSupabaseConfigured();
 const DEMO_PICKER = !REMOTE_MODE || import.meta.env.VITE_DEMO_MODE === "true";
-type Tab = "home" | "profile" | "wallet" | "rituals" | "reviews" | "forms" | "timeoff" | "incidents" | "bonus" | "certs" | "rewards" | "feedback" | "admin";
+type Tab = "home" | "profile" | "onboarding" | "wallet" | "rituals" | "reviews" | "forms" | "timeoff" | "incidents" | "bonus" | "certs" | "rewards" | "feedback" | "admin";
+const NEW_HIRE_TABS: Tab[] = ["home", "profile", "onboarding", "timeoff", "incidents", "certs"];
 const INTAKE_TAB_NAMES = [
   "1. Company & App Config",
   "2. Roles & Access",
@@ -41,10 +42,15 @@ export function App() {
   if (REMOTE_MODE && !remote.sessionUserId) return <LoginScreen error={remote.error} onLogin={remote.login} />;
 
   const currentUser = state.users.find((user) => user.id === state.currentUserId) ?? state.users[0];
+  const today = new Date().toISOString().slice(0, 10);
+  const newHireRestricted = isNewHireRestricted(currentUser, today);
+  const visibleTabs = (["home", "profile", "onboarding", "wallet", "rituals", "reviews", "forms", "timeoff", "incidents", "bonus", "certs", "rewards", "feedback", "admin"] as const).filter((item) => !newHireRestricted || NEW_HIRE_TABS.includes(item));
+  const activeTab = visibleTabs.includes(tab) ? tab : "home";
   const balance = walletBalance(state.pointsEvents, currentUser.id);
   const certsVisibleToUser = currentUser.role === "admin" || currentUser.role === "manager" ? state.certifications : state.certifications.filter((cert) => cert.userId === currentUser.id);
   const certAlerts = certsVisibleToUser.filter((cert) => certAlertLevelFromType(cert, state.certificationTypes?.find((type) => type.id === cert.certTypeId), new Date().toISOString().slice(0, 10)) !== "green");
   const pendingRedemptions = state.redemptions.filter((item) => item.status === "requested").length;
+  const newHireReviewCount = currentUser.role === "admin" ? newHireReviewsDue(state, today).length : 0;
 
   return (
     <div className="shell app">
@@ -53,9 +59,10 @@ export function App() {
           <div className="drop logo crew-mark">+</div>
           <div><h1>Crew+</h1><p>People & Performance</p></div>
         </div>
+        {newHireRestricted && <p className="chip warn nav-note">New hire access - full access unlocks {currentUser.newHireUntil}</p>}
         <nav>
-          {(["home", "profile", "wallet", "rituals", "reviews", "forms", "timeoff", "incidents", "bonus", "certs", "rewards", "feedback", "admin"] as const).map((item) => (
-            <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}><span className="nav-label">{titleFor(item)}</span>{item === "rewards" && pendingRedemptions ? <span className="nav-count">{pendingRedemptions}</span> : null}</button>
+          {visibleTabs.map((item) => (
+            <button key={item} className={activeTab === item ? "on" : ""} onClick={() => setTab(item)}><span className="nav-label">{titleFor(item)}</span>{item === "rewards" && pendingRedemptions ? <span className="nav-count">{pendingRedemptions}</span> : null}{item === "admin" && newHireReviewCount ? <span className="nav-count">{newHireReviewCount}</span> : null}</button>
           ))}
         </nav>
         <div className="rail-foot">
@@ -67,7 +74,7 @@ export function App() {
 
       <main>
         <header className="topbar top">
-          <div><h2>{titleFor(tab)}</h2><p>One wallet, one leaderboard, values, reviews, bonus trajectory, and compliance.</p></div>
+          <div><h2>{titleFor(activeTab)}</h2><p>One wallet, one leaderboard, values, reviews, bonus trajectory, and compliance.</p></div>
           <div className="top-actions">
             {remote.error && <span className="chip warn">{remote.error}</span>}
             {(!currentUser.address?.trim() || !currentUser.emergencyContactName?.trim() || !currentUser.emergencyContactPhone?.trim()) && <button onClick={() => setTab("profile")}>Complete profile</button>}
@@ -76,23 +83,24 @@ export function App() {
           </div>
         </header>
 
-        {tab === "home" && <Home state={state} user={currentUser} setTab={setTab} />}
-        {tab === "profile" && <ProfileScreen state={state} user={currentUser} setState={setState} />}
-        {tab === "wallet" && <Wallet state={state} user={currentUser} />}
-        {tab === "rituals" && <Rituals state={state} user={currentUser} setState={setState} />}
-        {tab === "reviews" && <Reviews state={state} user={currentUser} setState={setState} />}
-        {tab === "forms" && <Forms state={state} user={currentUser} setState={setState} />}
-        {tab === "timeoff" && <TimeOff state={state} user={currentUser} setState={setState} />}
-        {tab === "incidents" && <Incidents state={state} user={currentUser} setState={setState} />}
-        {tab === "bonus" && <Bonus state={state} user={currentUser} setState={setState} />}
-        {tab === "certs" && <Compliance state={state} user={currentUser} setState={setState} />}
-        {tab === "rewards" && <Rewards state={state} user={currentUser} setState={setState} />}
-        {tab === "feedback" && <Feedback state={state} user={currentUser} setState={setState} />}
-        {tab === "admin" && <AdminIntake state={state} user={currentUser} setState={setState} />}
+        {activeTab === "home" && <Home state={state} user={currentUser} setTab={setTab} />}
+        {activeTab === "profile" && <ProfileScreen state={state} user={currentUser} setState={setState} />}
+        {activeTab === "onboarding" && <Onboarding state={state} user={currentUser} setState={setState} />}
+        {activeTab === "wallet" && <Wallet state={state} user={currentUser} />}
+        {activeTab === "rituals" && <Rituals state={state} user={currentUser} setState={setState} />}
+        {activeTab === "reviews" && <Reviews state={state} user={currentUser} setState={setState} />}
+        {activeTab === "forms" && <Forms state={state} user={currentUser} setState={setState} />}
+        {activeTab === "timeoff" && <TimeOff state={state} user={currentUser} setState={setState} />}
+        {activeTab === "incidents" && <Incidents state={state} user={currentUser} setState={setState} />}
+        {activeTab === "bonus" && <Bonus state={state} user={currentUser} setState={setState} />}
+        {activeTab === "certs" && <Compliance state={state} user={currentUser} setState={setState} />}
+        {activeTab === "rewards" && <Rewards state={state} user={currentUser} setState={setState} />}
+        {activeTab === "feedback" && <Feedback state={state} user={currentUser} setState={setState} />}
+        {activeTab === "admin" && <AdminIntake state={state} user={currentUser} setState={setState} />}
       </main>
 
       <footer className="mobile-nav">
-        {(["home", "profile", "timeoff", "incidents", "certs"] as const).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>{titleFor(item)}</button>)}
+        {(["home", "profile", "timeoff", "incidents", "certs"] as const).map((item) => <button key={item} className={activeTab === item ? "on" : ""} onClick={() => setTab(item)}>{titleFor(item)}</button>)}
       </footer>
     </div>
   );
@@ -153,7 +161,107 @@ function Home({ state, user, setTab }: { state: CrewState; user: Profile; setTab
 function ProfileScreen({ state, user, setState }: { state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
   const update = (patch: Partial<Profile>) => setState((next) => ({ ...next, users: next.users.map((item) => item.id === user.id ? { ...item, ...patch } : item) }));
   const complete = Boolean(user.address?.trim() && user.emergencyContactName?.trim() && user.emergencyContactPhone?.trim());
-  return <div className="grid two"><section className="panel card"><div className="section-head"><div><h3>My details</h3><p className="muted">Keep your current address and contact details up to date.</p></div><span className={`pill ${complete ? "good" : "warn"}`}>{complete ? "Complete" : "Action needed"}</span></div><div className="field-stack"><label>Address<textarea value={user.address ?? ""} onChange={(event) => update({ address: event.target.value })} placeholder="Current home address" /></label><label>Phone<input type="tel" value={user.phone ?? ""} onChange={(event) => update({ phone: event.target.value })} /></label><label>Email<input type="email" value={user.email ?? ""} onChange={(event) => update({ email: event.target.value })} /></label></div></section><section className="panel card"><h3>Emergency contact</h3><div className="field-stack"><label>Name<input value={user.emergencyContactName ?? ""} onChange={(event) => update({ emergencyContactName: event.target.value })} /></label><label>Phone<input type="tel" value={user.emergencyContactPhone ?? ""} onChange={(event) => update({ emergencyContactPhone: event.target.value })} /></label><label>Email<input type="email" value={user.emergencyContactEmail ?? ""} onChange={(event) => update({ emergencyContactEmail: event.target.value })} /></label></div></section></div>;
+  return <div className="grid two"><section className="panel card"><div className="section-head"><div><h3>My details</h3><p className="muted">Keep your current address and contact details up to date.</p></div><span className={`pill ${complete ? "good" : "warn"}`}>{complete ? "Complete" : "Action needed"}</span></div><div className="field-stack"><label>Address<textarea value={user.address ?? ""} onChange={(event) => update({ address: event.target.value })} placeholder="Current home address" /></label><label>Phone<input type="tel" value={user.phone ?? ""} onChange={(event) => update({ phone: event.target.value })} /></label><label>Email<input type="email" value={user.email ?? ""} onChange={(event) => update({ email: event.target.value })} /></label></div></section><section className="panel card"><h3>Emergency contact</h3><div className="field-stack"><label>Name<input value={user.emergencyContactName ?? ""} onChange={(event) => update({ emergencyContactName: event.target.value })} /></label><label>Phone<input type="tel" value={user.emergencyContactPhone ?? ""} onChange={(event) => update({ emergencyContactPhone: event.target.value })} /></label><label>Email<input type="email" value={user.emergencyContactEmail ?? ""} onChange={(event) => update({ emergencyContactEmail: event.target.value })} /></label></div></section>{REMOTE_MODE && <NotificationSettings userId={user.id} />}</div>;
+}
+
+function urlBase64ToUint8Array(base64: string) {
+  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+  const base64Safe = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64Safe);
+  return Uint8Array.from([...raw].map((char) => char.charCodeAt(0)));
+}
+
+function NotificationSettings({ userId }: { userId: string }) {
+  const [subscribed, setSubscribed] = useState<boolean | null>(null);
+  const [status, setStatus] = useState("");
+  const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.ready
+      .then((registration) => registration.pushManager.getSubscription())
+      .then((sub) => setSubscribed(Boolean(sub)))
+      .catch(() => setSubscribed(false));
+  }, []);
+
+  const enable = async () => {
+    setStatus("");
+    try {
+      if (!vapidKey) throw new Error("Push is not configured for this deployment.");
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") throw new Error("Notification permission was not granted.");
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(vapidKey) });
+      await savePushSubscription(userId, subscription);
+      setSubscribed(true);
+      setStatus("Notifications enabled.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not enable notifications.");
+    }
+  };
+
+  const disable = async () => {
+    setStatus("");
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        await removePushSubscription(subscription.endpoint);
+        await subscription.unsubscribe();
+      }
+      setSubscribed(false);
+      setStatus("Notifications turned off.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not turn off notifications.");
+    }
+  };
+
+  const sendTest = async () => {
+    setStatus("");
+    try {
+      const result = await sendTestPush("Crew+ test", "Notifications are working.");
+      setStatus(`Sent to ${result.delivered} of ${result.of} device(s).`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not send test notification.");
+    }
+  };
+
+  return <section className="panel card wide"><div className="section-head"><div><h3>Push notifications</h3><p className="muted">Get notified for time-sensitive reminders directly on this device.</p></div><span className={`pill ${subscribed ? "good" : "warn"}`}>{subscribed ? "Enabled" : "Off"}</span></div>{subscribed ? <div className="step-actions"><button onClick={sendTest}>Send test notification</button><button className="line" onClick={disable}>Turn off</button></div> : <button className="primary" onClick={enable}>Enable notifications</button>}{status && <p className="tiny muted">{status}</p>}</section>;
+}
+
+type OnboardingDraft = Omit<OnboardingInput, "userId" | "hourlyWage" | "directDepositSignedAt" | "hoursTrackingSignedAt"> & { hourlyWage: string };
+
+function onboardingDraft(): OnboardingDraft {
+  return {
+    dateOfBirth: "", address: "", city: "", postalCode: "", sin: "", driversLicenseNumber: "",
+    allergiesMedical: "", hourlyWage: "", startDate: "", vacationPayAcknowledged: false,
+    directDepositSignedName: "", hoursTrackingSignedName: "",
+    directDepositFileName: "", driversLicenseFrontFileName: "", driversLicenseBackFileName: "",
+    emergencyContactName: "", emergencyContactRelationship: "", emergencyContactPhone: "", emergencyContactEmail: "",
+  };
+}
+
+function Onboarding({ state, user, setState }: { state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
+  const canReviewAll = user.role === "admin";
+  const own = (state.onboarding ?? []).find((item) => item.userId === user.id);
+  const [draft, setDraft] = useState<OnboardingDraft>(onboardingDraft);
+  const set = (patch: Partial<OnboardingDraft>) => setDraft((current) => ({ ...current, ...patch }));
+  const requiredComplete = Boolean(draft.dateOfBirth && draft.address.trim() && draft.city.trim() && draft.postalCode.trim() && draft.sin.trim() && draft.driversLicenseNumber.trim() && draft.startDate && Number(draft.hourlyWage) > 0 && draft.vacationPayAcknowledged && draft.directDepositSignedName.trim() && draft.hoursTrackingSignedName.trim() && draft.emergencyContactName.trim() && draft.emergencyContactPhone.trim());
+  const submit = () => {
+    const now = new Date().toISOString();
+    setState((next) => submitOnboarding(next, user.id, { ...draft, userId: user.id, hourlyWage: Number(draft.hourlyWage), directDepositSignedAt: now, hoursTrackingSignedAt: now }, now));
+  };
+
+  if (own) {
+    return <div className="grid two"><section className="panel card"><div className="section-head"><div><h3>Onboarding</h3><p className="muted">Submitted {own.completedAt.slice(0, 10)}. Contact HR to change anything.</p></div><span className="pill good">Complete</span></div></section>{canReviewAll && <OnboardingAdminList state={state} />}</div>;
+  }
+
+  return <div className="grid two"><section className="panel card wide onboarding-form"><div className="section-head"><div><h3>New Employee Form</h3><p className="muted">One-time onboarding. Visible only to admin/HR once submitted.</p></div><span className="pill">Admin/HR only</span></div><div className="incident-sections"><fieldset><legend>Contact Information</legend><div className="field-grid"><label>Date of birth<input type="date" value={draft.dateOfBirth} onChange={(event) => set({ dateOfBirth: event.target.value })} /></label><label className="wide-field">Address<input value={draft.address} onChange={(event) => set({ address: event.target.value })} /></label><label>City<input value={draft.city} onChange={(event) => set({ city: event.target.value })} /></label><label>Postal code<input value={draft.postalCode} onChange={(event) => set({ postalCode: event.target.value })} /></label><label>SIN<input value={draft.sin} onChange={(event) => set({ sin: event.target.value })} /></label><label>Driver's license number<input value={draft.driversLicenseNumber} onChange={(event) => set({ driversLicenseNumber: event.target.value })} /></label><label className="wide-field">Allergies / medical conditions<textarea value={draft.allergiesMedical} onChange={(event) => set({ allergiesMedical: event.target.value })} /></label></div></fieldset><fieldset><legend>Employment</legend><div className="field-grid"><label>First day of work<input type="date" value={draft.startDate} onChange={(event) => set({ startDate: event.target.value })} /></label><label>Hourly wage<input type="number" min="0" step="0.01" value={draft.hourlyWage} onChange={(event) => set({ hourlyWage: event.target.value })} /></label></div></fieldset><fieldset><legend>Payroll Details</legend><div className="field-stack"><label className="check"><input type="checkbox" checked={draft.vacationPayAcknowledged} onChange={(event) => set({ vacationPayAcknowledged: event.target.checked })} /> I understand that vacation pay is paid on each paycheck.</label><label>I authorize Van-Isle Coating &amp; Sealants to pay me by direct deposit. Sign here<input value={draft.directDepositSignedName} onChange={(event) => set({ directDepositSignedName: event.target.value })} placeholder="Type your full name to sign" /></label><label>Direct deposit form (from your bank)<input type="file" onChange={(event) => set({ directDepositFileName: event.target.files?.[0]?.name ?? "" })} /></label>{draft.directDepositFileName && <small className="muted">Selected: {draft.directDepositFileName}</small>}<label>I understand that I must track my hours daily by 5pm on the BuilderTrend App. Sign here<input value={draft.hoursTrackingSignedName} onChange={(event) => set({ hoursTrackingSignedName: event.target.value })} placeholder="Type your full name to sign" /></label></div></fieldset><fieldset><legend>Driver's License Photo</legend><div className="field-grid"><label>Front<input type="file" accept="image/*" onChange={(event) => set({ driversLicenseFrontFileName: event.target.files?.[0]?.name ?? "" })} /></label><label>Back<input type="file" accept="image/*" onChange={(event) => set({ driversLicenseBackFileName: event.target.files?.[0]?.name ?? "" })} /></label></div></fieldset><fieldset><legend>Emergency Contact</legend><div className="field-grid"><label>Name<input value={draft.emergencyContactName} onChange={(event) => set({ emergencyContactName: event.target.value })} /></label><label>Relationship<input value={draft.emergencyContactRelationship} onChange={(event) => set({ emergencyContactRelationship: event.target.value })} /></label><label>Phone<input type="tel" value={draft.emergencyContactPhone} onChange={(event) => set({ emergencyContactPhone: event.target.value })} /></label><label>Email<input type="email" value={draft.emergencyContactEmail} onChange={(event) => set({ emergencyContactEmail: event.target.value })} /></label></div></fieldset></div><button className="primary block" disabled={!requiredComplete} onClick={submit}>Submit onboarding</button></section>{canReviewAll && <OnboardingAdminList state={state} />}</div>;
+}
+
+function OnboardingAdminList({ state }: { state: CrewState }) {
+  const records = state.onboarding ?? [];
+  return <section className="panel card wide"><div className="section-head"><div><h3>Submitted Onboarding (Admin/HR)</h3><p className="muted">Only visible to admin/HR.</p></div><span className="pill">{records.length}</span></div>{records.length ? <div className="incident-list">{records.map((record) => <article className="incident-card" key={record.id}><div className="section-head"><h4>{nameOf(state, record.userId)}</h4><small>Submitted {record.completedAt.slice(0, 10)}</small></div><div className="facts"><span>Start {record.startDate}</span><span>${record.hourlyWage}/hr</span><span>DOB {record.dateOfBirth}</span></div><div className="line"><b>Address</b><span>{record.address}, {record.city} {record.postalCode}</span></div><div className="line"><b>SIN</b><span>{record.sin}</span></div><div className="line"><b>Driver's license</b><span>{record.driversLicenseNumber}</span></div>{record.allergiesMedical && <div className="line"><b>Allergies/medical</b><span>{record.allergiesMedical}</span></div>}<div className="line"><b>Emergency contact</b><span>{record.emergencyContactName} ({record.emergencyContactRelationship}) - {record.emergencyContactPhone}</span></div>{record.directDepositFileName && <div className="line"><b>Direct deposit form</b><span>{record.directDepositFileName}</span></div>}{(record.driversLicenseFrontFileName || record.driversLicenseBackFileName) && <div className="line"><b>License photos</b><span>{[record.driversLicenseFrontFileName, record.driversLicenseBackFileName].filter(Boolean).join(", ")}</span></div>}</article>)}</div> : <p className="empty-state">No onboarding submissions yet.</p>}</section>;
 }
 
 function Wallet({ state, user }: { state: CrewState; user: Profile }) {
@@ -189,7 +297,7 @@ function TimeOff({ state, user, setState }: { state: CrewState; user: Profile; s
   const year = new Date().getFullYear();
   const policy = state.timeOffPolicies.find((item) => item.year === year) ?? state.timeOffPolicies[0];
   const canViewTeam = user.role === "admin" || user.role === "manager";
-  const visibleUsers = canViewTeam ? state.users.filter((item) => item.branch === "field") : [user];
+  const visibleUsers = canViewTeam ? state.users.filter((item) => item.branch === "field" && item.status !== "Inactive") : [user];
   return <div className="time-off-page"><section className="panel card time-off-policy"><div className="section-head"><div><h3>{year} sick and vacation</h3><p className="muted">Balances renew January 1. Eligibility begins after 90 consecutive calendar days of employment.</p></div><span className="pill">Jan 1 - Dec 31</span></div><div className="facts"><span>{policy?.paidSickDays ?? 5} paid sick days</span><span>{policy?.unpaidSickDays ?? 3} unpaid sick days</span><span>Vacation allowance by employee</span></div><p className="toast warn">Vacation balance reminders use email and text. Sick-day usage reminders are not sent.</p></section><div className="library">{visibleUsers.map((item) => <TimeOffUserCard key={item.id} state={state} viewer={user} user={item} year={year} setState={setState} />)}</div></div>;
 }
 
@@ -228,16 +336,22 @@ function IncidentReportCard({ state, report, user, setState }: { state: CrewStat
 
 function Bonus({ state, user, setState }: { state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
   const dollarsVisible = canSeeBonusDollars(state, user);
+  const canManageComp = user.role === "admin";
+  const comp = (state.compensation ?? []).find((item) => item.userId === user.id);
   const ratings = state.reviews.filter((review) => review.userId === user.id && review.status === "completed").flatMap((review) => Object.values(review.ratings).filter(Boolean) as ReviewRating[]);
   const trajectory = bonusTrajectory(ratings);
   const average = averageQuarterlyRating(state, user.id, state.bonusPeriods[0]?.year ?? 2026);
   const percent = bonusPercentForAverage(average);
-  return <div className="grid two"><section className="panel card hero-panel"><h3>{trajectory.toUpperCase()}</h3><p>Trajectory only. Bonus dollars stay admin/CFO-only.</p><div className="facts"><span>{state.bonusPeriods[0]?.year ?? 2026} period</span><span>{Math.round(percent * 100)}% cap</span></div></section><section className="panel card"><h3>Bonus model</h3><div className="field-stack"><p className="muted">{state.bonusConfig.floorsCaps}</p><p className="muted">{state.bonusConfig.reviewAverageSource}</p><label>Gross annual wages<input value={user.grossAnnualWages ?? ""} placeholder="Pending client confirmation" onChange={(event) => setState((next) => ({ ...next, users: next.users.map((item) => item.id === user.id ? { ...item, grossAnnualWages: Number(event.target.value) || undefined } : item) }))} /></label></div></section><section className="panel card wide"><div className="section-head"><h3>Dollar privacy</h3><span className="pill">{dollarsVisible ? "Admin/CFO" : "Private"}</span></div>{dollarsVisible ? <Metric label="Estimated share" value={`$${estimatedBonusDollars(state, user).toLocaleString("en-CA")}`} /> : <p className="empty-state">Your trajectory is visible, but bonus dollar amounts are admin/CFO-only.</p>}</section></div>;
+  const updateComp = (patch: Parameters<typeof setCompensation>[3]) => setState((next) => setCompensation(next, next.currentUserId, user.id, patch));
+  const today = new Date().toISOString().slice(0, 10);
+  const showAdminBonusNotice = user.role === "admin" && bonusAdminReviewNoticeActive(today);
+  const showEmployeeBonusNotice = bonusEmployeeNoticeActive(user, today);
+  return <div className="grid two">{showAdminBonusNotice && <p className="toast warn">Performance reviews for qualifying employees should be completed before November 30.</p>}{showEmployeeBonusNotice && <p className="toast good">Your performance will be reviewed and scored for the bonus program this November.</p>}<section className="panel card hero-panel"><h3>{trajectory.toUpperCase()}</h3><p>Trajectory only. Bonus dollars stay admin/CFO-only.</p><div className="facts"><span>{state.bonusPeriods[0]?.year ?? 2026} period</span><span>{Math.round(percent * 100)}% cap</span></div></section>{canManageComp && <section className="panel card"><h3>Compensation (admin/HR only)</h3><div className="field-stack"><p className="muted">{state.bonusConfig.floorsCaps}</p><p className="muted">{state.bonusConfig.reviewAverageSource}</p><label>Gross annual wages<input value={comp?.grossAnnualWages ?? ""} placeholder="Pending client confirmation" onChange={(event) => updateComp({ grossAnnualWages: Number(event.target.value) || undefined })} /></label><label>Retention bonus amount<input value={comp?.retentionBonusAmount ?? ""} onChange={(event) => updateComp({ retentionBonusAmount: Number(event.target.value) || undefined })} /></label><label>Retention bonus pay-out date<input type="date" value={comp?.retentionBonusPayoutDate ?? ""} onChange={(event) => updateComp({ retentionBonusPayoutDate: event.target.value || undefined })} /></label><label>Cost of living increase<input value={comp?.costOfLivingIncrease ?? ""} onChange={(event) => updateComp({ costOfLivingIncrease: Number(event.target.value) || undefined })} /></label></div></section>}<section className="panel card wide"><div className="section-head"><h3>Dollar privacy</h3><span className="pill">{dollarsVisible ? "Admin/CFO" : "Private"}</span></div>{dollarsVisible ? <Metric label="Estimated share" value={`$${estimatedBonusDollars(state, user).toLocaleString("en-CA")}`} /> : <p className="empty-state">Your trajectory is visible, but bonus dollar amounts are admin/CFO-only.</p>}</section></div>;
 }
 
 function Compliance({ state, user, setState }: { state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
   const canViewTeam = user.role === "admin" || user.role === "manager" || canRunReviews(state, user);
-  const visibleUsers = canViewTeam ? state.users.filter((item) => item.branch === "field") : [user];
+  const visibleUsers = canViewTeam ? state.users.filter((item) => item.branch === "field" && item.status !== "Inactive") : [user];
   return <div className="compliance-page"><PolicyPanel state={state} user={user} setState={setState} /><div className="library">{visibleUsers.map((item) => <ComplianceUserCard key={item.id} state={state} user={item} setState={setState} />)}</div></div>;
 }
 
@@ -286,7 +400,9 @@ function AdminIntake({ state, user, setState }: { state: CrewState; user: Profil
   const [csv, setCsv] = useState("");
   const [report, setReport] = useState("");
   const canEdit = hasRolePermission(state, user, "editConfig");
-  return <div className="grid two"><section className="panel card wide"><div className="section-head"><div><h3>Data intake importer</h3><p className="muted">Paste CSV exported from one workbook tab. Re-run safely; points ledger rows are never imported or overwritten.</p></div><span className={`pill ${canEdit ? "good" : "bad"}`}>{canEdit ? "Admin" : "Read only"}</span></div><p className="toast warn">Confirm before changing suite brand: intake lists {state.config.intakeBrandPrimary} / {state.config.intakeBrandAccent}, app keeps {state.config.officialBrandPrimary} / {state.config.officialBrandAccent}.</p><div className="field-stack"><label>Tab name<select value={tabName} onChange={(event) => setTabName(event.target.value)}>{INTAKE_TAB_NAMES.map((name) => <option key={name}>{name}</option>)}</select></label><textarea value={csv} onChange={(event) => setCsv(event.target.value)} placeholder="Paste CSV rows here, including the header row..." /><button disabled={!canEdit || !csv.trim()} onClick={() => { const result = applyIntakeCsvTabs(state, [{ name: tabName, csv }]); setState(result.state); setReport(`${result.report.imported} imported, ${result.report.skipped.length} skipped. ${result.report.warnings.join(" ")}`); }}>Import tab</button>{report && <p className="toast good">{report}</p>}</div></section><section className="panel card"><h3>Workbook coverage</h3><Metric label="roles" value={state.rolePermissions.length} /><Metric label="cert types" value={state.certificationTypes.length} /><Metric label="forms" value={state.forms.length} /></section><section className="panel card"><h3>Later integrations</h3>{state.integrations.filter((item) => item.needed === "Later").map((item) => <div className="line" key={item.id}><b>{item.name}</b><span className="pill warn">Later</span><small>{item.details}</small></div>)}</section></div>;
+  const today = new Date().toISOString().slice(0, 10);
+  const dueForFullAccess = user.role === "admin" ? newHireReviewsDue(state, today) : [];
+  return <div className="grid two">{dueForFullAccess.length > 0 && <section className="panel card wide"><div className="section-head"><div><h3>New hire access reviews</h3><p className="muted">Three days in — grant full access, or leave restricted if it isn't working out.</p></div><span className="pill warn">{dueForFullAccess.length}</span></div>{dueForFullAccess.map((item) => <div className="line-item" key={item.id}><b>{item.name}</b><span className="tiny muted">restricted since {item.newHireUntil}</span><button onClick={() => setState((next) => promoteToFullAccess(next, item.id, user.id))}>Grant full access</button></div>)}</section>}{user.role === "admin" && <section className="panel card wide"><div className="section-head"><div><h3>Team roster status</h3><p className="muted">Mark someone inactive when they leave — their history stays intact, they just drop out of active team views.</p></div></div>{state.users.map((item) => <div className="line-item" key={item.id}><b>{item.name}</b><span className="tiny muted">{item.orgRole}</span><select value={item.status ?? "Active"} onChange={(event) => setState((next) => setEmploymentStatus(next, user.id, item.id, event.target.value as NonNullable<Profile["status"]>))}><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Leave">Leave</option></select></div>)}</section>}<section className="panel card wide"><div className="section-head"><div><h3>Data intake importer</h3><p className="muted">Paste CSV exported from one workbook tab. Re-run safely; points ledger rows are never imported or overwritten.</p></div><span className={`pill ${canEdit ? "good" : "bad"}`}>{canEdit ? "Admin" : "Read only"}</span></div><p className="toast warn">Confirm before changing suite brand: intake lists {state.config.intakeBrandPrimary} / {state.config.intakeBrandAccent}, app keeps {state.config.officialBrandPrimary} / {state.config.officialBrandAccent}.</p><div className="field-stack"><label>Tab name<select value={tabName} onChange={(event) => setTabName(event.target.value)}>{INTAKE_TAB_NAMES.map((name) => <option key={name}>{name}</option>)}</select></label><textarea value={csv} onChange={(event) => setCsv(event.target.value)} placeholder="Paste CSV rows here, including the header row..." /><button disabled={!canEdit || !csv.trim()} onClick={() => { const result = applyIntakeCsvTabs(state, [{ name: tabName, csv }]); setState(result.state); setReport(`${result.report.imported} imported, ${result.report.skipped.length} skipped. ${result.report.warnings.join(" ")}`); }}>Import tab</button>{report && <p className="toast good">{report}</p>}</div></section><section className="panel card"><h3>Workbook coverage</h3><Metric label="roles" value={state.rolePermissions.length} /><Metric label="cert types" value={state.certificationTypes.length} /><Metric label="forms" value={state.forms.length} /></section><section className="panel card"><h3>Later integrations</h3>{state.integrations.filter((item) => item.needed === "Later").map((item) => <div className="line" key={item.id}><b>{item.name}</b><span className="pill warn">Later</span><small>{item.details}</small></div>)}</section></div>;
 }
 
 function LoginScreen({ error, onLogin }: { error: string; onLogin: (email: string, password: string) => Promise<void> }) {

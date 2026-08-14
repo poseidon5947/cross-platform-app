@@ -1,5 +1,5 @@
 import { supabase } from "../integrations/supabase";
-import type { CrewState, IncidentReport, PointsEvent, Profile } from "../types";
+import type { CompensationRecord, CrewState, IncidentReport, OnboardingRecord, PointsEvent, Profile } from "../types";
 
 function requireClient() {
   if (!supabase) throw new Error("Supabase is not configured.");
@@ -24,7 +24,7 @@ export async function getCurrentSession() {
 }
 
 export async function loadRemoteState(currentUserId: string): Promise<Partial<CrewState>> {
-  const [profiles, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusConfigs, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, rolePermissions, jobDescriptions, configs, incidentReports] = await Promise.all([
+  const [profiles, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusConfigs, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, rolePermissions, jobDescriptions, configs, incidentReports, onboarding, compensation] = await Promise.all([
     read("profiles", profileFromRow, "name"),
     read("points_events", pointsFromRow, "ts"),
     read("crew_reward", (row) => ({ id: row.id, name: row.name, points: Number(row.points), approxValue: row.approx_value ?? undefined, limitStock: row.limit_stock ?? undefined, active: row.active, note: row.note ?? undefined }), "points"),
@@ -56,8 +56,10 @@ export async function loadRemoteState(currentUserId: string): Promise<Partial<Cr
     read("crew_job_description", (row) => ({ id: row.id, role: row.org_role, version: row.jd_version, responsibility: row.responsibility, requiredCertifications: row.required_certifications ?? [], linkedKpis: row.linked_kpis ?? [], reportsTo: row.reports_to }), "org_role"),
     read("crew_config", (row) => ({ id: row.id, legalName: row.legal_name, displayName: row.display_name, appName: row.app_name, primaryAdminName: row.primary_admin_name, primaryAdminEmail: row.primary_admin_email, timezone: row.timezone, weekStartsOn: row.week_starts_on, shareLogins: row.share_logins, shareWallet: row.share_wallet, officialBrandPrimary: row.official_brand_primary, officialBrandAccent: row.official_brand_accent, intakeBrandPrimary: row.intake_brand_primary, intakeBrandAccent: row.intake_brand_accent, pointsAnchor: Number(row.points_anchor), intakePointsAnchor: Number(row.intake_points_anchor), googleReviewUrl: row.google_review_url ?? "", officeAddress: row.office_address ?? undefined, dataResidency: row.data_residency ?? undefined }), "id"),
     read("crew_incident_report", (row) => ({ id: row.id, employeeName: row.employee_name, employeeRole: row.employee_role, employeePhone: row.employee_phone ?? undefined, location: row.location, dateOfIncident: row.date_of_incident, timeOfIncident: row.time_of_incident, incidentCause: row.incident_cause, incidentDetails: row.incident_details, actionTaken: row.action_taken, policeNotified: row.police_notified, followUpRequired: row.follow_up_required ?? undefined, photoFileNames: row.photo_file_names ?? [], reportedByUserId: row.reported_by_user_id, reportedByName: row.reported_by_name, reportedByRole: row.reported_by_role, reportedByPhone: row.reported_by_phone ?? undefined, confirmedByUserId: row.confirmed_by_user_id ?? undefined, confirmedByName: row.confirmed_by_name ?? undefined, confirmedAt: row.confirmed_at ?? undefined, createdAt: row.created_at }), "created_at"),
+    read("crew_onboarding", (row) => ({ id: row.id, userId: row.user_id, dateOfBirth: row.date_of_birth, address: row.address, city: row.city, postalCode: row.postal_code, sin: row.sin, driversLicenseNumber: row.drivers_license_number, allergiesMedical: row.allergies_medical ?? undefined, hourlyWage: Number(row.hourly_wage), startDate: row.start_date, vacationPayAcknowledged: row.vacation_pay_acknowledged, directDepositSignedName: row.direct_deposit_signed_name, directDepositSignedAt: row.direct_deposit_signed_at, hoursTrackingSignedName: row.hours_tracking_signed_name, hoursTrackingSignedAt: row.hours_tracking_signed_at, directDepositFileName: row.direct_deposit_file_name ?? undefined, driversLicenseFrontFileName: row.drivers_license_front_file_name ?? undefined, driversLicenseBackFileName: row.drivers_license_back_file_name ?? undefined, emergencyContactName: row.emergency_contact_name, emergencyContactRelationship: row.emergency_contact_relationship ?? undefined, emergencyContactPhone: row.emergency_contact_phone, emergencyContactEmail: row.emergency_contact_email ?? undefined, completedAt: row.completed_at }), "created_at"),
+    read("crew_compensation", compensationFromRow, "updated_at"),
   ]);
-  return { currentUserId, config: configs[0], users: profiles, rolePermissions, jobDescriptions, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusConfig: bonusConfigs[0], bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, incidentReports };
+  return { currentUserId, config: configs[0], users: profiles, rolePermissions, jobDescriptions, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusConfig: bonusConfigs[0], bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, incidentReports, onboarding, compensation };
 }
 
 export async function awardPoints(payload: { userId: string; ruleKey: string; ref: string; weekKey?: string }) {
@@ -70,6 +72,32 @@ export async function awardPoints(payload: { userId: string; ruleKey: string; re
 
 export async function redeemPoints(payload: { userId: string; points: number; reason: string; ref: string }) {
   return awardPoints({ userId: payload.userId, ruleKey: "redeem", ref: payload.ref });
+}
+
+export async function savePushSubscription(userId: string, subscription: PushSubscription) {
+  const json = subscription.toJSON();
+  const { error } = await requireClient().from("crew_push_subscription").upsert(
+    { user_id: userId, endpoint: json.endpoint, p256dh: json.keys?.p256dh, auth: json.keys?.auth },
+    { onConflict: "endpoint" },
+  );
+  if (error) throw error;
+}
+
+export async function removePushSubscription(endpoint: string) {
+  const { error } = await requireClient().from("crew_push_subscription").delete().eq("endpoint", endpoint);
+  if (error) throw error;
+}
+
+export async function hasPushSubscription(userId: string) {
+  const { data, error } = await requireClient().from("crew_push_subscription").select("id").eq("user_id", userId).limit(1);
+  if (error) throw error;
+  return Boolean(data?.length);
+}
+
+export async function sendTestPush(title: string, body: string) {
+  const { data, error } = await requireClient().functions.invoke("send-push", { body: { title, body } });
+  if (error) throw error;
+  return data as { delivered: number; of: number };
 }
 
 const TYPE_TO_RULE_KEY: Record<string, string> = {
@@ -106,10 +134,17 @@ const profileToRow = (item: Profile) => ({
   agreement_signed_date: item.agreementSignedDate ?? null, birthday: item.birthday ?? null, phone: item.phone ?? null,
   address: item.address ?? null, emergency_contact_name: item.emergencyContactName ?? null,
   emergency_contact_email: item.emergencyContactEmail ?? null, emergency_contact_phone: item.emergencyContactPhone ?? null,
-  pay_band: item.payBand ?? null, bonus_role_weight: item.bonusRoleWeight ?? null, gross_annual_wages: item.grossAnnualWages ?? null,
+  bonus_role_weight: item.bonusRoleWeight ?? null,
   under_notice: item.underNotice ?? false, disciplinary_action_at: item.disciplinaryActionAt ?? null,
   next_quarterly_review_date: item.nextQuarterlyReviewDate ?? null, review_eligibility: item.reviewEligibility ?? null,
   vacation_days_annual: item.vacationDaysAnnual ?? null, color: item.color,
+  employment_type: item.employmentType ?? null, new_hire_until: item.newHireUntil ?? null, access_upgraded_at: item.accessUpgradedAt ?? null,
+});
+
+const compensationToRow = (item: any) => ({
+  id: item.id, user_id: item.userId, gross_annual_wages: item.grossAnnualWages ?? null, pay_band: item.payBand ?? null,
+  retention_bonus_amount: item.retentionBonusAmount ?? null, retention_bonus_payout_date: item.retentionBonusPayoutDate ?? null,
+  cost_of_living_increase: item.costOfLivingIncrease ?? null, updated_at: item.updatedAt,
 });
 
 const reviewToRow = (item: any) => ({
@@ -156,6 +191,20 @@ const recognitionToRow = (item: any) => ({
   points_event_ref: item.pointsEventRef ?? null,
 });
 
+const onboardingToRow = (item: OnboardingRecord) => ({
+  id: item.id, user_id: item.userId, date_of_birth: item.dateOfBirth, address: item.address, city: item.city,
+  postal_code: item.postalCode, sin: item.sin, drivers_license_number: item.driversLicenseNumber,
+  allergies_medical: item.allergiesMedical ?? null, hourly_wage: item.hourlyWage, start_date: item.startDate,
+  vacation_pay_acknowledged: item.vacationPayAcknowledged, direct_deposit_signed_name: item.directDepositSignedName,
+  direct_deposit_signed_at: item.directDepositSignedAt, hours_tracking_signed_name: item.hoursTrackingSignedName,
+  hours_tracking_signed_at: item.hoursTrackingSignedAt, direct_deposit_file_name: item.directDepositFileName ?? null,
+  drivers_license_front_file_name: item.driversLicenseFrontFileName ?? null,
+  drivers_license_back_file_name: item.driversLicenseBackFileName ?? null,
+  emergency_contact_name: item.emergencyContactName, emergency_contact_relationship: item.emergencyContactRelationship ?? null,
+  emergency_contact_phone: item.emergencyContactPhone, emergency_contact_email: item.emergencyContactEmail ?? null,
+  completed_at: item.completedAt,
+});
+
 const redemptionToRow = (item: any) => ({
   id: item.id, user_id: item.userId, reward_id: item.rewardId, points: item.points, status: item.status,
   requested_at: item.requestedAt, approved_at: item.approvedAt ?? null, approved_by: item.approvedBy ?? null, external_ref: item.externalRef ?? null,
@@ -170,6 +219,8 @@ const SYNC_ENTITIES: { key: keyof CrewState; table: string; mode: SyncMode; toRo
   { key: "formSubmissions", table: "crew_form_submission", mode: "insert", toRow: formSubmissionToRow },
   { key: "timeOffEntries", table: "crew_time_off_entry", mode: "insert", toRow: timeOffEntryToRow },
   { key: "incidentReports", table: "crew_incident_report", mode: "upsert", toRow: incidentReportToRow },
+  { key: "onboarding", table: "crew_onboarding", mode: "insert", toRow: onboardingToRow },
+  { key: "compensation", table: "crew_compensation", mode: "upsert", toRow: compensationToRow },
   { key: "policyAcknowledgments", table: "crew_policy_acknowledgment", mode: "insert", toRow: policyAckToRow },
   { key: "certifications", table: "crew_certification", mode: "upsert", toRow: certificationToRow },
   { key: "recognitions", table: "crew_recognition", mode: "insert", toRow: recognitionToRow },
@@ -243,14 +294,26 @@ const profileFromRow = (row: any): Profile => ({
   emergencyContactName: row.emergency_contact_name ?? undefined,
   emergencyContactEmail: row.emergency_contact_email ?? undefined,
   emergencyContactPhone: row.emergency_contact_phone ?? undefined,
-  payBand: row.pay_band ?? undefined,
   bonusRoleWeight: row.bonus_role_weight == null ? undefined : Number(row.bonus_role_weight),
-  grossAnnualWages: row.gross_annual_wages == null ? undefined : Number(row.gross_annual_wages),
   underNotice: row.under_notice ?? false,
   disciplinaryActionAt: row.disciplinary_action_at ?? undefined,
   nextQuarterlyReviewDate: row.next_quarterly_review_date ?? undefined,
   reviewEligibility: row.review_eligibility ?? undefined,
   vacationDaysAnnual: row.vacation_days_annual == null ? undefined : Number(row.vacation_days_annual),
+  employmentType: row.employment_type ?? undefined,
+  newHireUntil: row.new_hire_until ?? undefined,
+  accessUpgradedAt: row.access_upgraded_at ?? undefined,
+});
+
+const compensationFromRow = (row: any): CompensationRecord => ({
+  id: row.id,
+  userId: row.user_id,
+  grossAnnualWages: row.gross_annual_wages == null ? undefined : Number(row.gross_annual_wages),
+  payBand: row.pay_band ?? undefined,
+  retentionBonusAmount: row.retention_bonus_amount == null ? undefined : Number(row.retention_bonus_amount),
+  retentionBonusPayoutDate: row.retention_bonus_payout_date ?? undefined,
+  costOfLivingIncrease: row.cost_of_living_increase == null ? undefined : Number(row.cost_of_living_increase),
+  updatedAt: row.updated_at,
 });
 
 const pointsFromRow = (row: any): PointsEvent => ({
