@@ -938,6 +938,19 @@ textarea:disabled {
   gap: 12px;
 }
 
+.kpi-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 120px 140px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.kpi-row:last-child {
+  border-bottom: 0;
+}
+
 .feedback-form {
   display: grid;
   gap: 12px;

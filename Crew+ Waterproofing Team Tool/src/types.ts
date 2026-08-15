@@ -141,6 +141,17 @@ export interface Review {
   swot?: string;
   overallRating?: ReviewRating;
   visibilityNotes?: string;
+  quarterlyDetail?: QuarterlyReviewDetail;
+}
+
+export interface QuarterlyReviewDetail {
+  jobResponsibilities: Record<string, number>;
+  jobResponsibilityComments?: string;
+  kpiReview: Record<string, { actual?: string; rating?: string }>;
+  coreValues: { helpful: boolean; clear: boolean; professional: boolean; examples?: string };
+  careerDevelopment: { wantToLearn?: string; nextYear?: string };
+  feedbackForManagement: { slowsDown?: string; wastesTime?: string; easierJob?: string; equipmentNeeded?: string; sopsToImprove?: string; ifOwnedCompany?: string };
+  managerSummary: { wentWell?: string; needsImprovement?: string };
 }
 
 export interface ReviewNote {

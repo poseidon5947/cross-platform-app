@@ -32,7 +32,7 @@ export async function loadRemoteState(currentUserId: string): Promise<Partial<Cr
     read("crew_value", (row) => ({ id: row.id, name: row.name, wording: row.wording, dailyRitual: row.daily_ritual, weeklyRitual: row.weekly_ritual, monthlyRitual: row.monthly_ritual, exercise: row.exercise, active: row.active }), "name"),
     read("crew_value_ritual", (row) => ({ id: row.id, valueId: row.value_id, value: row.value_name, cadence: row.cadence, prompt: row.prompt, exercise: row.exercise, points: Number(row.points), active: row.active }), "id"),
     read("crew_earning_rule", (row) => ({ id: row.id, action: row.action, points: Number(row.points), source: row.source, weeklyCap: row.weekly_cap == null ? undefined : Number(row.weekly_cap), habit: row.habit, active: row.active }), "action"),
-    read("crew_review", (row) => ({ id: row.id, userId: row.user_id, managerId: row.manager_id, type: row.type, scheduledFor: row.scheduled_for, completedAt: row.completed_at ?? undefined, status: row.status, ratings: row.ratings ?? {}, notes: row.notes ?? "", swot: row.swot ?? "" }), "scheduled_for"),
+    read("crew_review", (row) => ({ id: row.id, userId: row.user_id, managerId: row.manager_id, type: row.type, scheduledFor: row.scheduled_for, completedAt: row.completed_at ?? undefined, status: row.status, ratings: row.ratings ?? {}, notes: row.notes ?? "", swot: row.swot ?? "", overallRating: row.overall_rating ?? undefined, quarterlyDetail: row.quarterly_detail ?? undefined }), "scheduled_for"),
     read("crew_review_type", (row) => ({ id: row.id, type: row.type, appliesTo: row.applies_to, cadence: row.cadence, ratingScale: row.rating_scale, purpose: row.purpose }), "id"),
     read("crew_rating_scale", (row) => ({ label: row.label, value: Number(row.value), meaning: row.meaning, performanceFactor: Number(row.performance_factor) }), "value"),
     read("crew_review_competency", (row) => ({ id: row.id, competency: row.competency, appliesToRoles: row.applies_to_roles ?? [], description: row.description, weightPercent: row.weight_percent == null ? undefined : Number(row.weight_percent) }), "id"),
@@ -150,6 +150,7 @@ const compensationToRow = (item: any) => ({
 const reviewToRow = (item: any) => ({
   id: item.id, user_id: item.userId, manager_id: item.managerId, type: item.type, scheduled_for: item.scheduledFor,
   completed_at: item.completedAt ?? null, status: item.status, ratings: item.ratings, notes: item.notes, swot: item.swot ?? "",
+  overall_rating: item.overallRating ?? null, quarterly_detail: item.quarterlyDetail ?? null,
 });
 
 const kpiResultToRow = (item: any) => ({

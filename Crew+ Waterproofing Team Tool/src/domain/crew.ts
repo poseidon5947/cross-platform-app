@@ -1,4 +1,27 @@
-import type { Cadence, Certification, CertificationType, CompensationRecord, CrewState, IncidentReportInput, OnboardingInput, PointsEvent, Profile, RedemptionStatus, Review, ReviewRating, ReviewType, RolePermissionKey, TimeOffKind } from "../types";
+import type { Cadence, Certification, CertificationType, CompensationRecord, CrewState, IncidentReportInput, OnboardingInput, PointsEvent, Profile, QuarterlyReviewDetail, RedemptionStatus, Review, ReviewRating, ReviewType, RolePermissionKey, TimeOffKind } from "../types";
+
+export const JOB_RESPONSIBILITY_ITEMS = [
+  "Arrives prepared and on time",
+  "Prepares truck correctly",
+  "Protects customer property",
+  "Completes waterproofing to company standard",
+  "Completes paperwork daily",
+  "Cleans site before leaving",
+  "Maintains tools and equipment",
+  "Represents company professionally",
+] as const;
+
+export const KPI_REVIEW_ITEMS: Array<{ name: string; target: string }> = [
+  { name: "Attendance", target: "100%" },
+  { name: "Daily paperwork", target: "100%" },
+  { name: "Safety violations", target: "Zero" },
+  { name: "Customer complaints", target: "Zero" },
+  { name: "Rework", target: "Under target" },
+  { name: "Vehicle inspections", target: "Weekly" },
+  { name: "Training completed", target: "Yes" },
+];
+
+export const OVERALL_RATING_LABELS = ["Developing", "Meets Expectations", "Strong Performer", "Exceeds Expectations", "Ready for More Responsibility"] as const;
 
 const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -101,6 +124,59 @@ export function completeReview(state: CrewState, reviewId: string, ratings: Revi
     ...state,
     pointsEvents: points ? [event, ...state.pointsEvents] : state.pointsEvents,
     reviews: state.reviews.map((item) => item.id === reviewId ? { ...item, ratings, status: "completed" as const, completedAt: now } : item),
+  };
+}
+
+export function quarterlyReviewEligible(user: Profile, todayIso: string) {
+  if (user.underNotice) return false;
+  if (user.disciplinaryActionAt && daysBetween(user.disciplinaryActionAt, todayIso) < 90) return false;
+  if (!user.hireDate || daysBetween(user.hireDate, todayIso) < 90) return false;
+  return true;
+}
+
+export function employeeReviewSubmission(state: CrewState, review: Pick<Review, "id" | "userId">) {
+  return state.formSubmissions.find((item) => item.formId === "form-quarterly-scorecard" && item.userId === review.userId && item.periodKey === review.id);
+}
+
+export function submitQuarterlyReviewAnswers(state: CrewState, userId: string, reviewId: string, responses: Record<string, string>, now = new Date().toISOString()) {
+  const review = state.reviews.find((item) => item.id === reviewId);
+  const form = state.forms.find((item) => item.id === "form-quarterly-scorecard");
+  if (!review || review.userId !== userId || review.status === "completed" || !form) return state;
+  const questions = state.formQuestions.filter((item) => item.formId === form.id);
+  const complete = questions.every((question) => !question.required || Boolean(responses[question.id]?.trim()));
+  if (!complete || employeeReviewSubmission(state, review)) return state;
+  return {
+    ...state,
+    formSubmissions: [{ id: uid("form"), formId: form.id, userId, periodKey: reviewId, responses, submittedAt: now }, ...state.formSubmissions],
+  };
+}
+
+function averageOf(values: number[]) {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
+export function completeQuarterlyReview(state: CrewState, managerId: string, reviewId: string, detail: QuarterlyReviewDetail, overallRatingIndex: 1 | 2 | 3 | 4 | 5, now = new Date().toISOString()) {
+  const review = state.reviews.find((item) => item.id === reviewId);
+  const manager = state.users.find((item) => item.id === managerId);
+  if (!review || review.status === "completed" || !manager || !canRunReviews(state, manager)) return state;
+  if (!employeeReviewSubmission(state, review)) return state;
+  const jobAvg = averageOf(Object.values(detail.jobResponsibilities));
+  const responsibilities: ReviewRating = jobAvg >= 4 ? "exceeds" : jobAvg >= 3 ? "meets" : "below";
+  const coreValuesRating: ReviewRating = detail.coreValues.helpful && detail.coreValues.clear && detail.coreValues.professional ? "exceeds" : "meets";
+  const ref = `review:${reviewId}`;
+  const points = shouldAward(state.pointsEvents, ref, "crew_review_completed") ? rulePoints(state, "earn-review", 5) : 0;
+  const event: PointsEvent = { id: uid("pe"), userId: review.userId, type: "crew_review_completed", points, reason: "Quarterly review completed", ref, ts: now, source: "crew" };
+  return {
+    ...state,
+    pointsEvents: points ? [event, ...state.pointsEvents] : state.pointsEvents,
+    reviews: state.reviews.map((item) => item.id === reviewId ? {
+      ...item,
+      status: "completed" as const,
+      completedAt: now,
+      overallRating: overallRatingIndex,
+      ratings: { ...item.ratings, responsibilities, values: coreValuesRating },
+      quarterlyDetail: detail,
+    } : item),
   };
 }
 

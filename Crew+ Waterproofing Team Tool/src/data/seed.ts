@@ -263,24 +263,30 @@ export const formQuestions: CrewFormQuestion[] = [
   question("form-swot", 2, "Weaknesses", "Text", true, false, "both", 500),
   question("form-swot", 3, "Opportunities", "Text", true, false, "both", 500),
   question("form-swot", 4, "Threats", "Text", true, false, "both", 500),
+  question("form-quarterly-scorecard", 1, "How are things going?", "Checkbox", true, false, "both", undefined, ["Excellent", "Good", "Fair", "Struggling"]),
+  question("form-quarterly-scorecard", 2, "I have the tools I need", "Scale 1-5", true, false, "both"),
+  question("form-quarterly-scorecard", 3, "I receive clear instructions", "Scale 1-5", true, false, "both"),
+  question("form-quarterly-scorecard", 4, "I understand what success looks like", "Scale 1-5", true, false, "both"),
+  question("form-quarterly-scorecard", 5, "Communication is good", "Scale 1-5", true, false, "both"),
+  question("form-quarterly-scorecard", 6, "I feel respected", "Scale 1-5", true, false, "both"),
+  question("form-quarterly-scorecard", 7, "Attention to detail", "Scale 1-5", true, false, "both"),
+  question("form-quarterly-scorecard", 8, "Waterproofing quality", "Scale 1-5", true, false, "both"),
+  question("form-quarterly-scorecard", 9, "Caulking quality", "Scale 1-5", true, false, "both"),
+  question("form-quarterly-scorecard", 10, "Protection of finished work", "Scale 1-5", true, false, "both"),
+  question("form-quarterly-scorecard", 11, "Organization", "Scale 1-5", true, false, "both"),
+  question("form-quarterly-scorecard", 12, "Productivity", "Scale 1-5", true, false, "both"),
+  question("form-quarterly-scorecard", 13, "Following SOPs", "Scale 1-5", true, false, "both"),
+  question("form-quarterly-scorecard", 14, "Pride in workmanship", "Scale 1-5", true, false, "both"),
+  question("form-quarterly-scorecard", 15, "Top three strengths", "Text", true, false, "both"),
+  question("form-quarterly-scorecard", 16, "What do you think you do best?", "Text", false, false, "both"),
+  question("form-quarterly-scorecard", 17, "What one or two improvements would have the biggest impact?", "Text", true, false, "both"),
+  question("form-quarterly-scorecard", 18, "Quarterly goal 1", "Text", true, false, "both"),
+  question("form-quarterly-scorecard", 19, "Quarterly goal 2", "Text", true, false, "both"),
+  question("form-quarterly-scorecard", 20, "Quarterly goal 3", "Text", false, false, "both"),
   question("form-feedback", 1, "What's working well right now?", "Text", true, true),
   question("form-feedback", 2, "What's frustrating or slowing you down?", "Text", true, true),
   question("form-feedback", 3, "One idea to make us better?", "Text", false, true),
   question("form-feedback", 4, "How supported do you feel? (1-5)", "Scale 1-5", true, true),
-  question("form-quarterly-scorecard", 1, "Check-In and Discussion", "Text", true, false, "both"),
-  question("form-quarterly-scorecard", 2, "Company Support", "Text", true, false, "employee"),
-  question("form-quarterly-scorecard", 3, "KPI Review: Attendance 100%, Daily paperwork 100%, Safety violations Zero, Customer complaints Zero, Rework under target, Vehicle inspections weekly, Training completed Yes", "KPI Table", true, false, "employee"),
-  question("form-quarterly-scorecard", 4, "Workmanship Review", "Below / Meets / Exceeds", true, false, "employee"),
-  question("form-quarterly-scorecard", 5, "Strengths", "Text", true, false, "employee"),
-  question("form-quarterly-scorecard", 6, "Opportunities", "Text", true, false, "employee"),
-  question("form-quarterly-scorecard", 7, "Quarterly Goals", "Text", true, false, "employee"),
-  question("form-quarterly-scorecard", 8, "Overall Rating", "Below / Meets / Exceeds", true, false, "employee"),
-  question("form-quarterly-scorecard", 9, "Employee Comments", "Text", false, false, "employee"),
-  question("form-quarterly-scorecard", 10, "Review Job Description ratings", "Below / Meets / Exceeds", true, false, "admin"),
-  question("form-quarterly-scorecard", 11, "Living Our Core Values: Accountability, Professionalism, Respect, Teamwork, Continuous Improvement", "Checkbox", true, false, "admin"),
-  question("form-quarterly-scorecard", 12, "Career Development", "Text", false, false, "admin"),
-  question("form-quarterly-scorecard", 13, "Feedback for Management", "Text", false, false, "admin"),
-  question("form-quarterly-scorecard", 14, "Manager Summary", "Text", true, false, "admin"),
   question("form-annual-performance", 1, "Employee Performance Scorecard header: employee, role, review period, reviewer, annual review date", "Text", true, false, "both"),
   question("form-annual-performance", 2, "Annual Overall Rating", "Scale 1-5", true, false, "both"),
   question("form-annual-performance", 3, "Bonus eligibility gates confirmed", "Checkbox", true, false, "admin"),
@@ -550,8 +556,8 @@ function jd(id: string, role: OrgRole, version: string, responsibility: string, 
   return { id, role, version, responsibility, requiredCertifications: splitList(certs), linkedKpis: splitList(kpis), reportsTo };
 }
 
-function question(formId: string, order: number, text: string, responseType: CrewFormQuestion["responseType"], required: boolean, anonymousAllowed: boolean, visibility: CrewFormQuestion["visibility"] = "both", wordLimit?: number): CrewFormQuestion {
-  return { id: `${formId}-${order}`, formId, order, question: text, responseType, required, anonymousAllowed, visibility, wordLimit };
+function question(formId: string, order: number, text: string, responseType: CrewFormQuestion["responseType"], required: boolean, anonymousAllowed: boolean, visibility: CrewFormQuestion["visibility"] = "both", wordLimit?: number, options?: string[]): CrewFormQuestion {
+  return { id: `${formId}-${order}`, formId, order, question: text, responseType, required, anonymousAllowed, visibility, wordLimit, options };
 }
 
 function nudge(id: string, name: string, triggerType: Nudge["triggerType"], cadence: string, audience: string, channel: string, leadTime: string, type: Nudge["type"]): Nudge {

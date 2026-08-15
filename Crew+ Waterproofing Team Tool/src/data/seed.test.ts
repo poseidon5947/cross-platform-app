@@ -11,7 +11,8 @@ describe("Crew+ seed completeness", () => {
     expect(state.valueRituals).toHaveLength(3);
     expect(state.certificationTypes).toHaveLength(8);
     expect(state.forms).toHaveLength(4);
-    expect(state.formQuestions).toHaveLength(25);
+    expect(state.formQuestions).toHaveLength(31);
+    expect(state.formQuestions.filter((question) => question.formId === "form-quarterly-scorecard")).toHaveLength(20);
     expect(state.formQuestions.filter((question) => question.formId === "form-swot").every((question) => question.wordLimit === 500)).toBe(true);
     expect(state.forms.find((form) => form.id === "form-swot")?.dueMonthDays).toEqual(["03-31", "06-30", "09-30", "12-31"]);
     expect(state.policyDocuments[0]).toMatchObject({ annualDueMonthDay: "08-31", version: "2026" });
