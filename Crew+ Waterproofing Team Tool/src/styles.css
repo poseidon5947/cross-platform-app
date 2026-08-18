@@ -1318,11 +1318,11 @@ textarea:disabled {
 .suite-switcher > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
 .suite-switcher a, .suite-switcher span { min-width: 0; padding: 7px 4px; border: 1px solid rgba(255,255,255,.14); border-radius: 6px; color: #c9d9ea; font-size: 10px; font-weight: 800; text-align: center; text-decoration: none; }
 .suite-switcher .active { border-color: rgba(255,255,255,.34); background: rgba(255,255,255,.14); color: #fff; }
-.theme-control { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px; border: 1px solid rgba(255,255,255,.14); border-radius: 7px; background: rgba(255,255,255,.06); }
-.theme-control button { min-height: 36px; padding: 4px; display: grid; place-items: center; gap: 1px; border-radius: 5px; color: #c9d9ea; background: transparent; }
-.theme-control button.on { background: rgba(255,255,255,.16); color: #fff; }
+.theme-control { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px; border: 1px solid rgba(255,255,255,.22); border-radius: 7px; background: rgba(255,255,255,.08); }
+.theme-control button { min-height: 36px; padding: 4px; display: grid; place-items: center; gap: 1px; border-radius: 5px; color: rgba(255,255,255,.72); font-weight: 700; background: transparent; }
+.theme-control button.on { background: var(--accent); color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
 .theme-control button span { font-size: 14px; line-height: 1; }
-.theme-control button small { font-size: 9px; text-transform: capitalize; }
+.theme-control button small { font-size: 10px; font-weight: 700; text-transform: capitalize; }
 .attention-strip { margin: 22px 24px 0; overflow: hidden; border: 1px solid var(--line-2); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow); }
 .attention-title { display: flex; align-items: center; gap: 8px; padding: 10px 13px; border-bottom: 1px solid var(--line); background: var(--warn-bg); color: var(--warn); }
 .attention-title > span { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: var(--warn); color: var(--surface); font-weight: 900; }
