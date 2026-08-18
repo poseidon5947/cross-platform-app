@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createSeedState } from "./data/seed";
 import { getCurrentSession, loadRemoteState, signInWithPassword, signOut, syncCrewState } from "./data/repo";
@@ -29,6 +29,7 @@ export function App() {
   const [tab, setTab] = useState<Tab>("home");
   const [theme, setTheme] = useThemePreference();
   const { showToast } = useToast();
+  useRipple();
 
   useEffect(() => {
     if (remote.error) showToast(remote.error, "bad");
@@ -81,12 +82,14 @@ export function App() {
           </div>
         </header>
 
-        {activeTab === "home" && <Home state={state} user={currentUser} setTab={setTab} />}
-        <Suspense fallback={<TabSkeleton />}>
-          {(WORK_TABS as readonly string[]).includes(activeTab) && <LazyWorkTabs activeTab={activeTab as typeof WORK_TABS[number]} state={state} user={currentUser} setState={setState} />}
-          {(PERFORMANCE_TABS as readonly string[]).includes(activeTab) && <LazyPerformanceTabs activeTab={activeTab as typeof PERFORMANCE_TABS[number]} state={state} user={currentUser} setState={setState} />}
-          {(ADMIN_TABS as readonly string[]).includes(activeTab) && <LazyAdminTabs activeTab={activeTab as typeof ADMIN_TABS[number]} state={state} user={currentUser} setState={setState} />}
-        </Suspense>
+        <TabView tab={activeTab}>
+          {activeTab === "home" && <Home state={state} user={currentUser} setTab={setTab} />}
+          <Suspense fallback={<TabSkeleton />}>
+            {(WORK_TABS as readonly string[]).includes(activeTab) && <LazyWorkTabs activeTab={activeTab as typeof WORK_TABS[number]} state={state} user={currentUser} setState={setState} />}
+            {(PERFORMANCE_TABS as readonly string[]).includes(activeTab) && <LazyPerformanceTabs activeTab={activeTab as typeof PERFORMANCE_TABS[number]} state={state} user={currentUser} setState={setState} />}
+            {(ADMIN_TABS as readonly string[]).includes(activeTab) && <LazyAdminTabs activeTab={activeTab as typeof ADMIN_TABS[number]} state={state} user={currentUser} setState={setState} />}
+          </Suspense>
+        </TabView>
       </main>
 
       <footer className="mobile-nav">
@@ -98,7 +101,45 @@ export function App() {
 }
 
 function TabSkeleton() {
-  return <section className="panel card tab-skeleton" aria-label="Loading section"><i /><i /><i /></section>;
+  return (
+    <section className="panel card tab-skeleton" aria-label="Loading section">
+      <i /><i /><i />
+    </section>
+  );
+}
+
+/** Wraps tab content in an animated container that re-triggers on tab change */
+function TabView({ tab, children }: { tab: string; children: React.ReactNode }) {
+  return (
+    <div key={tab} className="tab-view">
+      {children}
+    </div>
+  );
+}
+
+/** Injects a ripple animation at the click location inside a button */
+function useRipple() {
+  const attached = useRef(false);
+  useEffect(() => {
+    if (attached.current) return;
+    attached.current = true;
+
+    function handleClick(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      const btn = target.closest("button, .button-link") as HTMLButtonElement | null;
+      if (!btn || (btn as HTMLButtonElement).disabled) return;
+      const rect = btn.getBoundingClientRect();
+      const ripple = document.createElement("span");
+      ripple.className = "ripple";
+      ripple.style.left = `${e.clientX - rect.left}px`;
+      ripple.style.top = `${e.clientY - rect.top}px`;
+      btn.appendChild(ripple);
+      ripple.addEventListener("animationend", () => ripple.remove(), { once: true });
+    }
+
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, []);
 }
 
 function useRemoteState(fallback: CrewState) {

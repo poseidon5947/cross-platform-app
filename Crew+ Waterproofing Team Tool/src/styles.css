@@ -1344,3 +1344,821 @@ textarea:disabled {
 @media (max-width: 760px) { .attention-strip { margin: 14px 14px 0; } .transient-toast-host { bottom: calc(82px + var(--safe-b)); } }
 @media (prefers-reduced-motion: reduce) { .loading-mark, .loading-line i, .transient-toast { animation: none; } }
 .tab-skeleton { margin: 22px 24px; display:grid; gap:10px; } .tab-skeleton i { display:block; height:12px; border-radius:4px; background:var(--surface-3); } .tab-skeleton i:nth-child(2) { width:72%; } .tab-skeleton i:nth-child(3) { width:46%; }
+
+
+/* ============================================================
+   ANIMATION SYSTEM — Crew+ UI/UX Upgrade
+   ============================================================ */
+
+/* --- Design tokens for animation --- */
+:root {
+  --spring: cubic-bezier(.34, 1.56, .64, 1);
+  --decel: cubic-bezier(0, 0, .2, 1);
+  --accel: cubic-bezier(.4, 0, 1, 1);
+  --bounce: cubic-bezier(.34, 1.72, .64, 1);
+  --duration-fast: 120ms;
+  --duration: 220ms;
+  --duration-slow: 380ms;
+  --duration-enter: 480ms;
+}
+
+/* ============================================================
+   KEYFRAMES
+   ============================================================ */
+
+/* Card / section entrance */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Fade + slide up (softer, for smaller elements) */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Fade in only */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Slide in from right (toast, drawer) */
+@keyframes slide-right-in {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Slide out to right */
+@keyframes slide-right-out {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(28px); }
+}
+
+/* Tab content transition */
+@keyframes tab-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Shimmer sweep for skeletons */
+@keyframes shimmer {
+  from { background-position: -600px 0; }
+  to   { background-position: 600px 0; }
+}
+
+/* Ripple burst (used on button click) */
+@keyframes ripple {
+  from { transform: scale(0); opacity: .55; }
+  to   { transform: scale(2.8); opacity: 0; }
+}
+
+/* Score/metric pop-in */
+@keyframes pop-in {
+  0%   { opacity: 0; transform: scale(.7); }
+  70%  { transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Pulse glow (hero panel, attention strip indicator) */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--primary-glow); }
+  50%       { box-shadow: 0 0 0 8px rgba(11, 110, 168, 0); }
+}
+
+/* Attention strip flash */
+@keyframes warn-pulse {
+  0%, 100% { background: var(--warn-bg); }
+  50%       { background: #fde7b0; }
+}
+
+/* Nav active pill slide */
+@keyframes nav-active {
+  from { opacity: 0; transform: scaleX(.5); }
+  to   { opacity: 1; transform: scaleX(1); }
+}
+
+/* Leaderboard row entrance */
+@keyframes lb-row-in {
+  from { opacity: 0; transform: translateX(-14px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Pill badge pop */
+@keyframes badge-pop {
+  0%   { transform: scale(0.5); opacity: 0; }
+  80%  { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Reward card hover shimmer */
+@keyframes reward-shine {
+  from { background-position: -200% center; }
+  to   { background-position: 200% center; }
+}
+
+/* Floating label */
+@keyframes float-up {
+  from { opacity: 0; transform: translateY(4px) scale(.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Spinner */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   ANIM-CARD — IntersectionObserver-driven card entrance
+   ============================================================ */
+
+.anim-card {
+  opacity: 0;
+  transform: translateY(18px) scale(.985);
+  will-change: opacity, transform;
+}
+
+.anim-card--in {
+  animation: card-in var(--duration-enter) var(--spring) both;
+}
+
+/* ============================================================
+   CARDS & PANELS — richer hover + focus effects
+   ============================================================ */
+
+.card,
+.panel {
+  transition:
+    box-shadow var(--duration) var(--decel),
+    border-color var(--duration) var(--decel),
+    transform var(--duration) var(--spring);
+  will-change: transform, box-shadow;
+}
+
+.card:hover,
+.panel:hover {
+  border-color: var(--line-2);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.card:active,
+.panel:active {
+  transform: translateY(0);
+}
+
+/* Hero panel glow pulse */
+.hero-panel {
+  animation: glow-pulse 3.5s var(--ease) infinite;
+}
+
+/* ============================================================
+   BUTTONS — micro-interaction: press, ripple
+   ============================================================ */
+
+button,
+.button-link {
+  position: relative;
+  overflow: hidden;
+  transition:
+    background var(--duration-fast) var(--decel),
+    color var(--duration-fast) var(--decel),
+    box-shadow var(--duration) var(--decel),
+    transform var(--duration-fast) var(--spring),
+    opacity var(--duration-fast) var(--decel);
+}
+
+button:not(:disabled):active,
+.button-link:active {
+  transform: scale(.95);
+}
+
+button:not(:disabled):hover,
+.button-link:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+/* Ripple element injected by JS */
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .45);
+  width: 80px;
+  height: 80px;
+  margin-top: -40px;
+  margin-left: -40px;
+  animation: ripple 520ms var(--decel) forwards;
+  pointer-events: none;
+}
+
+/* Primary button extra glow */
+.primary:not(:disabled):hover,
+.btn.primary:not(:disabled):hover {
+  box-shadow: 0 6px 18px rgba(20, 162, 164, .38);
+  transform: translateY(-2px);
+}
+
+/* ============================================================
+   TAB TRANSITIONS
+   ============================================================ */
+
+.tab-view {
+  animation: tab-in var(--duration-enter) var(--decel) both;
+}
+
+/* ============================================================
+   SHIMMER SKELETON
+   ============================================================ */
+
+.skeleton,
+.tab-skeleton i {
+  border-radius: var(--r-xs);
+  background: linear-gradient(
+    90deg,
+    var(--surface-3) 25%,
+    var(--bg-4) 50%,
+    var(--surface-3) 75%
+  );
+  background-size: 600px 100%;
+  animation: shimmer 1.4s var(--ease) infinite;
+}
+
+/* Enhanced tab-skeleton */
+.tab-skeleton {
+  margin: 22px 24px;
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+}
+
+.tab-skeleton i {
+  display: block;
+  height: 14px;
+  border-radius: 6px;
+}
+
+.tab-skeleton i:nth-child(1) { width: 88%; animation-delay: 0ms; }
+.tab-skeleton i:nth-child(2) { width: 66%; animation-delay: 80ms; }
+.tab-skeleton i:nth-child(3) { width: 42%; animation-delay: 160ms; }
+
+/* Extra shimmer rows for richer loading state */
+.tab-skeleton::after {
+  content: "";
+  display: block;
+  height: 80px;
+  border-radius: var(--r-sm);
+  background: linear-gradient(
+    90deg,
+    var(--surface-3) 25%,
+    var(--bg-4) 50%,
+    var(--surface-3) 75%
+  );
+  background-size: 600px 100%;
+  animation: shimmer 1.4s var(--ease) 240ms infinite;
+  margin-top: 4px;
+}
+
+/* ============================================================
+   SCORE / METRIC TILES — pop-in on mount
+   ============================================================ */
+
+.score-tile strong,
+.wallet-tile strong,
+.metric strong {
+  display: inline-block;
+  animation: pop-in var(--duration-slow) var(--spring) both;
+}
+
+/* ============================================================
+   LEADERBOARD ROWS — staggered entrance
+   ============================================================ */
+
+.lb {
+  animation: lb-row-in var(--duration-slow) var(--decel) both;
+}
+
+.lb:nth-child(1) { animation-delay: 60ms; }
+.lb:nth-child(2) { animation-delay: 120ms; }
+.lb:nth-child(3) { animation-delay: 180ms; }
+.lb:nth-child(4) { animation-delay: 240ms; }
+.lb:nth-child(5) { animation-delay: 300ms; }
+
+/* ============================================================
+   PILLS / CHIPS — badge pop on render
+   ============================================================ */
+
+.pill,
+.chip {
+  animation: badge-pop var(--duration) var(--spring) both;
+  transition:
+    background var(--duration-fast) var(--decel),
+    color var(--duration-fast) var(--decel),
+    transform var(--duration-fast) var(--spring);
+}
+
+.pill:hover,
+.chip:hover {
+  transform: scale(1.06);
+}
+
+/* ============================================================
+   TOAST — slide in from right, slide out on dismiss
+   ============================================================ */
+
+.transient-toast {
+  animation: slide-right-in 280ms var(--spring) both;
+  transition:
+    opacity var(--duration) var(--decel),
+    transform var(--duration) var(--decel);
+}
+
+.transient-toast:hover {
+  transform: translateX(-4px);
+  box-shadow: var(--shadow-xl);
+}
+
+/* ============================================================
+   NAV — active state animated pill
+   ============================================================ */
+
+nav button.on {
+  position: relative;
+  transition:
+    background var(--duration) var(--decel),
+    color var(--duration) var(--decel);
+}
+
+nav button.on::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent);
+  animation: nav-active var(--duration) var(--spring) both;
+}
+
+/* Nav button hover animation */
+nav button:not(.on):hover {
+  transform: translateX(3px);
+  background: rgba(255, 255, 255, .08);
+  transition:
+    transform var(--duration) var(--spring),
+    background var(--duration-fast) var(--decel);
+}
+
+/* ============================================================
+   ATTENTION STRIP — animated warning
+   ============================================================ */
+
+.attention-strip {
+  animation: fade-up var(--duration-slow) var(--decel) both;
+}
+
+.attention-title {
+  animation: warn-pulse 2.8s var(--ease) infinite;
+}
+
+.attention-rows button {
+  transition:
+    background var(--duration-fast) var(--decel),
+    transform var(--duration) var(--spring);
+}
+
+.attention-rows button:hover {
+  transform: translateX(4px);
+}
+
+/* ============================================================
+   REWARDS GRID — shine on hover
+   ============================================================ */
+
+.reward {
+  transition:
+    box-shadow var(--duration) var(--decel),
+    border-color var(--duration) var(--decel),
+    transform var(--duration) var(--spring);
+  overflow: hidden;
+  position: relative;
+}
+
+.reward:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--accent);
+}
+
+.reward:hover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(20, 162, 164, .08) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: reward-shine 600ms var(--decel) forwards;
+  pointer-events: none;
+}
+
+/* ============================================================
+   REVIEW CARDS — hover lift
+   ============================================================ */
+
+.review-card {
+  transition:
+    background var(--duration-fast) var(--decel),
+    transform var(--duration) var(--spring);
+}
+
+.review-card:hover {
+  background: var(--surface-2);
+  transform: translateX(3px);
+}
+
+/* ============================================================
+   SECTION HEAD — fade-up on mount
+   ============================================================ */
+
+.section-head {
+  animation: fade-up var(--duration-slow) var(--decel) both;
+}
+
+/* ============================================================
+   HOME GRID — stagger grid children
+   ============================================================ */
+
+.grid.two > .panel:nth-child(1),
+.grid.two > section:nth-child(1) { animation: card-in var(--duration-enter) var(--spring) 40ms both; }
+.grid.two > .panel:nth-child(2),
+.grid.two > section:nth-child(2) { animation: card-in var(--duration-enter) var(--spring) 100ms both; }
+.grid.two > .panel:nth-child(3),
+.grid.two > section:nth-child(3) { animation: card-in var(--duration-enter) var(--spring) 160ms both; }
+.grid.two > .panel:nth-child(4),
+.grid.two > section:nth-child(4) { animation: card-in var(--duration-enter) var(--spring) 220ms both; }
+.grid.two > .panel:nth-child(5),
+.grid.two > section:nth-child(5) { animation: card-in var(--duration-enter) var(--spring) 280ms both; }
+.grid.two > .panel:nth-child(6),
+.grid.two > section:nth-child(6) { animation: card-in var(--duration-enter) var(--spring) 340ms both; }
+
+.library > .panel:nth-child(1),
+.library > section:nth-child(1) { animation: card-in var(--duration-enter) var(--spring) 40ms both; }
+.library > .panel:nth-child(2),
+.library > section:nth-child(2) { animation: card-in var(--duration-enter) var(--spring) 110ms both; }
+.library > .panel:nth-child(3),
+.library > section:nth-child(3) { animation: card-in var(--duration-enter) var(--spring) 180ms both; }
+.library > .panel:nth-child(4),
+.library > section:nth-child(4) { animation: card-in var(--duration-enter) var(--spring) 250ms both; }
+
+/* ============================================================
+   LOGO — enhanced brand mark
+   ============================================================ */
+
+.logo,
+.drop.logo {
+  transition:
+    transform var(--duration) var(--spring),
+    box-shadow var(--duration) var(--decel);
+}
+
+.logo:hover,
+.drop.logo:hover {
+  transform: scale(1.08) rotate(-3deg);
+  box-shadow: 0 6px 18px rgba(20, 162, 164, .4);
+}
+
+/* ============================================================
+   LOADING SCREEN — upgraded splash
+   ============================================================ */
+
+.loading-screen {
+  animation: fade-in 500ms var(--decel) both;
+}
+
+.loading-screen .card {
+  animation: card-in 600ms var(--spring) 80ms both;
+}
+
+.loading-mark {
+  animation: brand-pulse 1.25s var(--ease) infinite, spin 3s linear infinite;
+}
+
+.loading-line {
+  height: 3px;
+  margin-top: 18px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--line);
+  position: relative;
+}
+
+.loading-line i {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--primary));
+  animation: loading-line 1.25s var(--ease) infinite;
+  box-shadow: 0 0 12px var(--accent);
+}
+
+/* ============================================================
+   LOGIN SCREEN
+   ============================================================ */
+
+.login .panel {
+  animation: card-in 580ms var(--spring) 60ms both;
+}
+
+.login label {
+  animation: fade-up var(--duration-slow) var(--decel) both;
+}
+
+.login label:nth-child(1) { animation-delay: 120ms; }
+.login label:nth-child(2) { animation-delay: 200ms; }
+.login label:nth-child(3) { animation-delay: 280ms; }
+
+/* ============================================================
+   TOPBAR
+   ============================================================ */
+
+.topbar {
+  transition: box-shadow var(--duration) var(--decel);
+}
+
+.topbar h2 {
+  animation: fade-up var(--duration-slow) var(--decel) both;
+}
+
+/* ============================================================
+   INCIDENT / COMPLIANCE CARDS
+   ============================================================ */
+
+.incident-card {
+  transition:
+    box-shadow var(--duration) var(--decel),
+    transform var(--duration) var(--spring);
+  animation: card-in var(--duration-enter) var(--spring) both;
+}
+
+.incident-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+/* ============================================================
+   FIELDSET ENTRANCE
+   ============================================================ */
+
+fieldset {
+  animation: fade-up var(--duration-slow) var(--decel) both;
+}
+
+fieldset:nth-child(1) { animation-delay: 40ms; }
+fieldset:nth-child(2) { animation-delay: 100ms; }
+fieldset:nth-child(3) { animation-delay: 160ms; }
+fieldset:nth-child(4) { animation-delay: 220ms; }
+fieldset:nth-child(5) { animation-delay: 280ms; }
+
+/* ============================================================
+   SUITE SWITCHER
+   ============================================================ */
+
+.suite-switcher a,
+.suite-switcher span {
+  transition:
+    background var(--duration-fast) var(--decel),
+    border-color var(--duration-fast) var(--decel),
+    transform var(--duration) var(--spring);
+}
+
+.suite-switcher a:hover {
+  transform: scale(1.05);
+  border-color: rgba(255, 255, 255, .3);
+  background: rgba(255, 255, 255, .1);
+}
+
+/* ============================================================
+   THEME CONTROL
+   ============================================================ */
+
+.theme-control button {
+  transition:
+    background var(--duration) var(--decel),
+    transform var(--duration) var(--spring),
+    box-shadow var(--duration) var(--decel);
+}
+
+.theme-control button:hover:not(.on) {
+  transform: scale(1.08);
+}
+
+.theme-control button.on {
+  animation: pop-in var(--duration) var(--spring) both;
+}
+
+/* ============================================================
+   MOBILE NAV — slide-up entrance
+   ============================================================ */
+
+.mobile-nav {
+  animation: fade-up 400ms var(--spring) both;
+}
+
+.mobile-nav button {
+  transition:
+    background var(--duration-fast) var(--decel),
+    transform var(--duration) var(--spring),
+    color var(--duration-fast) var(--decel);
+}
+
+.mobile-nav button.on {
+  transform: translateY(-2px);
+}
+
+/* ============================================================
+   SCORE TILES hover
+   ============================================================ */
+
+.score-tile,
+.wallet-tile {
+  transition:
+    box-shadow var(--duration) var(--decel),
+    border-color var(--duration) var(--decel),
+    transform var(--duration) var(--spring),
+    background var(--duration-fast) var(--decel);
+}
+
+.score-tile:hover,
+.wallet-tile:hover {
+  transform: translateY(-3px) scale(1.015);
+  box-shadow: var(--shadow-md);
+  border-color: var(--accent);
+}
+
+/* ============================================================
+   EMPTY STATE — subtle animation
+   ============================================================ */
+
+.empty-state {
+  animation: fade-up var(--duration-slow) var(--decel) 100ms both;
+}
+
+/* ============================================================
+   FORM INPUTS — focus glow
+   ============================================================ */
+
+select,
+input,
+textarea,
+.in {
+  transition:
+    border-color var(--duration-fast) var(--decel),
+    box-shadow var(--duration-fast) var(--decel);
+}
+
+select:focus,
+input:focus,
+textarea:focus,
+.in:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(20, 162, 164, .18), inset 0 1px 0 rgba(19, 33, 53, .02);
+  outline: none;
+}
+
+/* ============================================================
+   STATUS DOT / BADGE — entrance
+   ============================================================ */
+
+.status {
+  animation: badge-pop var(--duration-slow) var(--spring) both;
+}
+
+/* ============================================================
+   SEGMENTED CONTROL
+   ============================================================ */
+
+.seg button,
+.segmented button {
+  transition:
+    background var(--duration) var(--decel),
+    color var(--duration) var(--decel),
+    box-shadow var(--duration) var(--decel),
+    transform var(--duration) var(--spring);
+}
+
+.seg button.on,
+.segmented button.on {
+  animation: pop-in var(--duration) var(--spring) both;
+}
+
+.seg button:not(.on):hover,
+.segmented button:not(.on):hover {
+  transform: scale(1.04);
+}
+
+/* ============================================================
+   PROGRESS BAR
+   ============================================================ */
+
+.bar i {
+  transition: width 600ms var(--spring);
+  animation: fade-in 400ms var(--decel) both;
+}
+
+/* ============================================================
+   RAIL — entrance
+   ============================================================ */
+
+.rail {
+  animation: fade-in 400ms var(--decel) both;
+}
+
+.rail .brand {
+  animation: fade-up var(--duration-slow) var(--spring) 60ms both;
+}
+
+.rail nav button {
+  animation: fade-up var(--duration-slow) var(--decel) both;
+}
+
+.rail nav button:nth-child(1)  { animation-delay: 80ms; }
+.rail nav button:nth-child(2)  { animation-delay: 110ms; }
+.rail nav button:nth-child(3)  { animation-delay: 140ms; }
+.rail nav button:nth-child(4)  { animation-delay: 170ms; }
+.rail nav button:nth-child(5)  { animation-delay: 200ms; }
+.rail nav button:nth-child(6)  { animation-delay: 230ms; }
+.rail nav button:nth-child(7)  { animation-delay: 260ms; }
+.rail nav button:nth-child(8)  { animation-delay: 290ms; }
+.rail nav button:nth-child(9)  { animation-delay: 320ms; }
+.rail nav button:nth-child(10) { animation-delay: 350ms; }
+.rail nav button:nth-child(11) { animation-delay: 380ms; }
+.rail nav button:nth-child(12) { animation-delay: 410ms; }
+.rail nav button:nth-child(13) { animation-delay: 440ms; }
+.rail nav button:nth-child(14) { animation-delay: 470ms; }
+
+/* ============================================================
+   DARK MODE ADJUSTMENTS
+   ============================================================ */
+
+:root[data-theme="dark"] .card:hover,
+:root[data-theme="dark"] .panel:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .40);
+}
+
+:root[data-theme="dark"] .reward:hover {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .44);
+}
+
+:root[data-theme="dark"] .score-tile:hover,
+:root[data-theme="dark"] .wallet-tile:hover {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .36);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .card:hover,
+  :root:not([data-theme="light"]) .panel:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .40);
+  }
+}
+
+/* ============================================================
+   REDUCED MOTION — honour user preference
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .loading-mark,
+  .loading-line i,
+  .transient-toast,
+  .anim-card,
+  .hero-panel,
+  .attention-title {
+    animation: none !important;
+  }
+
+  .anim-card {
+    opacity: 1;
+    transform: none;
+  }
+}
