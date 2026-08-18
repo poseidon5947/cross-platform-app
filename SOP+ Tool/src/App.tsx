@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createSeedState } from "./data/seed";
 import { shouldRequestSopAward } from "./data/award";
@@ -7,12 +7,18 @@ import { awardSopPoints, getCurrentSession, loadRemoteState, persistState, recor
 import { addStep, approveSop, attachMedia, attachUploadedMedia, canApprove, canCreateSop, canEditSop, canManage, createSop, deleteStep, drainOfflineMediaQueue, moveStep, requestChanges, sopPointsForUser, submitForReview, updateStep } from "./domain/sop";
 import type { MediaType, Role, SopDraft, SopItem, SopState, SopStatus } from "./types";
 import { isSupabaseConfigured } from "./integrations/supabase";
+import { SuiteSwitcher } from "./components/SuiteSwitcher";
+import { ThemeControl, useThemePreference } from "./components/ThemeControl";
+import { ToastHost, useToast } from "./components/Toast";
 
 const STORAGE_KEY = "sop-plus-state-v2";
-const REMOTE_MODE = isSupabaseConfigured();
+export const REMOTE_MODE = isSupabaseConfigured();
 const DEMO_PICKER = !REMOTE_MODE || import.meta.env.VITE_DEMO_MODE === "true";
+const LazyContentTabs = lazy(() => import("./tabs/ContentTabBoundary"));
+const LazyReviewTab = lazy(() => import("./tabs/ReviewTabBoundary"));
+const LazyAdminTab = lazy(() => import("./tabs/AdminTabBoundary"));
 
-const statusLabels: Record<SopStatus, string> = {
+export const statusLabels: Record<SopStatus, string> = {
   assigned: "Assigned",
   in_progress: "In Progress",
   in_review: "In Review",
@@ -28,6 +34,12 @@ export function App() {
   const [tab, setTab] = useState<"home" | "library" | "build" | "review" | "admin">("home");
   const [selectedId, setSelectedId] = useState("");
   const [sheet, setSheet] = useState<"create" | "edit" | null>(null);
+  const [theme, setTheme] = useThemePreference();
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    if (remote.error) showToast(remote.error, "bad");
+  }, [remote.error, showToast]);
 
   useEffect(() => {
     if (!selectedId && state?.sops[0]) setSelectedId(state.sops[0].id);
@@ -65,6 +77,7 @@ export function App() {
     } else {
       setState((next) => approveSop(next, sopId, state.currentUserId));
     }
+    showToast("SOP approved and published");
   }
 
   async function attachFile(stepId: string, type: MediaType, file: File) {
@@ -73,6 +86,7 @@ export function App() {
     if (REMOTE_MODE && navigator.onLine) {
       const uploaded = await uploadMediaFile(stepId, step.sopId, file);
       setState((next) => attachUploadedMedia(next, stepId, uploaded.type as MediaType, file.name, uploaded.storageKey, uploaded.thumbnailUrl, uploaded.size));
+      showToast("Media uploaded");
       return;
     }
     setState((next) => {
@@ -84,6 +98,7 @@ export function App() {
         offlineMediaQueue: queued.offlineMediaQueue.map((command) => command.id === pending?.id ? { ...command, file, size: file.size } : command),
       };
     });
+    showToast("Media saved for upload", "warn");
   }
 
   return (
@@ -96,6 +111,7 @@ export function App() {
             <p>Van Isle Water Proofing+</p>
           </div>
         </div>
+        <SuiteSwitcher current="sop" />
         <nav>
           <button className={tab === "home" ? "on" : ""} onClick={() => setTab("home")}>Home</button>
           <button className={tab === "library" ? "on" : ""} onClick={() => setTab("library")}>Library</button>
@@ -104,6 +120,7 @@ export function App() {
           <button className={tab === "admin" ? "on" : ""} onClick={() => setTab("admin")}>Admin</button>
         </nav>
         <div className="rail-foot">
+          <ThemeControl value={theme} onChange={setTheme} />
           {DEMO_PICKER && (
             <>
               <label>View as</label>
@@ -130,13 +147,13 @@ export function App() {
           </div>
         </header>
 
-        {tab === "home" && (
-          canManage(role) ? <ManagerHome state={state} setTab={setTab} select={setSelectedId} /> : <CrewHome state={state} userId={currentUser.id} select={(id) => { setSelectedId(id); setTab("build"); }} />
-        )}
-        {tab === "library" && <Library state={state} select={(id) => { setSelectedId(id); setTab("build"); }} />}
-        {tab === "build" && selected && <Builder state={state} sop={selected} role={role} setState={setState} openEdit={() => setSheet("edit")} approve={approveAction} attachFile={attachFile} />}
-        {tab === "review" && <ReviewQueue state={state} role={role} approve={approveAction} select={(id) => { setSelectedId(id); setTab("build"); }} />}
-        {tab === "admin" && <AdminPanel state={state} setState={setState} />}
+        {tab === "home" && <SopAttention state={state} userId={currentUser.id} role={role} setTab={setTab} />}
+        {tab === "home" && (canManage(role) ? <ManagerHome state={state} setTab={setTab} select={setSelectedId} /> : <CrewHome state={state} userId={currentUser.id} select={(id) => { setSelectedId(id); setTab("build"); }} />)}
+        <Suspense fallback={<TabSkeleton />}>
+          {(tab === "library" || tab === "build") && <LazyContentTabs activeTab={tab} state={state} sop={selected} role={role} select={(id) => { setSelectedId(id); setTab("build"); }} setState={setState} openEdit={() => setSheet("edit")} approve={approveAction} attachFile={attachFile} />}
+          {tab === "review" && <LazyReviewTab state={state} role={role} approve={approveAction} select={(id) => { setSelectedId(id); setTab("build"); }} />}
+          {tab === "admin" && <LazyAdminTab state={state} setState={setState} />}
+        </Suspense>
       </main>
 
       <footer className="mobile-nav">
@@ -145,8 +162,20 @@ export function App() {
 
       {sheet === "create" && <CreateSheet state={state} close={() => setSheet(null)} save={(draft) => setState((next) => createSop(next, draft))} />}
       {sheet === "edit" && selected && <EditSheet state={state} sop={selected} close={() => setSheet(null)} save={(patch) => setState((next) => ({ ...next, sops: next.sops.map((sop) => sop.id === selected.id ? { ...sop, ...patch, updatedAt: new Date().toISOString() } : sop) }))} />}
+      <ToastHost />
     </div>
   );
+}
+
+function TabSkeleton() { return <section className="panel card tab-skeleton" aria-label="Loading section"><i /><i /><i /></section>; }
+
+function SopAttention({ state, userId, role, setTab }: { state: SopState; userId: string; role: Role; setTab: (tab: "library" | "build" | "review") => void }) {
+  const assigned = state.sops.filter((sop) => sop.assignedTo === userId && ["assigned", "in_progress"].includes(sop.status)).length;
+  const review = canManage(role) ? state.sops.filter((sop) => sop.status === "in_review").length : 0;
+  const updated = state.notifications.filter((note) => note.userId === userId && note.type === "approved" && !note.read).length;
+  const items = [{ count: assigned, label: "SOPs to complete", tab: "build" as const }, { count: review, label: "SOPs awaiting review", tab: "review" as const }, { count: updated, label: "Recently published updates", tab: "library" as const }].filter((item) => item.count > 0);
+  if (!items.length) return null;
+  return <section className="attention-strip" aria-label="Needs attention"><div className="attention-title"><span aria-hidden="true">!</span><b>Needs attention</b></div><div className="attention-rows">{items.map((item) => <button key={item.label} onClick={() => setTab(item.tab)}><span>{item.label}</span><b>{item.count}</b><span aria-hidden="true">→</span></button>)}</div></section>;
 }
 
 function useRemoteState() {
@@ -299,117 +328,27 @@ function CrewHome({ state, userId, select }: { state: SopState; userId: string; 
   );
 }
 
-function Library({ state, select }: { state: SopState; select: (id: string) => void }) {
-  return <div className="library">{state.categories.map((category) => {
-    const sops = state.sops.filter((sop) => sop.categoryId === category.id && sop.status !== "archived");
-    return <section className="panel card" key={category.id}><h3>{category.name}</h3>{sops.map((sop) => <SopRow key={sop.id} state={state} sop={sop} onClick={() => select(sop.id)} />)}</section>;
-  })}</div>;
-}
-
-function Builder({ state, sop, role, setState, openEdit, approve, attachFile }: { state: SopState; sop: SopItem; role: Role; setState: React.Dispatch<React.SetStateAction<SopState>>; openEdit: () => void; approve: (sopId: string) => void; attachFile: (stepId: string, type: MediaType, file: File) => void }) {
-  const [text, setText] = useState("");
-  const [note, setNote] = useState("");
-  const [comments, setComments] = useState("");
-  const category = state.categories.find((item) => item.id === sop.categoryId);
-  const promptSet = state.promptSets.find((item) => item.id === category?.promptSetId);
-  const steps = state.steps.filter((step) => step.sopId === sop.id).sort((a, b) => a.sortOrder - b.sortOrder);
-  const manager = state.users.find((user) => user.role === "manager") ?? state.users[0];
-  const published = sop.status === "published";
-  const editable = canEditSop(role, state.currentUserId, sop);
-  return (
-    <div className="builder">
-      <section className="panel card wide">
-        <div className="builder-head">
-          <div>
-            <span className={`status ${sop.status}`}>{statusLabels[sop.status]}</span>
-            <h3>{sop.title}</h3>
-            <p>{sop.description}</p>
-          </div>
-          {editable && <button onClick={openEdit}>Edit fields</button>}
-        </div>
-        <div className="facts">
-          <span>Category: {category?.name}</span>
-          <span>Responsible: {nameOf(state, sop.assignedTo)}</span>
-          <span>Photo: {sop.requiresPhoto ? "Expected" : "Optional"}</span>
-          <span>Video: {sop.requiresVideo ? "Expected" : "Optional"}</span>
-          {sop.dueDate && <span>Due: {sop.dueDate}</span>}
-        </div>
-      </section>
-
-      <section className="panel card prompts">
-        <h3>Thinking prompts</h3>
-        {promptSet?.prompts.map((prompt) => <p key={prompt}>{prompt}</p>)}
-      </section>
-
-      <section className="panel card wide">
-        <div className="section-head"><h3>{published ? "Published reference" : "Build steps"}</h3><span>{steps.length} steps</span></div>
-        <div className="steps">
-          {steps.map((step, index) => <div className="step" key={step.id}>
-            <div className="step-num">{index + 1}</div>
-            <div className="step-body">
-              <textarea disabled={!editable} value={step.text} onChange={(event) => setState((next) => updateStep(next, step.id, event.target.value, step.note))} />
-              <input disabled={!editable} value={step.note} onChange={(event) => setState((next) => updateStep(next, step.id, step.text, event.target.value))} placeholder="Short note or caption" />
-              <MediaStrip state={state} stepId={step.id} />
-              {editable && <div className="step-actions">
-                <button onClick={() => setState((next) => moveStep(next, sop.id, step.id, -1))}>Up</button>
-                <button onClick={() => setState((next) => moveStep(next, sop.id, step.id, 1))}>Down</button>
-                <label className="upload">Photo<input type="file" accept="image/*" capture="environment" onChange={(event) => attachFromInput(event, "photo", step.id, attachFile)} /></label>
-                <label className="upload">Video<input type="file" accept="video/*" capture="environment" onChange={(event) => attachFromInput(event, "video", step.id, attachFile)} /></label>
-                <button className="danger" onClick={() => setState((next) => deleteStep(next, step.id))}>Delete</button>
-              </div>}
-            </div>
-          </div>)}
-        </div>
-        {editable && <div className="add-step">
-          <textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Add the next step..." />
-          <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional note" />
-          <button className="primary" disabled={!text.trim()} onClick={() => { setState((next) => addStep(next, sop.id, text, note)); setText(""); setNote(""); }}>Add step</button>
-        </div>}
-        <div className="review-actions">
-          {!published && editable && <button className="primary" disabled={!steps.length} onClick={() => setState((next) => submitForReview(next, sop.id, manager.id))}>Submit for review</button>}
-          {canApprove(role, state.permissions.crewLeadCanApprove) && sop.status === "in_review" && <button onClick={() => approve(sop.id)}>Approve +20</button>}
-          {canApprove(role, state.permissions.crewLeadCanApprove) && sop.status === "in_review" && <><input value={comments} onChange={(event) => setComments(event.target.value)} placeholder="Change request comments" /><button onClick={() => setState((next) => requestChanges(next, sop.id, comments || "Please revise and resubmit.", sop.assignedTo))}>Request changes</button></>}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function ReviewQueue({ state, role, approve, select }: { state: SopState; role: Role; approve: (sopId: string) => void; select: (id: string) => void }) {
-  const queue = state.sops.filter((sop) => sop.status === "in_review");
-  return <section className="panel card wide"><h3>Submitted SOPs</h3>{queue.map((sop) => <div className="review-row" key={sop.id}><SopRow state={state} sop={sop} onClick={() => select(sop.id)} />{canApprove(role, state.permissions.crewLeadCanApprove) && <button onClick={() => approve(sop.id)}>Approve +20</button>}</div>)}{!queue.length && <p className="muted">Nothing waiting for review.</p>}</section>;
-}
-
-function AdminPanel({ state, setState }: { state: SopState; setState: React.Dispatch<React.SetStateAction<SopState>> }) {
-  const total = state.pointsEvents.filter((event) => event.type === "sop_completed").reduce((sum, event) => sum + event.points, 0);
-  return <div className="grid two"><section className="panel card"><h3>Permissions</h3>{Object.entries(state.permissions).map(([key, value]) => <label className="check" key={key}><input type="checkbox" checked={value} onChange={(event) => setState((next) => ({ ...next, permissions: { ...next.permissions, [key]: event.target.checked } }))} /> {labelize(key)}</label>)}</section><section className="panel card"><h3>Shared points ledger</h3><Metric label="SOP points awarded" value={total} /><Metric label="Award events" value={state.pointsEvents.filter((event) => event.type === "sop_completed").length} /></section><section className="panel card wide"><h3>Notifications</h3>{state.notifications.slice(0, 8).map((note) => <div className="note" key={note.id}><b>{note.title}</b><span>{note.body}</span></div>)}{!REMOTE_MODE && <button className="danger" onClick={() => setState(createSeedState())}>Reset demo data</button>}</section></div>;
-}
-
 function CreateSheet({ state, close, save }: { state: SopState; close: () => void; save: (draft: SopDraft) => void }) {
+  const { showToast } = useToast();
   const [draft, setDraft] = useState<SopDraft>({ title: "", categoryId: state.categories[0].id, description: "", assignedTo: state.users.find((user) => user.role === "crew")?.id ?? state.users[0].id, createdBy: state.currentUserId, requiresPhoto: true, requiresVideo: false, dueDate: "" });
-  return <Sheet title="New SOP" close={close}><FormFields state={state} draft={draft} setDraft={setDraft} /><button className="primary block" disabled={!draft.title.trim()} onClick={() => { save(draft); close(); }}>Create and assign</button></Sheet>;
+  return <Sheet title="New SOP" close={close}><FormFields state={state} draft={draft} setDraft={setDraft} /><button className="primary block" disabled={!draft.title.trim()} onClick={() => { save(draft); showToast("SOP created and assigned"); close(); }}>Create and assign</button></Sheet>;
 }
 
 function EditSheet({ state, sop, close, save }: { state: SopState; sop: SopItem; close: () => void; save: (patch: Partial<SopItem>) => void }) {
+  const { showToast } = useToast();
   const [draft, setDraft] = useState<SopDraft>({ title: sop.title, categoryId: sop.categoryId, description: sop.description, assignedTo: sop.assignedTo, createdBy: sop.createdBy, requiresPhoto: sop.requiresPhoto, requiresVideo: sop.requiresVideo, dueDate: sop.dueDate ?? "" });
-  return <Sheet title="Edit SOP" close={close}><FormFields state={state} draft={draft} setDraft={setDraft} /><button className="primary block" onClick={() => { save(draft); close(); }}>Save changes</button></Sheet>;
+  return <Sheet title="Edit SOP" close={close}><FormFields state={state} draft={draft} setDraft={setDraft} /><button className="primary block" onClick={() => { save(draft); showToast("SOP changes saved"); close(); }}>Save changes</button></Sheet>;
 }
 
 function FormFields({ state, draft, setDraft }: { state: SopState; draft: SopDraft; setDraft: (draft: SopDraft) => void }) {
   return <div className="form"><label>Title<input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label><label>Category<select value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}>{state.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><label>Description<textarea value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label><label>Assign to<select value={draft.assignedTo} onChange={(event) => setDraft({ ...draft, assignedTo: event.target.value })}>{state.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label><label>Due date<input type="date" value={draft.dueDate ?? ""} onChange={(event) => setDraft({ ...draft, dueDate: event.target.value })} /></label><label className="check"><input type="checkbox" checked={draft.requiresPhoto} onChange={(event) => setDraft({ ...draft, requiresPhoto: event.target.checked })} /> Requires photo</label><label className="check"><input type="checkbox" checked={draft.requiresVideo} onChange={(event) => setDraft({ ...draft, requiresVideo: event.target.checked })} /> Requires video</label></div>;
 }
 
-function MediaStrip({ state, stepId }: { state: SopState; stepId: string }) {
-  const media = state.media.filter((item) => item.stepId === stepId);
-  if (!media.length) return null;
-  return <div className="media-strip">{media.map((item) => <button className="media" key={item.id} onClick={() => item.localUrl || item.thumbnailUrl ? window.open(item.localUrl || item.thumbnailUrl, "_blank") : undefined}><b>{item.type === "photo" ? "PHOTO" : "VIDEO"}</b><span>{item.syncStatus}</span>{item.thumbnailUrl || item.localUrl ? <small>Tap to expand</small> : null}</button>)}</div>;
-}
-
-function SopRow({ state, sop, onClick }: { state: SopState; sop: SopItem; onClick: () => void }) {
+export function SopRow({ state, sop, onClick }: { state: SopState; sop: SopItem; onClick: () => void }) {
   return <button className="sop-row" onClick={onClick}><span className={`dot ${sop.status}`} /><div><b>{sop.title}</b><small>{nameOf(state, sop.assignedTo)} - {statusLabels[sop.status]}</small></div></button>;
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
+export function Metric({ label, value }: { label: string; value: number }) {
   return <div className="metric"><strong>{value}</strong><span>{label}</span></div>;
 }
 
@@ -425,7 +364,7 @@ function LoginScreen({ error, onLogin }: { error: string; onLogin: (email: strin
 }
 
 function Splash({ text }: { text: string }) {
-  return <div className="login"><section className="panel card"><h1>SOP+</h1><p>{text}</p></section></div>;
+  return <div className="login loading-screen"><section className="panel card"><div className="brand login-brand"><div className="drop logo loading-mark">+</div><div><h1>SOP+</h1><p>{text}</p></div></div><div className="loading-line" aria-hidden="true"><i /></div></section></div>;
 }
 
 function useStoredState(): [SopState, React.Dispatch<React.SetStateAction<SopState>>] {
@@ -437,13 +376,6 @@ function useStoredState(): [SopState, React.Dispatch<React.SetStateAction<SopSta
   return [state, setState];
 }
 
-function attachFromInput(event: React.ChangeEvent<HTMLInputElement>, type: MediaType, stepId: string, attachFile: (stepId: string, type: MediaType, file: File) => void) {
-  const file = event.target.files?.[0];
-  if (!file) return;
-  attachFile(stepId, type, file);
-  event.target.value = "";
-}
-
 function titleFor(tab: string) {
   if (tab === "home") return "Home";
   if (tab === "library") return "Library";
@@ -452,7 +384,7 @@ function titleFor(tab: string) {
   return "Admin";
 }
 
-function nameOf(state: SopState, userId: string) {
+export function nameOf(state: SopState, userId: string) {
   return state.users.find((user) => user.id === userId)?.name ?? "Unassigned";
 }
 

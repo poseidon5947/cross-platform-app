@@ -346,7 +346,9 @@ export function applyTheme(theme: Theme): void {
   root.style.setProperty('--purple-bg', colors.purpleDim);
 
   // Mark light vs dark so CSS can adjust body/header accordingly
-  root.dataset.themeMode = isLightTheme(theme) ? 'light' : 'dark';
+  const mode = isLightTheme(theme) ? 'light' : 'dark';
+  root.dataset.themeMode = mode;
+  root.dataset.theme = mode;
 }
 
 /** Heuristic: if bg is a light colour, treat as light theme */

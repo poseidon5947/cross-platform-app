@@ -43,6 +43,9 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
+          VITE_CREW_URL: ${{ secrets.VITE_CREW_URL }}
+          VITE_WAREHOUSE_URL: ${{ secrets.VITE_WAREHOUSE_URL }}
+          VITE_SOP_URL: ${{ secrets.VITE_SOP_URL }}
       - run: npx wrangler@4.122.0 deploy --assets=dist --name=crew-plus-vanisle --compatibility-date=2026-08-13
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -65,6 +68,9 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_CREW_URL: ${{ secrets.VITE_CREW_URL }}
+          VITE_WAREHOUSE_URL: ${{ secrets.VITE_WAREHOUSE_URL }}
+          VITE_SOP_URL: ${{ secrets.VITE_SOP_URL }}
       - run: npx wrangler@4.122.0 deploy --assets=dist --name=warehouse-wizard-vanisle --compatibility-date=2026-08-13
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -87,6 +93,9 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_CREW_URL: ${{ secrets.VITE_CREW_URL }}
+          VITE_WAREHOUSE_URL: ${{ secrets.VITE_WAREHOUSE_URL }}
+          VITE_SOP_URL: ${{ secrets.VITE_SOP_URL }}
       - run: npx wrangler@4.122.0 deploy --assets=dist --name=sop-plus-vanisle --compatibility-date=2026-08-13
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
