@@ -367,7 +367,7 @@ export function App() {
             <span className="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><defs><linearGradient id="dl" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#00d4ff"/><stop offset="100%" stopColor="#0099cc"/></linearGradient></defs><path d="M12 2.5c3.5 4.2 6 7.4 6 10.6a6 6 0 1 1-12 0c0-3.2 2.5-6.4 6-10.6Z" fill="url(#dl)" /><path d="M9.5 13.5a2.5 2.5 0 0 0 2.5 2.5" stroke="#060d1a" strokeWidth="1.8" strokeLinecap="round" /></svg></span>
             <div>Van Isle Water Proofing+<small>Warehouse & Crew Ops</small></div>
           </div>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div className="brandrow-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <ThemeControl value={themePreference} onChange={setThemePreference} />
             <button className="theme-quick-btn" onClick={openThemeSheet} title="Appearance settings">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v6m0 6v6M1 12h6m6 0h6M3.93 3.93l4.24 4.24m5.66 5.66l4.24 4.24M3.93 20.07l4.24-4.24m5.66-5.66l4.24-4.24"/></svg>
