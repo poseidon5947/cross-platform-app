@@ -8,6 +8,8 @@ import { isSupabaseConfigured } from "./integrations/supabase";
 import { SuiteSwitcher } from "./components/SuiteSwitcher";
 import { ThemeControl, useThemePreference } from "./components/ThemeControl";
 import { ToastHost, useToast } from "./components/Toast";
+import { GraphModal } from "./components/GraphModal";
+import type { GraphType } from "./components/GraphModal";
 
 const STORAGE_KEY = "crew-plus-state-v1";
 export const REMOTE_MODE = isSupabaseConfigured();
@@ -28,6 +30,7 @@ export function App() {
   const setState = REMOTE_MODE ? remote.setState : setDemoState;
   const [tab, setTab] = useState<Tab>("home");
   const [theme, setTheme] = useThemePreference();
+  const [graphModal, setGraphModal] = useState<GraphType | null>(null);
   const { showToast } = useToast();
   useRipple();
 
@@ -83,7 +86,7 @@ export function App() {
         </header>
 
         <TabView tab={activeTab}>
-          {activeTab === "home" && <Home state={state} user={currentUser} setTab={setTab} />}
+          {activeTab === "home" && <Home state={state} user={currentUser} setTab={setTab} openGraph={setGraphModal} />}
           <Suspense fallback={<TabSkeleton />}>
             {(WORK_TABS as readonly string[]).includes(activeTab) && <LazyWorkTabs activeTab={activeTab as typeof WORK_TABS[number]} state={state} user={currentUser} setState={setState} />}
             {(PERFORMANCE_TABS as readonly string[]).includes(activeTab) && <LazyPerformanceTabs activeTab={activeTab as typeof PERFORMANCE_TABS[number]} state={state} user={currentUser} setState={setState} />}
@@ -96,6 +99,7 @@ export function App() {
         {(["home", "profile", "timeoff", "incidents", "certs"] as const).map((item) => <button key={item} className={activeTab === item ? "on" : ""} onClick={() => setTab(item)}>{titleFor(item)}</button>)}
       </footer>
       <ToastHost />
+      {graphModal && <GraphModal type={graphModal} state={state} onClose={() => setGraphModal(null)} />}
     </div>
   );
 }
@@ -188,7 +192,7 @@ function useRemoteState(fallback: CrewState) {
   return { state, setState, sessionUserId, loading: query.isFetching && !query.data && Boolean(sessionUserId), error, login, logout };
 }
 
-function Home({ state, user, setTab }: { state: CrewState; user: Profile; setTab: (tab: Tab) => void }) {
+function Home({ state, user, setTab, openGraph }: { state: CrewState; user: Profile; setTab: (tab: Tab) => void; openGraph: (type: GraphType) => void }) {
   const board = leaderboard(state).slice(0, 5);
   const trajectory = bonusTrajectory(state.reviews.filter((review) => review.userId === user.id && review.status === "completed").flatMap((review) => Object.values(review.ratings).filter(Boolean) as ReviewRating[]));
   const today = new Date().toISOString().slice(0, 10);
@@ -204,7 +208,7 @@ function Home({ state, user, setTab }: { state: CrewState; user: Profile; setTab
     { count: compliance, label: "Compliance flags", tab: "certs" as Tab },
     { count: redemptions, label: "Reward approvals", tab: "rewards" as Tab },
   ].filter((item) => item.count > 0);
-  return <>{attention.length > 0 && <section className="attention-strip" aria-label="Needs attention"><div className="attention-title"><span aria-hidden="true">!</span><b>Needs attention</b></div><div className="attention-rows">{attention.map((item) => <button key={item.label} onClick={() => setTab(item.tab)}><span>{item.label}</span><b>{item.count}</b><span aria-hidden="true">→</span></button>)}</div></section>}<div className="grid two"><section className="panel card hero-panel"><h3>{walletBalance(state.pointsEvents, user.id)} points</h3><p>Shared wallet from Warehouse Wizard, SOP+, and Crew+.</p><div className="hero-actions"><button className="primary" onClick={() => setTab("wallet")}>Open wallet</button><button className="primary" onClick={() => setTab("certs")}>Compliance</button></div></section><section className="panel card"><div className="section-head"><h3>Bonus trajectory</h3><span className={`status ${trajectory}`}>{trajectory.toUpperCase()}</span></div><p className="muted">Trajectory is visible to everyone. Dollars stay admin/CFO-only.</p><div className="score-grid"><div className="score-tile"><strong>{state.reviews.filter((review) => review.userId === user.id && review.status === "completed").length}</strong><span>completed reviews</span></div><div className="score-tile"><strong>{state.certifications.filter((cert) => cert.userId === user.id).length}</strong><span>cert records</span></div></div><button onClick={() => setTab("bonus")}>Open scorecard</button></section><section className="panel card"><h3>Leaderboard</h3>{board.map((row, index) => <div className="lb" key={row.user.id}><b>{index + 1}. {row.user.name}</b><span className="pill">{row.balance} pts</span></div>)}</section><section className="panel card"><h3>Weekly value-share</h3><p>{state.values[0].weeklyRitual}</p><div className="facts"><span>Monday 6:30am</span><span>+5 points</span></div><button onClick={() => setTab("reviews")}>Review cadence</button></section></div></>;
+  return <>{attention.length > 0 && <section className="attention-strip" aria-label="Needs attention"><div className="attention-title"><span aria-hidden="true">!</span><b>Needs attention</b></div><div className="attention-rows">{attention.map((item) => <button key={item.label} onClick={() => setTab(item.tab)}><span>{item.label}</span><b>{item.count}</b><span aria-hidden="true">→</span></button>)}</div></section>}<div className="grid two"><section className="panel card hero-panel card-interactive" onClick={() => openGraph("points_trend")}><h3>{walletBalance(state.pointsEvents, user.id)} points</h3><p>Shared wallet from Warehouse Wizard, SOP+, and Crew+. Tap for the 30-day trend.</p><div className="hero-actions"><button className="primary" onClick={(event) => { event.stopPropagation(); setTab("wallet"); }}>Open wallet</button><button className="primary" onClick={(event) => { event.stopPropagation(); setTab("certs"); }}>Compliance</button></div></section><section className="panel card"><div className="section-head"><h3>Bonus trajectory</h3><span className={`status ${trajectory}`}>{trajectory.toUpperCase()}</span></div><p className="muted">Trajectory is visible to everyone. Dollars stay admin/CFO-only.</p><div className="score-grid"><div className="score-tile"><strong>{state.reviews.filter((review) => review.userId === user.id && review.status === "completed").length}</strong><span>completed reviews</span></div><div className="score-tile"><strong>{state.certifications.filter((cert) => cert.userId === user.id).length}</strong><span>cert records</span></div></div><button onClick={() => setTab("bonus")}>Open scorecard</button></section><section className="panel card card-interactive" onClick={() => openGraph("leaderboard")}><div className="section-head"><h3>Leaderboard</h3><span className="pill">Chart</span></div>{board.map((row, index) => <div className="lb" key={row.user.id}><b>{index + 1}. {row.user.name}</b><span className="pill">{row.balance} pts</span></div>)}</section><section className="panel card"><h3>Weekly value-share</h3><p>{state.values[0].weeklyRitual}</p><div className="facts"><span>Monday 6:30am</span><span>+5 points</span></div><button onClick={() => setTab("reviews")}>Review cadence</button></section></div></>;
 }
 
 function LoginScreen({ error, onLogin }: { error: string; onLogin: (email: string, password: string) => Promise<void> }) {

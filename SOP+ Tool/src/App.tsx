@@ -10,6 +10,8 @@ import { isSupabaseConfigured } from "./integrations/supabase";
 import { SuiteSwitcher } from "./components/SuiteSwitcher";
 import { ThemeControl, useThemePreference } from "./components/ThemeControl";
 import { ToastHost, useToast } from "./components/Toast";
+import { GraphModal } from "./components/GraphModal";
+import type { GraphType } from "./components/GraphModal";
 
 const STORAGE_KEY = "sop-plus-state-v2";
 export const REMOTE_MODE = isSupabaseConfigured();
@@ -34,6 +36,7 @@ export function App() {
   const [tab, setTab] = useState<"home" | "library" | "build" | "review" | "admin">("home");
   const [selectedId, setSelectedId] = useState("");
   const [sheet, setSheet] = useState<"create" | "edit" | null>(null);
+  const [graphModal, setGraphModal] = useState<GraphType | null>(null);
   const [theme, setTheme] = useThemePreference();
   const { showToast } = useToast();
 
@@ -148,7 +151,7 @@ export function App() {
         </header>
 
         {tab === "home" && <SopAttention state={state} userId={currentUser.id} role={role} setTab={setTab} />}
-        {tab === "home" && (canManage(role) ? <ManagerHome state={state} setTab={setTab} select={setSelectedId} /> : <CrewHome state={state} userId={currentUser.id} select={(id) => { setSelectedId(id); setTab("build"); }} />)}
+        {tab === "home" && (canManage(role) ? <ManagerHome state={state} setTab={setTab} select={setSelectedId} openGraph={setGraphModal} /> : <CrewHome state={state} userId={currentUser.id} select={(id) => { setSelectedId(id); setTab("build"); }} />)}
         <Suspense fallback={<TabSkeleton />}>
           {(tab === "library" || tab === "build") && <LazyContentTabs activeTab={tab} state={state} sop={selected} role={role} select={(id) => { setSelectedId(id); setTab("build"); }} setState={setState} openEdit={() => setSheet("edit")} approve={approveAction} attachFile={attachFile} />}
           {tab === "review" && <LazyReviewTab state={state} role={role} approve={approveAction} select={(id) => { setSelectedId(id); setTab("build"); }} />}
@@ -163,6 +166,7 @@ export function App() {
       {sheet === "create" && <CreateSheet state={state} close={() => setSheet(null)} save={(draft) => setState((next) => createSop(next, draft))} />}
       {sheet === "edit" && selected && <EditSheet state={state} sop={selected} close={() => setSheet(null)} save={(patch) => setState((next) => ({ ...next, sops: next.sops.map((sop) => sop.id === selected.id ? { ...sop, ...patch, updatedAt: new Date().toISOString() } : sop) }))} />}
       <ToastHost />
+      {graphModal && <GraphModal type={graphModal} state={state} onClose={() => setGraphModal(null)} />}
     </div>
   );
 }
@@ -277,7 +281,7 @@ function useRemoteState() {
   return { state, setState, sessionUserId, loading: loading || (remoteQuery.isFetching && !state), error, login, logout, reload, drainQueue };
 }
 
-function ManagerHome({ state, setTab, select }: { state: SopState; setTab: (tab: "review" | "library") => void; select: (id: string) => void }) {
+function ManagerHome({ state, setTab, select, openGraph }: { state: SopState; setTab: (tab: "review" | "library") => void; select: (id: string) => void; openGraph: (type: GraphType) => void }) {
   const stats = useMemo(() => state.categories.map((category) => {
     const sops = state.sops.filter((sop) => sop.categoryId === category.id && sop.status !== "archived");
     const published = sops.filter((sop) => sop.status === "published").length;
@@ -287,8 +291,8 @@ function ManagerHome({ state, setTab, select }: { state: SopState; setTab: (tab:
   const unassigned = state.sops.filter((sop) => !sop.assignedTo).length;
   return (
     <div className="grid two">
-      <section className="panel card wide">
-        <div className="section-head"><h3>Library progress</h3><button onClick={() => setTab("library")}>Open library</button></div>
+      <section className="panel card wide card-interactive" onClick={() => openGraph("category_breakdown")}>
+        <div className="section-head"><h3>Library progress</h3><span className="pill">Chart</span><button onClick={(event) => { event.stopPropagation(); setTab("library"); }}>Open library</button></div>
         <div className="category-grid">
           {stats.map(({ category, sops, published }) => <div className="category-card" key={category.id}><b>{category.name}</b><span>{published} of {sops.length} documented</span><div className="bar"><i style={{ width: `${sops.length ? (published / sops.length) * 100 : 0}%` }} /></div></div>)}
         </div>
@@ -298,8 +302,8 @@ function ManagerHome({ state, setTab, select }: { state: SopState; setTab: (tab:
         {review.map((sop) => <SopRow key={sop.id} state={state} sop={sop} onClick={() => { select(sop.id); setTab("review"); }} />)}
         {!review.length && <p className="muted">No SOPs waiting for approval.</p>}
       </section>
-      <section className="panel card">
-        <h3>Workload</h3>
+      <section className="panel card card-interactive" onClick={() => openGraph("completion_trend")}>
+        <div className="section-head"><h3>Workload</h3><span className="pill">Chart</span></div>
         <Metric label="In progress" value={state.sops.filter((sop) => sop.status === "in_progress").length} />
         <Metric label="Unassigned" value={unassigned} />
         <Metric label="Published" value={state.sops.filter((sop) => sop.status === "published").length} />

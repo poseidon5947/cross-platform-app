@@ -84,7 +84,15 @@ export function Builder({ state, sop, role, setState, openEdit, approve, attachF
 function MediaStrip({ state, stepId }: { state: SopState; stepId: string }) {
   const media = state.media.filter((item) => item.stepId === stepId);
   if (!media.length) return null;
-  return <div className="media-strip">{media.map((item) => <button className="media" key={item.id} onClick={() => item.localUrl || item.thumbnailUrl ? window.open(item.localUrl || item.thumbnailUrl, "_blank") : undefined}><b>{item.type === "photo" ? "PHOTO" : "VIDEO"}</b><span>{item.syncStatus}</span>{item.thumbnailUrl || item.localUrl ? <small>Tap to expand</small> : null}</button>)}</div>;
+  return <div className="media-strip">{media.map((item) => {
+    const url = item.localUrl || item.thumbnailUrl;
+    const previewable = item.type === "photo" && Boolean(url);
+    return <button className={`media ${previewable ? "media-photo" : ""}`} key={item.id} onClick={() => url ? window.open(url, "_blank") : undefined}>
+      {previewable ? <img src={url} alt="Step attachment" className="media-thumb" /> : <b>{item.type === "photo" ? "PHOTO" : "VIDEO"}</b>}
+      <span>{item.syncStatus}</span>
+      {url ? <small>Tap to expand</small> : null}
+    </button>;
+  })}</div>;
 }
 
 function attachFromInput(event: React.ChangeEvent<HTMLInputElement>, type: MediaType, stepId: string, attachFile: (stepId: string, type: MediaType, file: File) => void) {
