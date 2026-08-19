@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { acknowledgePolicy, awardCertDetail, awardCertsCurrent, certAlertLevelFromType, confirmIncidentReceipt, policyDueDate, recordTimeOff, rulePoints, submitIncidentReport, submitOnboarding, timeOffSummary, vacationReminderText } from "../domain/crew";
+import { acknowledgePolicy, awardCertDetail, awardCertsCurrent, certAlertLevelFromType, confirmIncidentReceipt, newHirePolicySignDue, policyAdminUpdateReminderActive, policyDueDate, recordTimeOff, rulePoints, submitIncidentReport, submitOnboarding, timeOffSummary, vacationReminderText } from "../domain/crew";
 import { removePushSubscription, savePushSubscription, sendTestPush } from "../data/repo";
-import type { Certification, CrewState, IncidentReport, IncidentReportInput, OnboardingInput, Profile, TimeOffKind } from "../types";
+import type { Certification, CrewState, IncidentReport, IncidentReportInput, OnboardingInput, PolicyDocument, Profile, TimeOffKind } from "../types";
 import { useToast } from "../components/Toast";
 import { nameOf, REMOTE_MODE } from "../App";
 
@@ -218,18 +218,31 @@ function toneForCert(level: string) {
 function Compliance({ state, user, setState }: { state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
   const canViewTeam = user.role === "admin" || user.role === "manager";
   const visibleUsers = canViewTeam ? state.users.filter((item) => item.branch === "field" && item.status !== "Inactive") : [user];
-  return <div className="compliance-page"><PolicyPanel state={state} user={user} setState={setState} /><div className="library">{visibleUsers.map((item) => <ComplianceUserCard key={item.id} state={state} user={item} setState={setState} />)}</div></div>;
+  const today = new Date().toISOString().slice(0, 10);
+  const newHiresDue = user.role === "admin" ? newHirePolicySignDue(state, today) : [];
+  return <div className="compliance-page">
+    {newHiresDue.length > 0 && <section className="panel card wide"><div className="section-head"><div><h3>New hires needing policy sign-off</h3><p className="muted">Seven days in — confirm they're a fit, then have them read, initial, and sign.</p></div><span className="pill warn">{newHiresDue.length}</span></div>{newHiresDue.map((item) => <div className="line-item" key={item.id}><b>{item.name}</b><span className="tiny muted">hired {item.hireDate}</span></div>)}</section>}
+    {state.policyDocuments.filter((policy) => policy.active).map((policy) => <PolicyPanel key={policy.id} policy={policy} state={state} user={user} setState={setState} />)}
+    <div className="library">{visibleUsers.map((item) => <ComplianceUserCard key={item.id} state={state} user={item} setState={setState} />)}</div>
+  </div>;
 }
 
-function PolicyPanel({ state, user, setState }: { state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
+function PolicyPanel({ policy, state, user, setState }: { policy: PolicyDocument; state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
   const { showToast } = useToast();
-  const policy = state.policyDocuments.find((item) => item.active);
   const year = new Date().getFullYear();
-  const acknowledgment = state.policyAcknowledgments.find((item) => item.policyId === policy?.id && item.userId === user.id && item.year === year);
+  const today = new Date().toISOString().slice(0, 10);
+  const acknowledgment = state.policyAcknowledgments.find((item) => item.policyId === policy.id && item.userId === user.id && item.year === year);
   const [read, setRead] = useState(false);
   const [signedName, setSignedName] = useState(user.name);
-  if (!policy) return null;
-  return <section className="panel card policy-panel"><div className="section-head"><div><h3>{policy.title}</h3><p className="muted">Read the full policy, then sign and date the annual acknowledgment.</p></div><div className="form-status"><span className="pill">Due {policyDueDate(policy, year)}</span><span className={`pill ${acknowledgment ? "good" : "warn"}`}>{acknowledgment ? "Signed" : "Action needed"}</span></div></div><a className="button-link" href={policy.fileUrl} target="_blank" rel="noreferrer">Open policy PDF</a>{acknowledgment ? <p className="toast good">Signed by {acknowledgment.signedName} on {acknowledgment.signedAt.slice(0, 10)}.</p> : <div className="policy-sign"><label className="check"><input type="checkbox" checked={read} onChange={(event) => setRead(event.target.checked)} />I have read the complete policy.</label><label>Electronic signature<input value={signedName} onChange={(event) => setSignedName(event.target.value)} /></label><button className="primary" disabled={!read || !signedName.trim()} onClick={() => { setState((next) => acknowledgePolicy(next, policy.id, user.id, signedName)); showToast("Policy acknowledged"); }}>Sign and date</button></div>}</section>;
+  const [sectionInitials, setSectionInitials] = useState<Record<string, string>>({});
+  const hasSections = Boolean(policy.sections?.length);
+  const allInitialed = !hasSections || Boolean(policy.sections?.every((section) => sectionInitials[section]?.trim()));
+  const adminReminder = user.role === "admin" && policyAdminUpdateReminderActive(policy, today);
+  const submit = () => {
+    setState((next) => acknowledgePolicy(next, policy.id, user.id, signedName, new Date().toISOString(), hasSections ? sectionInitials : undefined));
+    showToast("Policy acknowledged");
+  };
+  return <section className="panel card policy-panel"><div className="section-head"><div><h3>{policy.title}</h3><p className="muted">{hasSections ? "Read the full document, initial every section, then sign and date." : "Read the full policy, then sign and date the annual acknowledgment."}</p></div><div className="form-status"><span className="pill">Due {policyDueDate(policy, year)}</span><span className={`pill ${acknowledgment ? "good" : "warn"}`}>{acknowledgment ? "Signed" : "Action needed"}</span></div></div>{adminReminder && <p className="toast warn">Annual review due {policyDueDate(policy, year)} — confirm this policy's content is current before then.</p>}<a className="button-link" href={policy.fileUrl} target="_blank" rel="noreferrer">Open policy document</a>{acknowledgment ? <p className="toast good">Signed by {acknowledgment.signedName} on {acknowledgment.signedAt.slice(0, 10)}.</p> : <div className={`policy-sign ${hasSections ? "has-sections" : ""}`}>{hasSections && <div className="field-stack"><p className="tiny muted">Initial each section after reading it in the full document above.</p><div className="policy-sections-list">{policy.sections!.map((section) => <label key={section} className="policy-section-row">{section}<input value={sectionInitials[section] ?? ""} onChange={(event) => setSectionInitials((current) => ({ ...current, [section]: event.target.value }))} placeholder="Initials" maxLength={6} /></label>)}</div></div>}{!hasSections && <label className="check"><input type="checkbox" checked={read} onChange={(event) => setRead(event.target.checked)} />I have read the complete policy.</label>}<label>Electronic signature<input value={signedName} onChange={(event) => setSignedName(event.target.value)} /></label><button className="primary" disabled={(!hasSections && !read) || !allInitialed || !signedName.trim()} onClick={submit}>Sign and date</button></div>}</section>;
 }
 
 function ComplianceUserCard({ state, user, setState }: { state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {

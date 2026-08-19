@@ -47,8 +47,8 @@ export async function loadRemoteState(currentUserId: string): Promise<Partial<Cr
     read("crew_form", (row) => ({ id: row.id, name: row.name, anonymousAllowed: row.anonymous_allowed, cadence: row.cadence ?? undefined, dueMonthDays: row.due_month_days ?? undefined, description: row.description ?? undefined }), "name"),
     read("crew_form_question", (row) => ({ id: row.id, formId: row.form_id, order: Number(row.sort_order), question: row.question, responseType: row.response_type, required: row.required, anonymousAllowed: row.anonymous_allowed, visibility: row.visibility ?? "both", options: row.options ?? undefined, wordLimit: row.word_limit == null ? undefined : Number(row.word_limit) }), "sort_order"),
     read("crew_form_submission", (row) => ({ id: row.id, formId: row.form_id, userId: row.user_id, periodKey: row.period_key, responses: row.responses ?? {}, submittedAt: row.submitted_at }), "submitted_at"),
-    read("crew_policy_document", (row) => ({ id: row.id, title: row.title, version: row.version, effectiveDate: row.effective_date, fileUrl: row.file_url, annualDueMonthDay: row.annual_due_month_day, active: row.active }), "title"),
-    read("crew_policy_acknowledgment", (row) => ({ id: row.id, policyId: row.policy_id, userId: row.user_id, year: Number(row.year), signedName: row.signed_name, signedAt: row.signed_at }), "signed_at"),
+    read("crew_policy_document", (row) => ({ id: row.id, title: row.title, version: row.version, effectiveDate: row.effective_date, fileUrl: row.file_url, annualDueMonthDay: row.annual_due_month_day, active: row.active, sections: row.sections ?? undefined }), "title"),
+    read("crew_policy_acknowledgment", (row) => ({ id: row.id, policyId: row.policy_id, userId: row.user_id, year: Number(row.year), signedName: row.signed_name, signedAt: row.signed_at, sectionInitials: row.section_initials ?? undefined }), "signed_at"),
     read("crew_time_off_policy", (row) => ({ id: row.id, year: Number(row.year), paidSickDays: Number(row.paid_sick_days), unpaidSickDays: Number(row.unpaid_sick_days), eligibilityDays: Number(row.eligibility_days), renewalMonthDay: row.renewal_month_day }), "year"),
     read("crew_time_off_entry", (row) => ({ id: row.id, userId: row.user_id, kind: row.kind, days: Number(row.days), date: row.entry_date, note: row.note ?? undefined, createdAt: row.created_at }), "entry_date"),
     read("crew_integration_decision", (row) => ({ id: row.id, name: row.name, needed: row.needed, details: row.details }), "name"),
@@ -178,6 +178,7 @@ const incidentReportToRow = (item: IncidentReport) => ({
 
 const policyAckToRow = (item: any) => ({
   id: item.id, policy_id: item.policyId, user_id: item.userId, year: item.year, signed_name: item.signedName, signed_at: item.signedAt,
+  section_initials: item.sectionInitials ?? null,
 });
 
 const certificationToRow = (item: any) => ({

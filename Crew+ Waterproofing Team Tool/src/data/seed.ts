@@ -155,6 +155,7 @@ export const rewards: Reward[] = [
   reward("r4", "Gift Card - $100", 400, "$100", "Quarter-end gift card redemption."),
   reward("r5", "PTO - half day", 800, "~$200", "Quarter-end PTO redemption; manager scheduling required."),
   reward("r6", "PTO - full day", 1600, "~$400", "Quarter-end PTO redemption; manager scheduling required."),
+  { id: "cash-out-payroll", name: "Cash out to payroll", points: 0, active: false, note: "Cashes out your full current balance; paid on the next payroll after admin approval." },
 ];
 
 export const kpis: Kpi[] = [
@@ -329,6 +330,25 @@ export const policyDocuments: PolicyDocument[] = [
     fileUrl: "/workplace-bullying-harassment-policy-2026.pdf",
     annualDueMonthDay: "08-31",
     active: true,
+  },
+  {
+    id: "policy-crew-code-of-conduct",
+    title: "Crew Policies & Code of Conduct",
+    version: "2026",
+    effectiveDate: "2026-08-18",
+    fileUrl: "https://docs.google.com/document/d/1h_XmTTdiMI0v0bMSOr7Q7s1HNOFElITKEG898dARUB0/edit?usp=sharing",
+    annualDueMonthDay: "08-31",
+    active: true,
+    sections: [
+      "Crew Policies", "Our Values", "Payday", "Breaks", "Travel Time", "BuilderTrend",
+      "Work Orders & Daily Logs", "Overtime", "Time Off", "Vacation", "Cell Phones & Ear Buds",
+      "Social Media", "Company Vehicles", "Dress Code", "Work Gear", "Property Damage",
+      "Fire Safety", "Substances", "Google Reviews", "Code of Conduct",
+      "Professionalism & Work Ethic", "Respect for People & Property", "Health & Safety Compliance",
+      "Substance Use", "Tools, Equipment, and Materials", "Communication & Conflict",
+      "Confidentiality", "Disciplinary Action", "New Policies and Procedures",
+      "Van-Isle Company Contact Info", "Acknowledgment",
+    ],
   },
 ];
 

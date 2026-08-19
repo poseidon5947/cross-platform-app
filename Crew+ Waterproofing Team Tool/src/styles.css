@@ -1016,6 +1016,31 @@ textarea:disabled {
   align-items: end;
 }
 
+.policy-sign.has-sections {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+.policy-section-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.policy-section-row:last-child {
+  border-bottom: none;
+}
+
+.policy-sections-list {
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .form-status,
 .deadline-grid {
   display: flex;

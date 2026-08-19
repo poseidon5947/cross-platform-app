@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
-import { acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, recordTimeOff, requestRedemption, reviewDueDates, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
+import { acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
 import type { IncidentReportInput, OnboardingInput } from "../types";
 
 describe("Crew+ wallet", () => {
@@ -33,6 +33,23 @@ describe("Crew+ wallet", () => {
     expect(nextRedemptionWindow("2026-08-01T09:00:00Z")).toBe("2026-10-31");
     expect(walletBalance(state.pointsEvents, "u3")).toBe(405);
   });
+
+  it("lets a crew member cash out their full balance to payroll only during an open window", () => {
+    let state = createSeedState();
+    const balance = walletBalance(state.pointsEvents, "u3");
+    state = requestCashout(state, "u3", "2026-08-01T09:00:00Z");
+    expect(state.redemptions).toHaveLength(0);
+    expect(cashoutPromptActive(state, "u3", "2026-07-31T09:00:00Z")).toBe(true);
+    state = requestCashout(state, "u3", "2026-07-31T09:00:00Z");
+    expect(state.redemptions).toHaveLength(1);
+    expect(state.redemptions[0]).toMatchObject({ userId: "u3", points: balance, status: "requested", rewardId: cashoutReward(state)!.id });
+    expect(cashoutPromptActive(state, "u3", "2026-07-31T09:00:00Z")).toBe(false);
+    const pending = pendingPayrollCashouts(state);
+    expect(pending).toHaveLength(1);
+    expect(pending[0].dollarValue).toBe(impliedRewardValue(balance, state.walletConfig.rewardDollarPerPoint));
+    state = requestCashout(state, "u3", "2026-10-31T09:00:00Z");
+    expect(state.redemptions).toHaveLength(1);
+  });
 });
 
 describe("Crew+ cadence, compliance, and privacy", () => {
@@ -61,6 +78,33 @@ describe("Crew+ cadence, compliance, and privacy", () => {
     state = acknowledgePolicy(state, "policy-bullying-harassment", "u3", "Jon Gregoire", "2026-08-05T09:00:00Z");
     expect(state.policyAcknowledgments).toHaveLength(1);
     expect(state.policyAcknowledgments[0]).toMatchObject({ year: 2026, signedName: "Jon Gregoire" });
+  });
+
+  it("blocks the sectioned policy from being signed until every section is initialed", () => {
+    let state = createSeedState();
+    const policy = state.policyDocuments.find((item) => item.id === "policy-crew-code-of-conduct")!;
+    const partial = Object.fromEntries(policy.sections!.slice(0, -1).map((section) => [section, "JG"]));
+    state = acknowledgePolicy(state, policy.id, "u3", "Jon Gregoire", "2026-08-20T09:00:00Z", partial);
+    expect(state.policyAcknowledgments).toHaveLength(0);
+    const complete = Object.fromEntries(policy.sections!.map((section) => [section, "JG"]));
+    state = acknowledgePolicy(state, policy.id, "u3", "Jon Gregoire", "2026-08-20T09:00:00Z", complete);
+    expect(state.policyAcknowledgments).toHaveLength(1);
+    expect(state.policyAcknowledgments[0].sectionInitials).toMatchObject(complete);
+  });
+
+  it("flags new hires seven days past hire date who haven't signed the sectioned policy", () => {
+    let state = createSeedState();
+    state = { ...state, users: state.users.map((user) => user.id === "u3" ? { ...user, hireDate: "2026-08-01", accessUpgradedAt: "2026-08-04T09:00:00Z" } : user) };
+    expect(newHirePolicySignDue(state, "2026-08-05")).toHaveLength(0);
+    expect(newHirePolicySignDue(state, "2026-08-09").map((user) => user.id)).toEqual(["u3"]);
+  });
+
+  it("flags the admin annual-update reminder two weeks before the due date, not before", () => {
+    const policy = createSeedState().policyDocuments.find((item) => item.id === "policy-crew-code-of-conduct")!;
+    expect(policyAdminUpdateReminderActive(policy, "2026-08-16")).toBe(false);
+    expect(policyAdminUpdateReminderActive(policy, "2026-08-18")).toBe(true);
+    expect(policyAdminUpdateReminderActive(policy, "2026-08-31")).toBe(true);
+    expect(policyAdminUpdateReminderActive(policy, "2026-09-01")).toBe(false);
   });
 
   it("tracks annual sick and vacation balances after the 90-day eligibility date", () => {

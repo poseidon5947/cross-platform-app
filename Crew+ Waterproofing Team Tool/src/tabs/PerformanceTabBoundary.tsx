@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { averageQuarterlyRating, awardKpiHit, bonusAdminReviewNoticeActive, bonusEmployeeNoticeActive, bonusPercentForAverage, bonusTrajectory, canRunReviews, canSeeBonusDollars, completeQuarterlyReview, completeReview, completeRitual, confirmCustomerReview, employeeReviewSubmission, estimatedBonusDollars, giveRecognition, JOB_RESPONSIBILITY_ITEMS, KPI_REVIEW_ITEMS, leaderboard, nextQuarterDeadline, OVERALL_RATING_LABELS, quarterlyLeaderboard, rulePoints, setCompensation, submitFeedback, submitQuarterlyReviewAnswers, submitQuarterlySwot, walletBalance, wordCount } from "../domain/crew";
+import { averageQuarterlyRating, awardKpiHit, bonusAdminReviewNoticeActive, bonusEmployeeNoticeActive, bonusPercentForAverage, bonusTrajectory, canRunReviews, canSeeBonusDollars, cashoutPromptActive, cashoutReward, completeQuarterlyReview, completeReview, completeRitual, confirmCustomerReview, employeeReviewSubmission, estimatedBonusDollars, giveRecognition, impliedRewardValue, JOB_RESPONSIBILITY_ITEMS, KPI_REVIEW_ITEMS, leaderboard, nextQuarterDeadline, nextRedemptionWindow, OVERALL_RATING_LABELS, quarterlyLeaderboard, requestCashout, rulePoints, setCompensation, submitFeedback, submitQuarterlyReviewAnswers, submitQuarterlySwot, walletBalance, wordCount } from "../domain/crew";
 import type { CrewState, Profile, QuarterlyReviewDetail, Review, ReviewRating } from "../types";
 import { useToast } from "../components/Toast";
 import { nameOf, Metric } from "../App";
@@ -7,7 +7,7 @@ import { nameOf, Metric } from "../App";
 type PerformanceTab = "wallet" | "rituals" | "reviews" | "forms" | "bonus" | "feedback";
 
 export default function PerformanceTabBoundary({ activeTab, state, user, setState }: { activeTab: PerformanceTab; state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
-  if (activeTab === "wallet") return <Wallet state={state} user={user} />;
+  if (activeTab === "wallet") return <Wallet state={state} user={user} setState={setState} />;
   if (activeTab === "rituals") return <Rituals state={state} user={user} setState={setState} />;
   if (activeTab === "reviews") return <Reviews state={state} user={user} setState={setState} />;
   if (activeTab === "forms") return <Forms state={state} user={user} setState={setState} />;
@@ -15,9 +15,21 @@ export default function PerformanceTabBoundary({ activeTab, state, user, setStat
   return <Feedback state={state} user={user} setState={setState} />;
 }
 
-function Wallet({ state, user }: { state: CrewState; user: Profile }) {
+function Wallet({ state, user, setState }: { state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
+  const { showToast } = useToast();
   const quarter = quarterlyLeaderboard(state.pointsEvents, state.users, "2026-07");
-  return <div className="grid two"><section className="panel card"><h3>One balance</h3><div className="wallet-grid"><div className="wallet-tile"><strong>{walletBalance(state.pointsEvents, user.id)}</strong><span>Wallet balance</span></div><div className="wallet-tile"><strong>${state.walletConfig.rewardDollarPerPoint.toFixed(2)}</strong><span>per point anchor</span></div></div></section><section className="panel card"><h3>Company leaderboard</h3>{leaderboard(state).map((row, index) => <div className="lb" key={row.user.id}><b>{index + 1}. {row.user.name}</b><span className="pill">{row.balance} pts</span></div>)}</section><section className="panel card"><h3>Quarter leaderboard</h3><p className="muted">Quarterly race resets; wallet balance carries over.</p>{quarter.slice(0, 5).map((row, index) => <div className="lb" key={row.user.id}><b>{index + 1}. {row.user.name}</b><span className="pill">{row.balance} pts</span></div>)}</section><section className="panel card wide"><h3>Ledger</h3><div className="ledger-list">{state.pointsEvents.slice(0, 12).map((event) => <div className="line" key={event.id}><b>{event.points > 0 ? "+" : ""}{event.points}</b><span>{event.reason}</span><small>{event.type} - {event.ts.slice(0, 10)}</small></div>)}</div></section></div>;
+  const now = new Date().toISOString();
+  const balance = walletBalance(state.pointsEvents, user.id);
+  const showCashoutPrompt = cashoutPromptActive(state, user.id, now);
+  const dollarValue = impliedRewardValue(balance, state.walletConfig.rewardDollarPerPoint);
+  const cashReward = cashoutReward(state);
+  const pendingCashout = state.redemptions.find((item) => item.userId === user.id && item.rewardId === cashReward?.id && item.status === "requested");
+  return <div className="grid two">
+    {showCashoutPrompt && <section className="panel card wide hero-panel"><h3>You can cash out your rewards next payroll</h3><p>{balance} points is worth ${dollarValue.toLocaleString("en-CA")}. Requesting it now sends the total to admin for your next payroll as a bonus.</p><button className="primary" onClick={() => { setState((next) => requestCashout(next, user.id, now)); showToast("Cash-out requested — you'll see it on your next payroll"); }}>Request payout</button></section>}
+    {pendingCashout && <section className="panel card wide"><p className="toast good">Cash-out requested for {pendingCashout.points} pts (${impliedRewardValue(pendingCashout.points, state.walletConfig.rewardDollarPerPoint).toLocaleString("en-CA")}) on {pendingCashout.requestedAt.slice(0, 10)}. Admin has been notified for next payroll.</p></section>}
+    {!showCashoutPrompt && !pendingCashout && <p className="tiny muted">Points cash-out opens quarterly (next window {nextRedemptionWindow(now)}).</p>}
+    <section className="panel card"><h3>One balance</h3><div className="wallet-grid"><div className="wallet-tile"><strong>{balance}</strong><span>Wallet balance</span></div><div className="wallet-tile"><strong>${state.walletConfig.rewardDollarPerPoint.toFixed(2)}</strong><span>per point anchor</span></div></div></section><section className="panel card"><h3>Company leaderboard</h3>{leaderboard(state).map((row, index) => <div className="lb" key={row.user.id}><b>{index + 1}. {row.user.name}</b><span className="pill">{row.balance} pts</span></div>)}</section><section className="panel card"><h3>Quarter leaderboard</h3><p className="muted">Quarterly race resets; wallet balance carries over.</p>{quarter.slice(0, 5).map((row, index) => <div className="lb" key={row.user.id}><b>{index + 1}. {row.user.name}</b><span className="pill">{row.balance} pts</span></div>)}</section><section className="panel card wide"><h3>Ledger</h3><div className="ledger-list">{state.pointsEvents.slice(0, 12).map((event) => <div className="line" key={event.id}><b>{event.points > 0 ? "+" : ""}{event.points}</b><span>{event.reason}</span><small>{event.type} - {event.ts.slice(0, 10)}</small></div>)}</div></section>
+  </div>;
 }
 
 function Rituals({ state, user, setState }: { state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {

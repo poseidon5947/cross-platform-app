@@ -81,6 +81,36 @@ export function requestRedemption(state: CrewState, userId: string, rewardId: st
   };
 }
 
+export const CASHOUT_REWARD_NAME = "Cash out to payroll";
+
+export function cashoutReward(state: CrewState) {
+  return state.rewards.find((item) => item.name === CASHOUT_REWARD_NAME);
+}
+
+export function cashoutPromptActive(state: CrewState, userId: string, nowIso: string) {
+  const reward = cashoutReward(state);
+  if (!reward || !isRedemptionWindowOpen(nowIso) || walletBalance(state.pointsEvents, userId) <= 0) return false;
+  return !state.redemptions.some((item) => item.userId === userId && item.rewardId === reward.id && item.status === "requested");
+}
+
+export function requestCashout(state: CrewState, userId: string, now = new Date().toISOString()) {
+  const reward = cashoutReward(state);
+  const balance = walletBalance(state.pointsEvents, userId);
+  if (!reward || !isRedemptionWindowOpen(now) || balance <= 0) return state;
+  if (state.redemptions.some((item) => item.userId === userId && item.rewardId === reward.id && item.status === "requested")) return state;
+  return {
+    ...state,
+    redemptions: [{ id: uid("redeem"), userId, rewardId: reward.id, points: balance, status: "requested" as RedemptionStatus, requestedAt: now }, ...state.redemptions],
+  };
+}
+
+export function pendingPayrollCashouts(state: CrewState) {
+  const reward = cashoutReward(state);
+  return state.redemptions
+    .filter((item) => reward && item.rewardId === reward.id && item.status === "requested")
+    .map((item) => ({ redemption: item, dollarValue: impliedRewardValue(item.points, state.walletConfig.rewardDollarPerPoint) }));
+}
+
 export function approveRedemption(state: CrewState, redemptionId: string, approvedBy: string, now = new Date().toISOString()) {
   const redemption = state.redemptions.find((item) => item.id === redemptionId);
   if (!redemption || redemption.status !== "requested" || !isRedemptionWindowOpen(now)) return state;
@@ -257,15 +287,36 @@ export function policyDueDate(policy: CrewState["policyDocuments"][number], year
   return `${year}-${policy.annualDueMonthDay}`;
 }
 
-export function acknowledgePolicy(state: CrewState, policyId: string, userId: string, signedName: string, now = new Date().toISOString()) {
+export function acknowledgePolicy(state: CrewState, policyId: string, userId: string, signedName: string, now = new Date().toISOString(), sectionInitials?: Record<string, string>) {
   const policy = state.policyDocuments.find((item) => item.id === policyId && item.active);
   const user = state.users.find((item) => item.id === userId);
   const year = Number(now.slice(0, 4));
-  if (!policy || !user || !signedName.trim() || state.policyAcknowledgments.some((item) => item.policyId === policyId && item.userId === userId && item.year === year)) return state;
+  if (!policy || !user || !signedName.trim()) return state;
+  if (state.policyAcknowledgments.some((item) => item.policyId === policyId && item.userId === userId && item.year === year)) return state;
+  if (policy.sections?.length && policy.sections.some((section) => !sectionInitials?.[section]?.trim())) return state;
   return {
     ...state,
-    policyAcknowledgments: [{ id: uid("ack"), policyId, userId, year, signedName: signedName.trim(), signedAt: now }, ...state.policyAcknowledgments],
+    policyAcknowledgments: [{ id: uid("ack"), policyId, userId, year, signedName: signedName.trim(), signedAt: now, sectionInitials }, ...state.policyAcknowledgments],
   };
+}
+
+export function policyAdminUpdateReminderActive(policy: CrewState["policyDocuments"][number], todayIso: string) {
+  const year = todayIso.slice(0, 4);
+  const due = new Date(`${year}-${policy.annualDueMonthDay}T00:00:00Z`);
+  const windowStart = new Date(due);
+  windowStart.setUTCDate(windowStart.getUTCDate() - 14);
+  const today = new Date(`${todayIso}T00:00:00Z`);
+  return today >= windowStart && today <= due;
+}
+
+export function newHirePolicySignDue(state: CrewState, todayIso: string) {
+  const policy = state.policyDocuments.find((item) => item.active && item.sections?.length);
+  if (!policy) return [];
+  return state.users.filter((user) => {
+    if (!user.hireDate || !user.accessUpgradedAt) return false;
+    if (daysBetween(user.hireDate, todayIso) < 7) return false;
+    return !state.policyAcknowledgments.some((item) => item.policyId === policy.id && item.userId === user.id);
+  });
 }
 
 export function timeOffEligibilityDate(hireDate: string | undefined, eligibilityDays = 90) {

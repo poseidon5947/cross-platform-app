@@ -19,7 +19,7 @@ describe("Crew+ seed completeness", () => {
     expect(state.timeOffPolicies[0]).toMatchObject({ year: 2026, paidSickDays: 5, unpaidSickDays: 3, eligibilityDays: 90 });
     expect(state.nudges.some((nudge) => nudge.type === "vacation" && nudge.channel === "Email + Text")).toBe(true);
     expect(state.earningRules.length).toBeGreaterThanOrEqual(17);
-    expect(state.rewards.map((reward) => reward.name)).toEqual(["Cash - $50", "Cash - $100", "Gift Card - $50", "Gift Card - $100", "PTO - half day", "PTO - full day"]);
+    expect(state.rewards.map((reward) => reward.name)).toEqual(["Cash - $50", "Cash - $100", "Gift Card - $50", "Gift Card - $100", "PTO - half day", "PTO - full day", "Cash out to payroll"]);
     expect(state.kpis.length).toBeGreaterThanOrEqual(20);
     expect(state.certifications.some((cert) => cert.userId === "u5")).toBe(false);
     expect(state.certifications.some((cert) => cert.userId === "u7" && cert.name === "Fit Test (respirator)")).toBe(true);

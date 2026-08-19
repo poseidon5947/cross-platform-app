@@ -395,6 +395,7 @@ export interface PolicyDocument {
   fileUrl: string;
   annualDueMonthDay: string;
   active: boolean;
+  sections?: string[];
 }
 
 export interface PolicyAcknowledgment {
@@ -404,6 +405,7 @@ export interface PolicyAcknowledgment {
   year: number;
   signedName: string;
   signedAt: string;
+  sectionInitials?: Record<string, string>;
 }
 
 export interface TimeOffPolicy {
