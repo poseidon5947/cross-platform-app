@@ -145,13 +145,13 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   min-width: 0;
   flex: 1 1 auto;
 }
-.brand > div {
+.brandrow .brand > div {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.brand small {
+.brandrow .brand small {
   display: block;
   font-size: 11px;
   font-weight: 500;
@@ -160,6 +160,20 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+.loading-brand h1 {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  white-space: normal;
+  text-wrap: balance;
+}
+.loading-brand p {
+  font-size: 13px;
+  font-weight: 500;
+  opacity: .78;
+  margin-top: 2px;
+  white-space: normal;
 }
 .brandrow-actions {
   flex: 0 0 auto;
