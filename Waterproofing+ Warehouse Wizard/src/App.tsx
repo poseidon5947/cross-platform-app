@@ -11,6 +11,7 @@ import type { GraphType } from "./components/GraphModal";
 import { SuiteSwitcher } from "./components/SuiteSwitcher";
 import { ThemeControl, useThemePreference } from "./components/ThemeControl";
 import { ToastHost, useToast } from "./components/Toast";
+import { IntroVideo } from "./components/IntroVideo";
 import { categoryLabels, createSeedState } from "./data/seed";
 import { validateMaterialsCsv } from "./data/csvImport";
 import { drainOfflineQueue } from "./data/offline";
@@ -361,6 +362,7 @@ export function App() {
 
   return (
     <div className="app">
+      <IntroVideo />
       <header className="top">
         <div className="brandrow">
           <div className="brand">

@@ -10,6 +10,7 @@ import { ThemeControl, useThemePreference } from "./components/ThemeControl";
 import { ToastHost, useToast } from "./components/Toast";
 import { GraphModal } from "./components/GraphModal";
 import type { GraphType } from "./components/GraphModal";
+import { IntroVideo } from "./components/IntroVideo";
 
 const STORAGE_KEY = "crew-plus-state-v1";
 export const REMOTE_MODE = isSupabaseConfigured();
@@ -54,6 +55,7 @@ export function App() {
 
   return (
     <div className="shell app">
+      <IntroVideo />
       <aside className="rail">
         <div className="brand">
           <div className="drop logo crew-mark">+</div>
