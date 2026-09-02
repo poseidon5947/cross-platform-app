@@ -190,7 +190,7 @@ export async function loadRemoteState(currentUserId: string): Promise<AppState> 
 
 export async function insertMaintenanceRequest(request: MaintenanceRequest) {
   const { error } = await requireClient().from("maintenance_request").insert({
-    id: request.id,
+    id: isUuid(request.id) ? request.id : undefined,
     target_type: request.targetType,
     target_id: request.targetId,
     target_label: request.targetLabel,
