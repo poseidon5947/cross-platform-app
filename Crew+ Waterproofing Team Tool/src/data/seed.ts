@@ -313,7 +313,6 @@ export const integrations: IntegrationDecision[] = [
   integration("User logins / auth", "Yes", "Per-person, role-based (see Roles tab)"),
   integration("Offline sync", "Yes", "Field sites with no signal"),
   integration("Google Business Profile API (reviews)", "Later", "Auto-pull 5-star reviews -> points. Manual log day one"),
-  integration("BuilderTrend integration", "Later", "Job/schedule data for KPIs"),
   integration("Push notifications", "Yes", "Web push for nudges"),
   integration("Email digests", "Yes", "Manager weekly digest"),
   integration("Calendar sync (Google/Outlook)", "Later", "Reviews, cert expiries, birthdays"),

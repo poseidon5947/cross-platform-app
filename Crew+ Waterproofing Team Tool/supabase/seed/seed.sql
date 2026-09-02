@@ -138,7 +138,6 @@ insert into crew_integration_decision (id, name, needed, details) values
 ('user-logins-auth','User logins / auth','Yes','Per-person, role-based'),
 ('offline-sync','Offline sync','Yes','Field sites with no signal'),
 ('google-business-profile-api-reviews','Google Business Profile API (reviews)','Later','Auto-pull 5-star reviews to points. Manual log day one'),
-('buildertrend-integration','BuilderTrend integration','Later','Job/schedule data for KPIs'),
 ('push-notifications','Push notifications','Yes','Web push for nudges'),
 ('email-digests','Email digests','Yes','Manager weekly digest'),
 ('calendar-sync-google-outlook','Calendar sync (Google/Outlook)','Later','Reviews, cert expiries, birthdays')
