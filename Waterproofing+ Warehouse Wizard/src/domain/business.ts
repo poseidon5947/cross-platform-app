@@ -248,13 +248,26 @@ export function batteryState(lastCharged?: string | null) {
   return { key: "good" as const, label: "charged" };
 }
 
+const KM_TASK_PHRASES = ["record odometer", "record ending km", "record km"];
+
+export function isKmEntryTask(task: Pick<TruckTask, "freq" | "serviceId" | "text">) {
+  return task.freq === "daily" && task.serviceId === "veh" && KM_TASK_PHRASES.some((needle) => task.text.toLowerCase().includes(needle));
+}
+
 export function vehicleTaskIdsForTruckLog(tasks: TruckTask[], log: Pick<TruckLog, "oilChecked" | "fuelTopped">) {
-  const wanted = ["record odometer", "record ending km", "record km"];
+  const wanted = [...KM_TASK_PHRASES];
   if (log.fuelTopped) wanted.push("gas tank", "fuel");
   return tasks
     .filter((task) => task.freq === "daily" && task.serviceId === "veh")
     .filter((task) => wanted.some((needle) => task.text.toLowerCase().includes(needle)))
     .map((task) => task.id);
+}
+
+export function combineDateWithNow(dateStr?: string, now = new Date()) {
+  if (!dateStr) return now.toISOString();
+  const [year, month, day] = dateStr.split("-").map(Number);
+  if (!year || !month || !day) return now.toISOString();
+  return new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds()).toISOString();
 }
 
 export function applyTruckLog(
@@ -301,6 +314,7 @@ export function submitMaintenanceRequest(
   targetId: string,
   targetLabel: string,
   description: string,
+  deadlineAt?: string,
   now = new Date().toISOString(),
 ): AppState {
   if (!description.trim() || !targetId) return state;
@@ -313,6 +327,7 @@ export function submitMaintenanceRequest(
     requestedBy: userId,
     requestedAt: now,
     status: "open",
+    deadlineAt: deadlineAt || undefined,
   };
   return { ...state, maintenanceRequests: [request, ...state.maintenanceRequests] };
 }

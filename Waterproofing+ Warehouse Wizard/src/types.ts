@@ -97,6 +97,7 @@ export interface MaintenanceRequest {
   respondedBy?: string;
   respondedAt?: string;
   responseNote?: string;
+  deadlineAt?: string;
 }
 
 export interface Transaction {

@@ -681,6 +681,13 @@ input[disabled], .in[disabled] { opacity: .6; background: var(--bg-3); cursor: n
 }
 .task:last-child { border-bottom: 0; }
 .task:hover { background: var(--surface-2); }
+.task.km-entry { cursor: default; flex-direction: column; align-items: stretch; gap: 8px; }
+.task.km-entry:hover { background: transparent; }
+.task.km-entry.done .tk-txt { color: var(--good); }
+.km-entry-fields { display: flex; flex-wrap: wrap; gap: 8px; }
+.km-entry-fields select.in { flex: 1 1 100%; height: 38px; min-width: 0; }
+.km-entry-fields input.in { flex: 1 1 auto; height: 38px; min-width: 0; text-align: center; }
+.km-entry-fields .btn { flex: 0 0 auto; }
 .cbx {
   width: 22px; height: 22px;
   border-radius: 6px;

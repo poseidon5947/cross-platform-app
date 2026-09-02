@@ -84,6 +84,7 @@ const maintenanceFromRow = (row: any): MaintenanceRequest => ({
   respondedBy: row.responded_by ?? undefined,
   respondedAt: row.responded_at ?? undefined,
   responseNote: row.response_note ?? undefined,
+  deadlineAt: row.deadline_at ?? undefined,
 });
 
 const siteFromRow = (row: any): Site => ({
@@ -197,6 +198,7 @@ export async function insertMaintenanceRequest(request: MaintenanceRequest) {
     requested_by: request.requestedBy,
     requested_at: request.requestedAt,
     status: request.status,
+    deadline_at: request.deadlineAt ?? null,
   });
   if (error) throw error;
 }

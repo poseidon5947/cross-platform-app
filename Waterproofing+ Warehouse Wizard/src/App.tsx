@@ -41,6 +41,7 @@ import {
   applyCostChangeFlag,
   batteryState,
   canResolveMaintenanceRequests,
+  combineDateWithNow,
   dailyProgress,
   evaluateDailyPoints,
   id,
@@ -119,6 +120,8 @@ export function App() {
   const [profile, setProfile] = useState<User | null>(null);
   const [state, setStateInner] = useState(loadDemoState);
   const [tab, setTab] = useState<Tab>("home");
+  const [focusTarget, setFocusTarget] = useState<string | null>(null);
+  const goToFocus = (nextTab: Tab, focus: string) => { setTab(nextTab); setFocusTarget(focus); };
   const { showToast } = useToast();
   const [confetti, setConfetti] = useState(false);
   const [sheet, setSheet] = useState<null | { title: string; content: React.ReactNode }>(null);
@@ -265,9 +268,9 @@ export function App() {
     });
   };
 
-  const submitTransactions = (txs: Omit<Transaction, "id" | "ts">[]) => {
+  const submitTransactions = (txs: Omit<Transaction, "id" | "ts">[], chosenDate?: string) => {
     patchState((current) => {
-      const dated = txs.map((tx) => ({ ...tx, id: id("tx"), ts: new Date().toISOString() }));
+      const dated = txs.map((tx) => ({ ...tx, id: id("tx"), ts: combineDateWithNow(chosenDate) }));
       const queueItem = { id: id("oq"), type: "log_materials" as const, transactions: txs, queuedAt: new Date().toISOString() };
       if (remoteMode) {
         if (navigator.onLine) insertTransactions(txs).then(invalidateRemote).catch(() => setState((latest) => ({ ...latest, offlineQueue: [...latest.offlineQueue, queueItem] })));
@@ -305,9 +308,9 @@ export function App() {
     if (remoteMode) updateTool(tool).then(invalidateRemote).catch((err) => notify(`Tool sync failed: ${err.message}`));
   };
 
-  const saveTruck = (log: Omit<TruckLog, "id" | "ts">) => {
+  const saveTruck = (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => {
     patchState((current) => {
-      const fullLog = { ...log, id: id("tl"), ts: new Date().toISOString() };
+      const fullLog = { ...log, id: id("tl"), ts: combineDateWithNow(chosenDate) };
       const applied = applyTruckLog(current, fullLog);
       const queueItem = { id: id("oq"), type: "truck_log" as const, log, autoTaskIds: applied.autoTaskIds, pointsEvents: applied.pointsEventsCreated, streak: applied.streaks.find((row) => row.userId === log.driverId), queuedAt: new Date().toISOString() };
       if (remoteMode && navigator.onLine) saveRemoteTruckLog(log, applied.autoTaskIds, applied.pointsEventsCreated, applied.streaks.find((row) => row.userId === log.driverId)).then(invalidateRemote).catch(() => setState((latest) => ({ ...latest, offlineQueue: [...latest.offlineQueue, queueItem] })));
@@ -326,10 +329,10 @@ export function App() {
     if (remoteMode) deleteTask(taskId).then(invalidateRemote).catch((err) => notify(`Task delete failed: ${err.message}`));
   };
 
-  const submitMaintenance = (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string) => {
+  const submitMaintenance = (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string, deadlineAt?: string, chosenDate?: string) => {
     let created: MaintenanceRequest | undefined;
     patchState((current) => {
-      const applied = submitMaintenanceRequest(current, current.currentUserId, targetType, targetId, targetLabel, description);
+      const applied = submitMaintenanceRequest(current, current.currentUserId, targetType, targetId, targetLabel, description, deadlineAt, combineDateWithNow(chosenDate));
       created = applied.maintenanceRequests[0];
       return applied;
     }, "Maintenance request submitted");
@@ -386,9 +389,9 @@ export function App() {
       </header>
 
       <main>
-        {tab === "home" && <Home state={state} userId={currentUser.id} setTab={setTab} openGraph={setGraphModal} />}
+        {tab === "home" && <Home state={state} userId={currentUser.id} setTab={setTab} goToFocus={goToFocus} openGraph={setGraphModal} />}
         <React.Suspense fallback={<TabSkeleton />}>
-          {(["inventory", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} />}
+          {(["inventory", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
           {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} />}
         </React.Suspense>
@@ -450,7 +453,7 @@ function ShellMessage({ title, detail }: { title: string; detail: string }) {
   return <div className="app auth loading-screen"><section className="card"><div className="brand loading-brand"><span className={`logo ${loading ? "loading-mark" : ""}`} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2.5c3.5 4.2 6 7.4 6 10.6a6 6 0 1 1-12 0c0-3.2 2.5-6.4 6-10.6Z" fill="currentColor" /></svg></span><div><h1>{title}</h1><p>{detail}</p></div></div>{loading && <div className="loading-line" aria-hidden="true"><i /></div>}</section></div>;
 }
 
-function Home({ state, userId, setTab, openGraph }: { state: AppState; userId: string; setTab: (tab: Tab) => void; openGraph: (t: GraphType) => void }) {
+function Home({ state, userId, setTab, goToFocus, openGraph }: { state: AppState; userId: string; setTab: (tab: Tab) => void; goToFocus: (tab: Tab, focus: string) => void; openGraph: (t: GraphType) => void }) {
   const trackedMaterials = state.materials.filter((material) => material.strictTracking !== false);
   const lows = trackedMaterials.filter((material) => stockStatus(material).key !== "good");
   const today = todayKey();
@@ -462,9 +465,9 @@ function Home({ state, userId, setTab, openGraph }: { state: AppState; userId: s
   const priceChanges = priceChangeMaterials(state.materials);
   const maintenance = state.maintenanceRequests.filter((request) => request.status === "open").length;
   const incompleteTasks = Math.max(0, progress.total - progress.done);
-  const attention = [{ count: maintenance, label: "Open maintenance requests", tab: "trucks" as Tab }, { count: incompleteTasks, label: "Truck tasks remaining today", tab: "trucks" as Tab }, { count: lows.length, label: "Items below reorder threshold", tab: "inventory" as Tab }].filter((item) => item.count > 0);
+  const attention = [{ count: maintenance, label: "Open maintenance requests", tab: "trucks" as Tab, focus: "maintenance" }, { count: incompleteTasks, label: "Truck tasks remaining today", tab: "trucks" as Tab, focus: "tasks" }, { count: lows.length, label: "Items below reorder threshold", tab: "inventory" as Tab, focus: "low-stock" }].filter((item) => item.count > 0);
   return <>
-    {attention.length > 0 && <section className="attention-strip" aria-label="Needs attention"><div className="attention-title"><span aria-hidden="true">!</span><b>Needs attention</b></div><div className="attention-rows">{attention.map((item) => <button key={item.label} onClick={() => setTab(item.tab)}><span>{item.label}</span><b>{item.count}</b><span aria-hidden="true">→</span></button>)}</div></section>}
+    {attention.length > 0 && <section className="attention-strip" aria-label="Needs attention"><div className="attention-title"><span aria-hidden="true">!</span><b>Needs attention</b></div><div className="attention-rows">{attention.map((item) => <button key={item.label} onClick={() => goToFocus(item.tab, item.focus)}><span>{item.label}</span><b>{item.count}</b><span aria-hidden="true">→</span></button>)}</div></section>}
     <div className="banner"><b>{progress.pct === 100 ? "Daily tasks complete" : "Crew-first workflow"}</b><span>{progress.done}/{progress.total} daily tasks complete today.</span></div>
     <div className="kpis">
       <Kpi label="SKUs tracked"  value={trackedMaterials.length}  sub={`${state.materials.length - trackedMaterials.length} reference only`} onClick={() => openGraph("inventory_stock")} />

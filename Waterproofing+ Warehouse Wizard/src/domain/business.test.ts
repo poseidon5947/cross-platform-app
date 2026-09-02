@@ -5,8 +5,10 @@ import { createSeedState } from "../data/seed";
 import {
   applyTransactions,
   applyTruckLog,
+  combineDateWithNow,
   dailyProgress,
   evaluateDailyPoints,
+  isKmEntryTask,
   monthlyInventoryLogCsv,
   monthKey,
   periodKey,
@@ -14,6 +16,7 @@ import {
   setExactCountDelta,
   signedQuantity,
   stockStatus,
+  submitMaintenanceRequest,
   todayKey,
   weekKey,
 } from "./business";
@@ -79,6 +82,43 @@ describe("truck logs", () => {
     expect(result.trucks.find((truck) => truck.id === "tr1")?.km).toBe(184300);
     expect(result.trucks.find((truck) => truck.id === "tr1")?.lastOil).toBe(184300);
     expect(result.taskCompletions.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("backdated log entries", () => {
+  it("combines a chosen date with the current time of day", () => {
+    const now = new Date("2026-08-30T21:14:07.500Z");
+    const combined = combineDateWithNow("2026-08-28", now);
+    expect(combined.slice(0, 10)).toBe("2026-08-28");
+    expect(new Date(combined).getUTCHours()).toBe(now.getUTCHours());
+  });
+
+  it("falls back to now when no date is chosen", () => {
+    const now = new Date("2026-08-30T21:14:07.500Z");
+    expect(combineDateWithNow(undefined, now)).toBe(now.toISOString());
+  });
+
+  it("identifies the ending-KM daily vehicle task by text", () => {
+    expect(isKmEntryTask({ freq: "daily", serviceId: "veh", text: "Record ending KM" })).toBe(true);
+    expect(isKmEntryTask({ freq: "weekly", serviceId: "veh", text: "Record ending KM" })).toBe(false);
+    expect(isKmEntryTask({ freq: "daily", serviceId: "wp", text: "Record ending KM" })).toBe(false);
+    expect(isKmEntryTask({ freq: "daily", serviceId: "veh", text: "Check tire pressure" })).toBe(false);
+  });
+});
+
+describe("maintenance requests", () => {
+  it("accepts an optional deadline alongside the submitted date", () => {
+    const state = createSeedState();
+    const result = submitMaintenanceRequest(state, "c0", "truck", "tr1", "Ford F150", "Brake noise", "2026-09-05", "2026-08-28T12:00:00.000Z");
+    const request = result.maintenanceRequests[0];
+    expect(request.requestedAt).toBe("2026-08-28T12:00:00.000Z");
+    expect(request.deadlineAt).toBe("2026-09-05");
+  });
+
+  it("leaves deadline unset when none is given", () => {
+    const state = createSeedState();
+    const result = submitMaintenanceRequest(state, "c0", "truck", "tr1", "Ford F150", "Brake noise");
+    expect(result.maintenanceRequests[0].deadlineAt).toBeUndefined();
   });
 });
 
