@@ -550,10 +550,23 @@ export function bonusEmployeeNoticeActive(user: Profile, todayIso: string) {
   return user.hireDate <= sixMonthsBeforeToday.toISOString().slice(0, 10);
 }
 
-export function setEmploymentStatus(state: CrewState, adminId: string, userId: string, status: NonNullable<Profile["status"]>) {
+export function setEmploymentStatus(state: CrewState, adminId: string, userId: string, status: NonNullable<Profile["status"]>, terminationReason?: Profile["terminationReason"], now = new Date().toISOString()) {
   const admin = state.users.find((item) => item.id === adminId);
   if (!admin || admin.role !== "admin") return state;
-  return { ...state, users: state.users.map((item) => item.id === userId ? { ...item, status } : item) };
+  const withStatus = { ...state, users: state.users.map((item) => item.id === userId ? { ...item, status, terminationReason: status === "Inactive" ? terminationReason : undefined } : item) };
+  if (status === "Inactive" && terminationReason === "voluntary") return triggerDepartureCashout(withStatus, userId, now);
+  return withStatus;
+}
+
+function triggerDepartureCashout(state: CrewState, userId: string, now: string) {
+  const reward = cashoutReward(state);
+  const balance = walletBalance(state.pointsEvents, userId);
+  if (!reward || balance <= 0) return state;
+  if (state.redemptions.some((item) => item.userId === userId && item.rewardId === reward.id && item.status === "requested")) return state;
+  return {
+    ...state,
+    redemptions: [{ id: uid("redeem"), userId, rewardId: reward.id, points: balance, status: "requested" as RedemptionStatus, requestedAt: now }, ...state.redemptions],
+  };
 }
 
 export function setCompensation(state: CrewState, adminId: string, userId: string, patch: Partial<Pick<CompensationRecord, "grossAnnualWages" | "payBand" | "retentionBonusAmount" | "retentionBonusPayoutDate" | "costOfLivingIncrease">>, now = new Date().toISOString()) {

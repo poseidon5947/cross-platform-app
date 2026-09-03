@@ -22,6 +22,7 @@ export interface Profile {
   orgRole: OrgRole;
   department?: string;
   status?: "Active" | "Inactive" | "Leave";
+  terminationReason?: "voluntary" | "terminated";
   branch: "field" | "office";
   managerId?: string;
   reportsTo?: string;

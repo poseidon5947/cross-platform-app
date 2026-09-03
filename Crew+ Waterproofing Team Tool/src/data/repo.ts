@@ -129,7 +129,7 @@ async function syncPointsEvent(event: PointsEvent) {
 const profileToRow = (item: Profile) => ({
   id: item.id, name: item.name, email: item.email, role: item.role, org_role: item.orgRole, branch: item.branch,
   employee_id: item.employeeId ?? null, first_name: item.firstName ?? null, last_name: item.lastName ?? null,
-  department: item.department ?? null, employment_status: item.status ?? null, manager_id: item.managerId ?? null,
+  department: item.department ?? null, employment_status: item.status ?? null, termination_reason: item.terminationReason ?? null, manager_id: item.managerId ?? null,
   reports_to: item.reportsTo ?? null, hire_date: item.hireDate ?? null, probation_end_date: item.probationEndDate ?? null,
   agreement_signed_date: item.agreementSignedDate ?? null, birthday: item.birthday ?? null, phone: item.phone ?? null,
   address: item.address ?? null, emergency_contact_name: item.emergencyContactName ?? null,
@@ -285,6 +285,7 @@ const profileFromRow = (row: any): Profile => ({
   orgRole: row.org_role ?? (row.role === "manager" ? "Crew Lead" : row.role === "admin" ? "Operations" : "Technician"),
   department: row.department ?? undefined,
   status: row.employment_status ?? undefined,
+  terminationReason: row.termination_reason ?? undefined,
   branch: row.branch ?? (row.role === "crew" ? "field" : "office"),
   managerId: row.manager_id ?? undefined,
   reportsTo: row.reports_to ?? undefined,

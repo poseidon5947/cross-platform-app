@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
-import { acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
+import { acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
 import type { IncidentReportInput, OnboardingInput } from "../types";
 
 describe("Crew+ wallet", () => {
@@ -48,6 +48,31 @@ describe("Crew+ wallet", () => {
     expect(pending).toHaveLength(1);
     expect(pending[0].dollarValue).toBe(impliedRewardValue(balance, state.walletConfig.rewardDollarPerPoint));
     state = requestCashout(state, "u3", "2026-10-31T09:00:00Z");
+    expect(state.redemptions).toHaveLength(1);
+  });
+
+  it("auto-cashes-out a full balance when someone quits voluntarily, even outside the quarterly window", () => {
+    let state = createSeedState();
+    const balance = walletBalance(state.pointsEvents, "u3");
+    expect(isRedemptionWindowOpen("2026-08-15T09:00:00Z")).toBe(false);
+    state = setEmploymentStatus(state, "u8", "u3", "Inactive", "voluntary", "2026-08-15T09:00:00Z");
+    expect(state.users.find((item) => item.id === "u3")).toMatchObject({ status: "Inactive", terminationReason: "voluntary" });
+    expect(state.redemptions).toHaveLength(1);
+    expect(state.redemptions[0]).toMatchObject({ userId: "u3", points: balance, status: "requested", rewardId: cashoutReward(state)!.id });
+  });
+
+  it("does not auto-cash-out someone who was terminated", () => {
+    let state = createSeedState();
+    state = setEmploymentStatus(state, "u8", "u3", "Inactive", "terminated", "2026-08-15T09:00:00Z");
+    expect(state.users.find((item) => item.id === "u3")).toMatchObject({ status: "Inactive", terminationReason: "terminated" });
+    expect(state.redemptions).toHaveLength(0);
+  });
+
+  it("does not double up if a cash-out is already pending when someone quits", () => {
+    let state = createSeedState();
+    state = requestCashout(state, "u3", "2026-07-31T09:00:00Z");
+    expect(state.redemptions).toHaveLength(1);
+    state = setEmploymentStatus(state, "u8", "u3", "Inactive", "voluntary", "2026-08-15T09:00:00Z");
     expect(state.redemptions).toHaveLength(1);
   });
 });
