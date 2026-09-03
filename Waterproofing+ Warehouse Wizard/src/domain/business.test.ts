@@ -139,6 +139,24 @@ describe("csv import validation", () => {
     expect(report.materials[0].previousCost).toBeLessThan(999);
   });
 
+  it("flags materials as Tremco from a Vendor column and preserves the flag when the column is absent", () => {
+    const csv = [
+      "Inventory,Category,Unit (locked),Vendor,Unit Cost ($),On Hand (current quantity),Reorder At (3 remaining in inventory),Warehouse Location",
+      "TREMDrain 6000X,Waterproofing,Roll,Tremco,$264.26,12,3,Yard 2",
+      "T50 staples,Waterproofing,Box,RONA,$16.19,1,3,A1",
+    ].join("\n");
+    const first = validateMaterialsCsv(csv, []);
+    expect(first.materials.find((m) => m.name === "TREMDrain 6000X")?.isTremco).toBe(true);
+    expect(first.materials.find((m) => m.name === "T50 staples")?.isTremco).toBe(false);
+
+    const reimportCsvWithoutVendor = [
+      "Inventory,Category,Unit (locked),Unit Cost ($),On Hand (current quantity),Reorder At (3 remaining in inventory),Warehouse Location",
+      "TREMDrain 6000X,Waterproofing,Roll,$288.57,12,3,Yard 2",
+    ].join("\n");
+    const second = validateMaterialsCsv(reimportCsvWithoutVendor, first.materials);
+    expect(second.materials[0].isTremco).toBe(true);
+  });
+
   it("rejects non-canonical locked units and keeps Roll to whole units", () => {
     const csv = [
       "Inventory,Category,Unit (locked),Unit Cost ($),On Hand (current quantity),Reorder At (3 remaining in inventory),Warehouse Location",

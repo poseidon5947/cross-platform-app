@@ -21,6 +21,7 @@ const materialFromRow = (row: any): Material => ({
   qty: Number(row.qty ?? 0),
   reorderPoint: Number(row.reorder_point ?? 0),
   bin: row.bin ?? "",
+  isTremco: row.is_tremco ?? false,
 });
 
 const materialToRow = (material: Material, includeQty = true) => ({
@@ -38,6 +39,7 @@ const materialToRow = (material: Material, includeQty = true) => ({
   ...(includeQty ? { qty: material.qty } : {}),
   reorder_point: material.reorderPoint,
   bin: material.bin,
+  is_tremco: material.isTremco ?? false,
 });
 
 const txFromRow = (row: any): Transaction => ({

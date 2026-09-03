@@ -48,6 +48,7 @@ export interface Material {
   qty: number;
   reorderPoint: number;
   bin: string;
+  isTremco?: boolean;
 }
 
 export interface ImportReport {

@@ -86,6 +86,7 @@ export function validateMaterialsCsv(text: string, existing: Material[] = []): I
   const normalizedHeaders = headers.map(normalize);
   const onHandAliases = ["on hand", "on hand (current quantity)", "qty", "column j"];
   const hasOnHandColumn = normalizedHeaders.some((header) => onHandAliases.includes(header));
+  const hasVendorColumn = normalizedHeaders.includes("vendor");
   const materials: Material[] = [];
   const skipped: ImportReport["skipped"] = [];
   const existingByName = new Map(existing.map((material) => [normalize(material.name), material]));
@@ -117,6 +118,7 @@ export function validateMaterialsCsv(text: string, existing: Material[] = []): I
         qty: existingMaterial?.qty ?? num(pick(record, ["on hand", "on hand (current quantity)", "qty"]), 0),
         reorderPoint: num(pick(record, ["reorder", "reorder point", "reorder at (3 remaining in inventory)"]), existingMaterial?.reorderPoint ?? 3),
         bin: pick(record, ["bin", "warehouse location", "location"]) || existingMaterial?.bin || "",
+        isTremco: hasVendorColumn ? /tremco/i.test(pick(record, ["vendor"])) : existingMaterial?.isTremco ?? false,
       }));
     }
   });
