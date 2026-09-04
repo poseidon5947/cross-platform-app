@@ -44,7 +44,7 @@ const materialToRow = (material: Material, includeQty = true) => ({
 
 const txFromRow = (row: any): Transaction => ({
   id: row.id,
-  materialId: row.material_id,
+  materialId: row.material_id ?? undefined,
   qty: Number(row.qty),
   type: row.type,
   siteId: row.site_id ?? undefined,
@@ -52,16 +52,24 @@ const txFromRow = (row: any): Transaction => ({
   userId: row.user_id,
   note: row.note ?? undefined,
   ts: row.ts,
+  needsReview: row.needs_review ?? false,
+  rawItemText: row.raw_item_text ?? undefined,
+  rawQtyText: row.raw_qty_text ?? undefined,
+  rawUnitText: row.raw_unit_text ?? undefined,
 });
 
 const txToRow = (tx: Omit<Transaction, "id" | "ts">) => ({
-  material_id: tx.materialId,
+  material_id: tx.materialId ?? null,
   qty: tx.qty,
   type: tx.type,
   site_id: tx.siteId,
   service_id: tx.serviceId,
   user_id: tx.userId,
   note: tx.note ?? null,
+  needs_review: tx.needsReview ?? false,
+  raw_item_text: tx.rawItemText ?? null,
+  raw_qty_text: tx.rawQtyText ?? null,
+  raw_unit_text: tx.rawUnitText ?? null,
 });
 
 const profileFromRow = (row: any): User => ({
@@ -269,6 +277,16 @@ export async function loadProfile(userId: string) {
 
 export async function insertTransactions(transactions: Omit<Transaction, "id" | "ts">[]) {
   const { error } = await requireClient().from("transactions").insert(transactions.map(txToRow));
+  if (error) throw error;
+}
+
+export async function updateResolvedTransaction(tx: Transaction) {
+  const { error } = await requireClient().from("transactions").update({
+    material_id: tx.materialId,
+    qty: tx.qty,
+    needs_review: false,
+    raw_unit_text: tx.rawUnitText ?? null,
+  }).eq("id", tx.id);
   if (error) throw error;
 }
 

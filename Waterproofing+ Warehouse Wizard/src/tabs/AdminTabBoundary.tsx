@@ -3,27 +3,51 @@ import { validateMaterialsCsv } from "../data/csvImport";
 import { invokeMaterialsImport, invokeQuickBooksConnect, invokeQuickBooksSync } from "../data/repo";
 import { money, monthlyInventoryLogCsv, priceChangeMaterials, reorderEstimate } from "../domain/business";
 import type { Theme } from "../themes";
-import type { AppState, Material, Role, ServiceId, Site } from "../types";
+import type { AppState, Material, MaterialUnit, Role, ServiceId, Site, Transaction } from "../types";
+import { ALLOWED_MATERIAL_UNITS } from "../domain/business";
 import { canAdmin, canManage, Pill, serviceName, siteName, userName } from "../App";
 
-export default function AdminTabBoundary({ state, role, notify, remoteMode, saveMaterial, saveSite, currentTheme, onThemeChange, openThemeEditor }: {
+export default function AdminTabBoundary({ state, role, notify, remoteMode, saveMaterial, saveSite, resolveTransaction, currentTheme, onThemeChange, openThemeEditor }: {
   state: AppState;
   role: Role;
   notify: (message: string) => void;
   remoteMode: boolean;
   saveMaterial: (material: Material, includeQty?: boolean) => void;
   saveSite: (site: Site) => void;
+  resolveTransaction: (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit) => void;
   currentTheme: Theme;
   onThemeChange: (theme: Theme) => void;
   openThemeEditor: () => void;
 }) {
-  return <Admin state={state} role={role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} saveSite={saveSite} currentTheme={currentTheme} onThemeChange={onThemeChange} openThemeEditor={openThemeEditor} />;
+  return <Admin state={state} role={role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} saveSite={saveSite} resolveTransaction={resolveTransaction} currentTheme={currentTheme} onThemeChange={onThemeChange} openThemeEditor={openThemeEditor} />;
 }
 
 function JobSiteRow({ site, saveSite }: { site: Site; saveSite: (site: Site) => void }) {
   const [url, setUrl] = useState(site.driveFolderUrl ?? "");
   const dirty = url !== (site.driveFolderUrl ?? "");
   return <div className="line-item"><div className="mid"><b>{site.name}</b><input className="in" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="Google Drive folder link (job details / site plans)" /></div>{dirty && <button className="btn line sm" onClick={() => saveSite({ ...site, driveFolderUrl: url.trim() || undefined })}>Save</button>}</div>;
+}
+
+function NeedsReviewRow({ tx, state, resolveTransaction }: { tx: Transaction; state: AppState; resolveTransaction: (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit) => void }) {
+  const [materialId, setMaterialId] = useState("");
+  const [qty, setQty] = useState(tx.rawQtyText ?? "");
+  const [unit, setUnit] = useState<MaterialUnit | "">("");
+  return <div className="line-item">
+    <div className="mid">
+      <b>{tx.rawItemText ?? "Unlabeled item"}</b>
+      <div className="tiny muted">{new Date(tx.ts).toLocaleDateString("en-CA")} · {siteName(state, tx.siteId)} · {userName(state, tx.userId)} · raw qty: {tx.rawQtyText ?? "—"} {tx.rawUnitText ?? ""}</div>
+    </div>
+    <select className="in" value={materialId} onChange={(event) => setMaterialId(event.target.value)}>
+      <option value="">Pick the real item…</option>
+      {state.materials.map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}
+    </select>
+    <input className="in" type="number" step="any" value={qty} onChange={(event) => setQty(event.target.value)} placeholder="Qty" />
+    <select className="in" value={unit} onChange={(event) => setUnit(event.target.value as MaterialUnit)}>
+      <option value="">Unit (optional note)</option>
+      {ALLOWED_MATERIAL_UNITS.map((item) => <option key={item} value={item}>{item}</option>)}
+    </select>
+    <button className="btn primary sm" disabled={!materialId || !qty || Number(qty) <= 0} onClick={() => resolveTransaction(tx.id, materialId, Number(qty), unit || undefined)}>Resolve</button>
+  </div>;
 }
 
 function transactionsCsv(state: AppState) {
@@ -55,7 +79,8 @@ function printReport(state: AppState) {
   }
 }
 
-function Admin({ state, role, notify, remoteMode, saveMaterial, saveSite, currentTheme, onThemeChange, openThemeEditor }: { state: AppState; role: Role; notify: (message: string) => void; remoteMode: boolean; saveMaterial: (material: Material, includeQty?: boolean) => void; saveSite: (site: Site) => void; currentTheme: Theme; onThemeChange: (theme: Theme) => void; openThemeEditor: () => void }) {
+function Admin({ state, role, notify, remoteMode, saveMaterial, saveSite, resolveTransaction, currentTheme, onThemeChange, openThemeEditor }: { state: AppState; role: Role; notify: (message: string) => void; remoteMode: boolean; saveMaterial: (material: Material, includeQty?: boolean) => void; saveSite: (site: Site) => void; resolveTransaction: (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit) => void; currentTheme: Theme; onThemeChange: (theme: Theme) => void; openThemeEditor: () => void }) {
+  const needsReview = state.transactions.filter((tx) => tx.needsReview);
   const estimate = reorderEstimate(state.materials);
   const csv = useMemo(() => transactionsCsv(state), [state]);
   const [exportMonth, setExportMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -74,5 +99,5 @@ function Admin({ state, role, notify, remoteMode, saveMaterial, saveSite, curren
       setReport(`${result.imported} imported; ${result.skipped.length} skipped`);
     }
   };
-  return <div className="admin-grid"><section className="card"><h3>Theme Customization</h3><p className="tiny muted">Choose from 6 preset themes or create your own custom color scheme. Changes apply instantly.</p><div className="theme-preview"><span className="theme-name">{currentTheme.name}</span><div className="theme-colors"><span className="color-dot" style={{ background: currentTheme.colors.primary }} /><span className="color-dot" style={{ background: currentTheme.colors.amber }} /><span className="color-dot" style={{ background: currentTheme.colors.good }} /></div></div><button className="btn primary block" onClick={openThemeEditor}>Customize Theme</button></section><section className="card"><h3>CSV material importer</h3><p className="tiny muted">Accepts the workbook export headers including Inventory, Category, Unit (locked), Unit Cost, Reorder At, and Warehouse Location. Quantity is never overwritten.</p><input className="in" type="file" accept=".csv,text/csv" disabled={!canAdmin(role)} onChange={(event) => upload(event.target.files?.[0]).catch((err) => setReport(err.message))} />{report && <p className="tiny muted">{report}</p>}</section><section className="card"><h3>QuickBooks Online</h3><p className="tiny muted">OAuth stores tokens server-side. Sync upserts customer + project name only.</p><button className="btn dark block" disabled={!canAdmin(role) || !remoteMode} onClick={() => invokeQuickBooksConnect().then((r) => { window.location.href = r.authUrl; }).catch((err) => notify(err.message))}>Connect QuickBooks</button><button className="btn line block" disabled={!canAdmin(role) || !remoteMode} onClick={() => invokeQuickBooksSync().then((r) => notify(`${r.synced} jobs synced`)).catch((err) => notify(err.message))}>Sync jobs</button></section><section className="card"><h3>Reorder PO estimate</h3><p className="tiny muted">{estimate.lines.length} lines · subtotal {money(estimate.subtotal)} · GST {money(estimate.gst)} · total {money(estimate.total)}</p><button className="btn line block" onClick={() => navigator.clipboard?.writeText(buildPoText(state))}>Copy PO to clipboard</button></section><section className="card"><h3>Reports & exports</h3><p className="tiny muted">Cost report can be printed to PDF by your browser. BuilderTrend remains a CSV/PDF export stub.</p><button className="btn line block" onClick={() => printReport(state)}>Print cost report</button><button className="btn line block" onClick={() => navigator.clipboard?.writeText(csv)}>Copy transactions CSV</button><label className="fld">Monthly Inventory Log</label><input className="in" type="month" value={exportMonth} onChange={(event) => setExportMonth(event.target.value)} /><button className="btn line block" onClick={() => navigator.clipboard?.writeText(monthlyCsv)}>Copy Monthly Inventory Log CSV</button></section><section className="card"><h3>Users & roles</h3>{state.users.map((user) => <div className="line-item" key={user.id}><b>{user.name}</b><span className="pill neu">{user.role}</span></div>)}</section><section className="card"><h3>Job sites — details links</h3><p className="tiny muted">Google Drive folder per job for site plans and photos.</p>{state.sites.map((site) => <JobSiteRow key={site.id} site={site} saveSite={saveSite} />)}</section><section className="card"><h3>Crew pool</h3><p className="tiny muted">Points from departed team members, saved toward a company breakfast.</p><Pill tone="good">{state.crewPoolPoints} pts</Pill></section><section className="card"><h3>PEOPLE points feed</h3><p className="tiny muted">GET /functions/v1/points-feed?since=ISO_DATE returns append-only points_events with profile fields.</p><Pill tone="good">{state.pointsEvents.length} events</Pill></section></div>;
+  return <div className="admin-grid"><section className="card"><h3>Theme Customization</h3><p className="tiny muted">Choose from 6 preset themes or create your own custom color scheme. Changes apply instantly.</p><div className="theme-preview"><span className="theme-name">{currentTheme.name}</span><div className="theme-colors"><span className="color-dot" style={{ background: currentTheme.colors.primary }} /><span className="color-dot" style={{ background: currentTheme.colors.amber }} /><span className="color-dot" style={{ background: currentTheme.colors.good }} /></div></div><button className="btn primary block" onClick={openThemeEditor}>Customize Theme</button></section><section className="card"><h3>CSV material importer</h3><p className="tiny muted">Accepts the workbook export headers including Inventory, Category, Unit (locked), Unit Cost, Reorder At, and Warehouse Location. Quantity is never overwritten.</p><input className="in" type="file" accept=".csv,text/csv" disabled={!canAdmin(role)} onChange={(event) => upload(event.target.files?.[0]).catch((err) => setReport(err.message))} />{report && <p className="tiny muted">{report}</p>}</section><section className="card"><h3>QuickBooks Online</h3><p className="tiny muted">OAuth stores tokens server-side. Sync upserts customer + project name only.</p><button className="btn dark block" disabled={!canAdmin(role) || !remoteMode} onClick={() => invokeQuickBooksConnect().then((r) => { window.location.href = r.authUrl; }).catch((err) => notify(err.message))}>Connect QuickBooks</button><button className="btn line block" disabled={!canAdmin(role) || !remoteMode} onClick={() => invokeQuickBooksSync().then((r) => notify(`${r.synced} jobs synced`)).catch((err) => notify(err.message))}>Sync jobs</button></section><section className="card"><h3>Reorder PO estimate</h3><p className="tiny muted">{estimate.lines.length} lines · subtotal {money(estimate.subtotal)} · GST {money(estimate.gst)} · total {money(estimate.total)}</p><button className="btn line block" onClick={() => navigator.clipboard?.writeText(buildPoText(state))}>Copy PO to clipboard</button></section><section className="card"><h3>Reports & exports</h3><p className="tiny muted">Cost report can be printed to PDF by your browser. BuilderTrend remains a CSV/PDF export stub.</p><button className="btn line block" onClick={() => printReport(state)}>Print cost report</button><button className="btn line block" onClick={() => navigator.clipboard?.writeText(csv)}>Copy transactions CSV</button><label className="fld">Monthly Inventory Log</label><input className="in" type="month" value={exportMonth} onChange={(event) => setExportMonth(event.target.value)} /><button className="btn line block" onClick={() => navigator.clipboard?.writeText(monthlyCsv)}>Copy Monthly Inventory Log CSV</button></section><section className="card"><h3>Users & roles</h3>{state.users.map((user) => <div className="line-item" key={user.id}><b>{user.name}</b><span className="pill neu">{user.role}</span></div>)}</section><section className="card wide"><div className="sec-h"><div><h3>Needs review</h3><p className="tiny muted">Imported or messy log entries where the item, quantity, or unit wasn't clear. Fix by the 10th of every month.</p></div><Pill tone={needsReview.length ? "warn" : "good"}>{needsReview.length}</Pill></div>{needsReview.length ? needsReview.map((tx) => <NeedsReviewRow key={tx.id} tx={tx} state={state} resolveTransaction={resolveTransaction} />) : <p className="tiny muted">Nothing needs review.</p>}</section><section className="card"><h3>Job sites — details links</h3><p className="tiny muted">Google Drive folder per job for site plans and photos.</p>{state.sites.map((site) => <JobSiteRow key={site.id} site={site} saveSite={saveSite} />)}</section><section className="card"><h3>Crew pool</h3><p className="tiny muted">Points from departed team members, saved toward a company breakfast.</p><Pill tone="good">{state.crewPoolPoints} pts</Pill></section><section className="card"><h3>PEOPLE points feed</h3><p className="tiny muted">GET /functions/v1/points-feed?since=ISO_DATE returns append-only points_events with profile fields.</p><Pill tone="good">{state.pointsEvents.length} events</Pill></section></div>;
 }

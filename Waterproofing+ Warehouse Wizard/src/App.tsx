@@ -22,6 +22,7 @@ import {
   insertDailyLog,
   insertMaintenanceRequest,
   insertTransactions,
+  updateResolvedTransaction,
   invokeMaterialsImport,
   invokeQuickBooksConnect,
   invokeQuickBooksSync,
@@ -54,6 +55,7 @@ import {
   periodKey,
   reorderEstimate,
   remapProvisionalMaterialUnit,
+  resolveNeedsReviewTransaction,
   respondToMaintenanceRequest,
   serviceRequired,
   setExactCountDelta,
@@ -293,6 +295,16 @@ export function App() {
     setSheet(null);
   };
 
+  const resolveTransaction = (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit) => {
+    let resolved: Transaction | undefined;
+    patchState((current) => {
+      const applied = resolveNeedsReviewTransaction(current, transactionId, materialId, qty, unit);
+      resolved = applied.transactions.find((item) => item.id === transactionId);
+      return applied;
+    }, "Item resolved");
+    if (remoteMode && resolved) updateResolvedTransaction(resolved).then(invalidateRemote).catch((err) => notify(`Resolve sync failed: ${err.message}`));
+  };
+
   const saveMaterial = (material: Material, includeQty = true) => {
     const materialToSave = applyCostChangeFlag(state.materials.find((item) => item.id === material.id), material);
     patchState((current) => ({
@@ -420,7 +432,7 @@ export function App() {
         <React.Suspense fallback={<TabSkeleton />}>
           {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
-          {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} saveSite={saveSite} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} />}
+          {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} saveSite={saveSite} resolveTransaction={resolveTransaction} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} />}
         </React.Suspense>
       </main>
 

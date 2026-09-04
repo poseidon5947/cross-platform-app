@@ -120,7 +120,7 @@ export interface MaintenanceRequest {
 
 export interface Transaction {
   id: string;
-  materialId: string;
+  materialId?: string;
   qty: number;
   type: TxType;
   siteId?: string;
@@ -128,6 +128,10 @@ export interface Transaction {
   userId: string;
   note?: string;
   ts: string;
+  needsReview?: boolean;
+  rawItemText?: string;
+  rawQtyText?: string;
+  rawUnitText?: string;
 }
 
 export interface ToolItem {

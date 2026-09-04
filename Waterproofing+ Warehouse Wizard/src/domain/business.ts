@@ -352,6 +352,21 @@ export function respondToMaintenanceRequest(
   };
 }
 
+export function resolveNeedsReviewTransaction(
+  state: AppState,
+  transactionId: string,
+  materialId: string,
+  qty: number,
+  unit?: MaterialUnit,
+): AppState {
+  const tx = state.transactions.find((item) => item.id === transactionId);
+  const material = state.materials.find((item) => item.id === materialId);
+  if (!tx || !tx.needsReview || !material || qty <= 0) return state;
+  const resolved: Transaction = { ...tx, materialId, qty, needsReview: false, rawUnitText: unit ?? tx.rawUnitText };
+  const transactions = state.transactions.map((item) => (item.id === transactionId ? resolved : item));
+  return { ...state, transactions, materials: applyTransactions(state.materials, [resolved]) };
+}
+
 const DAILY_LOG_ENTRY_POINTS = 5;
 
 export function creditOrPool(state: AppState, userId: string, points: number, reason: string, ref: string, now = new Date().toISOString()): AppState {

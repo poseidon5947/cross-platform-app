@@ -17,6 +17,7 @@ import {
   setExactCountDelta,
   signedQuantity,
   stockStatus,
+  resolveNeedsReviewTransaction,
   submitDailyLog,
   submitMaintenanceRequest,
   todayKey,
@@ -165,6 +166,30 @@ describe("daily log", () => {
     const result = creditOrPool(state, "c0", 5, "test", "ref:1");
     expect(result.crewPoolPoints).toBe(5);
     expect(result.pointsEvents).toHaveLength(state.pointsEvents.length);
+  });
+});
+
+describe("needs-review transactions", () => {
+  it("resolves a needs-review transaction and applies the stock delta for the first time", () => {
+    let state = createSeedState();
+    const material = state.materials.find((item) => item.id === "m1")!;
+    const before = material.qty;
+    state = {
+      ...state,
+      transactions: [{ id: "txr1", qty: 0, type: "use", userId: "c0", ts: "2026-08-05T00:00:00Z", needsReview: true, rawItemText: "2 d100", rawQtyText: "2" }, ...state.transactions],
+    };
+    const result = resolveNeedsReviewTransaction(state, "txr1", material.id, 2);
+    const resolved = result.transactions.find((item) => item.id === "txr1")!;
+    expect(resolved.needsReview).toBe(false);
+    expect(resolved.materialId).toBe(material.id);
+    expect(result.materials.find((item) => item.id === material.id)?.qty).toBe(Math.max(0, before - 2));
+  });
+
+  it("ignores a resolve attempt on a transaction that isn't flagged for review", () => {
+    const state = createSeedState();
+    const clean = state.transactions[0];
+    const result = resolveNeedsReviewTransaction(state, clean.id, "m1", 5);
+    expect(result).toBe(state);
   });
 });
 
