@@ -31,7 +31,8 @@ export type PointsEventType =
   | "crew_compliment"
   | "crew_safety_milestone"
   | "crew_peer_recognition"
-  | "redeem";
+  | "redeem"
+  | "daily_log_entry";
 
 export interface Material {
   id: string;
@@ -65,6 +66,7 @@ export interface Site {
   qboProjectId?: string;
   qboProjectName?: string;
   source: "manual" | "quickbooks";
+  driveFolderUrl?: string;
 }
 
 export interface Service {
@@ -81,6 +83,21 @@ export interface User {
   orgRole?: string;
   color: string;
   points: number;
+  status?: "Active" | "Inactive" | "Leave";
+}
+
+export interface DailyLog {
+  id: string;
+  siteId: string;
+  serviceId: ServiceId;
+  date: string;
+  materialsInstalled?: string;
+  workCompleted: string;
+  challenges?: string;
+  toDoNextTime: string;
+  completedByUserId: string;
+  submittedByUserId: string;
+  createdAt: string;
 }
 
 export type MaintenanceTargetType = "truck" | "tool";
@@ -204,6 +221,8 @@ export interface AppState {
   currentUserId: string;
   offlineQueue: OfflineCommand[];
   maintenanceRequests: MaintenanceRequest[];
+  dailyLogs: DailyLog[];
+  crewPoolPoints: number;
 }
 
 export type OfflineCommand =

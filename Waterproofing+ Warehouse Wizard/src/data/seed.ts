@@ -286,6 +286,8 @@ export function createSeedState(): AppState {
     currentUserId: "c0",
     offlineQueue: [],
     maintenanceRequests: [],
+    dailyLogs: [],
+    crewPoolPoints: 0,
   };
 }
 

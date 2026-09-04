@@ -6,6 +6,7 @@ import {
   applyTransactions,
   applyTruckLog,
   combineDateWithNow,
+  creditOrPool,
   dailyProgress,
   evaluateDailyPoints,
   isKmEntryTask,
@@ -16,6 +17,7 @@ import {
   setExactCountDelta,
   signedQuantity,
   stockStatus,
+  submitDailyLog,
   submitMaintenanceRequest,
   todayKey,
   weekKey,
@@ -119,6 +121,50 @@ describe("maintenance requests", () => {
     const state = createSeedState();
     const result = submitMaintenanceRequest(state, "c0", "truck", "tr1", "Ford F150", "Brake noise");
     expect(result.maintenanceRequests[0].deadlineAt).toBeUndefined();
+  });
+});
+
+describe("daily log", () => {
+  it("submits a daily log entry and credits the completing crew member 5 points", () => {
+    const state = createSeedState();
+    const before = state.pointsEvents.length;
+    const result = submitDailyLog(state, "c0", {
+      siteId: "s1",
+      serviceId: "wp",
+      date: "2026-09-04",
+      workCompleted: "Applied base coat to section A",
+      toDoNextTime: "Finish section B",
+      completedByUserId: "c0",
+      submittedByUserId: "c0",
+    });
+    expect(result.dailyLogs).toHaveLength(1);
+    expect(result.dailyLogs[0]).toMatchObject({ siteId: "s1", workCompleted: "Applied base coat to section A", completedByUserId: "c0" });
+    expect(result.pointsEvents).toHaveLength(before + 1);
+    expect(result.pointsEvents[0]).toMatchObject({ userId: "c0", points: 5, type: "daily_log_entry" });
+    expect(result.crewPoolPoints).toBe(0);
+  });
+
+  it("rejects a submission missing required narrative fields", () => {
+    const state = createSeedState();
+    const result = submitDailyLog(state, "c0", {
+      siteId: "s1",
+      serviceId: "wp",
+      date: "2026-09-04",
+      workCompleted: "",
+      toDoNextTime: "Finish section B",
+      completedByUserId: "c0",
+      submittedByUserId: "c0",
+    });
+    expect(result).toBe(state);
+    expect(result.dailyLogs).toHaveLength(0);
+  });
+
+  it("routes points to the crew pool instead of an individual when they've departed", () => {
+    let state = createSeedState();
+    state = { ...state, users: state.users.map((user) => (user.id === "c0" ? { ...user, status: "Inactive" as const } : user)) };
+    const result = creditOrPool(state, "c0", 5, "test", "ref:1");
+    expect(result.crewPoolPoints).toBe(5);
+    expect(result.pointsEvents).toHaveLength(state.pointsEvents.length);
   });
 });
 

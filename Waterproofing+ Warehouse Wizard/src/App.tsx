@@ -16,8 +16,10 @@ import { categoryLabels, createSeedState } from "./data/seed";
 import { validateMaterialsCsv } from "./data/csvImport";
 import { drainOfflineQueue } from "./data/offline";
 import {
+  addToCrewPool,
   deleteTask,
   deleteCompletion,
+  insertDailyLog,
   insertMaintenanceRequest,
   insertTransactions,
   invokeMaterialsImport,
@@ -56,6 +58,7 @@ import {
   serviceRequired,
   setExactCountDelta,
   stockStatus,
+  submitDailyLog as submitDailyLogDomain,
   submitMaintenanceRequest,
   todayKey,
   ALLOWED_MATERIAL_UNITS,
@@ -63,7 +66,7 @@ import {
   stepForMaterialUnit,
 } from "./domain/business";
 import { isSupabaseConfigured, supabase } from "./integrations/supabase";
-import type { AppState, Category, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, TruckLog, TruckTask, TxType, User } from "./types";
+import type { AppState, Category, DailyLog, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, PointsEvent, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, TruckLog, TruckTask, TxType, User } from "./types";
 
 const STORAGE_KEY = "warehouse-wizard-state-v4";
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true" || !isSupabaseConfigured();
@@ -100,6 +103,8 @@ function sanitizeStoredState(state: AppState): AppState {
       const unit = normalizeMaterialUnit(String(material.unit)) ?? remapProvisionalMaterialUnit(`${material.unit} ${material.name}`);
       return { ...material, unit, step: stepForMaterialUnit(unit), strictTracking: material.strictTracking ?? true };
     }),
+    dailyLogs: state.dailyLogs ?? [],
+    crewPoolPoints: state.crewPoolPoints ?? 0,
   };
 }
 
@@ -341,6 +346,27 @@ export function App() {
     setSheet(null);
   };
 
+  const submitDailyLog = (input: Omit<DailyLog, "id" | "createdAt">) => {
+    let createdLog: DailyLog | undefined;
+    let poolDelta = 0;
+    let createdEvent: PointsEvent | undefined;
+    patchState((current) => {
+      const applied = submitDailyLogDomain(current, current.currentUserId, input);
+      if (applied === current) return current;
+      createdLog = applied.dailyLogs[0];
+      poolDelta = applied.crewPoolPoints - current.crewPoolPoints;
+      if (poolDelta === 0) createdEvent = applied.pointsEvents[0];
+      return applied;
+    }, "Daily log submitted");
+    if (remoteMode && createdLog) {
+      insertDailyLog(createdLog)
+        .then(() => (poolDelta > 0 ? addToCrewPool(poolDelta) : createdEvent ? persistPoints([createdEvent]) : Promise.resolve()))
+        .then(invalidateRemote)
+        .catch((err) => notify(`Daily log sync failed: ${err.message}`));
+    }
+    setSheet(null);
+  };
+
   const respondMaintenance = (requestId: string, note: string) => {
     let updated: MaintenanceRequest | undefined;
     patchState((current) => {
@@ -392,9 +418,9 @@ export function App() {
       <main>
         {tab === "home" && <Home state={state} userId={currentUser.id} setTab={setTab} goToFocus={goToFocus} openGraph={setGraphModal} />}
         <React.Suspense fallback={<TabSkeleton />}>
-          {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
+          {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
-          {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} />}
+          {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} saveSite={saveSite} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} />}
         </React.Suspense>
       </main>
 

@@ -1,5 +1,5 @@
 import { supabase } from "../integrations/supabase";
-import type { AppState, MaintenanceRequest, Material, OfflineCommand, PointsEvent, Service, Site, Streak, TaskCompletion, ToolItem, Transaction, Truck, TruckLog, TruckTask, User } from "../types";
+import type { AppState, DailyLog, MaintenanceRequest, Material, OfflineCommand, PointsEvent, Service, Site, Streak, TaskCompletion, ToolItem, Transaction, Truck, TruckLog, TruckTask, User } from "../types";
 
 function requireClient() {
   if (!supabase) throw new Error("Supabase is not configured.");
@@ -72,6 +72,7 @@ const profileFromRow = (row: any): User => ({
   orgRole: row.org_role ?? undefined,
   color: row.color,
   points: Number(row.points ?? 0),
+  status: row.employment_status ?? undefined,
 });
 
 const maintenanceFromRow = (row: any): MaintenanceRequest => ({
@@ -97,6 +98,7 @@ const siteFromRow = (row: any): Site => ({
   qboProjectId: row.qbo_project_id ?? undefined,
   qboProjectName: row.qbo_project_name ?? undefined,
   source: row.source ?? "manual",
+  driveFolderUrl: row.drive_folder_url ?? undefined,
 });
 
 const serviceFromRow = (row: any): Service => ({ id: row.id, name: row.name, short: row.id.toUpperCase() });
@@ -164,6 +166,48 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+const dailyLogFromRow = (row: any): DailyLog => ({
+  id: row.id,
+  siteId: row.site_id,
+  serviceId: row.service_id,
+  date: row.date,
+  materialsInstalled: row.materials_installed ?? undefined,
+  workCompleted: row.work_completed,
+  challenges: row.challenges ?? undefined,
+  toDoNextTime: row.to_do_next_time,
+  completedByUserId: row.completed_by_user_id,
+  submittedByUserId: row.submitted_by_user_id,
+  createdAt: row.created_at,
+});
+
+export async function insertDailyLog(log: DailyLog) {
+  const { error } = await requireClient().from("daily_logs").insert({
+    id: isUuid(log.id) ? log.id : undefined,
+    site_id: log.siteId,
+    service_id: log.serviceId,
+    date: log.date,
+    materials_installed: log.materialsInstalled ?? null,
+    work_completed: log.workCompleted,
+    challenges: log.challenges ?? null,
+    to_do_next_time: log.toDoNextTime,
+    completed_by_user_id: log.completedByUserId,
+    submitted_by_user_id: log.submittedByUserId,
+  });
+  if (error) throw error;
+}
+
+async function readCrewPoolPoints() {
+  const { data, error } = await requireClient().from("crew_point_pool").select("points").eq("id", "default").maybeSingle();
+  if (error) throw error;
+  return Number(data?.points ?? 0);
+}
+
+export async function addToCrewPool(points: number) {
+  const current = await readCrewPoolPoints();
+  const { error } = await requireClient().from("crew_point_pool").upsert({ id: "default", points: current + points, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
 async function read<T>(table: string, mapper: (row: any) => T, order = "created_at") {
   const { data, error } = await requireClient().from(table).select("*").order(order, { ascending: table === "materials" });
   if (error) throw error;
@@ -171,7 +215,7 @@ async function read<T>(table: string, mapper: (row: any) => T, order = "created_
 }
 
 export async function loadRemoteState(currentUserId: string): Promise<AppState> {
-  const [materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streakRows, maintenanceRequests] =
+  const [materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streakRows, maintenanceRequests, dailyLogs, crewPoolPoints] =
     await Promise.all([
       read("materials", materialFromRow),
       read("sites", siteFromRow),
@@ -186,8 +230,10 @@ export async function loadRemoteState(currentUserId: string): Promise<AppState> 
       read("points_events", pointsFromRow, "ts"),
       read("streaks", (row) => ({ userId: row.user_id, count: row.count, last: row.last, awardedOn: row.awarded_on })),
       read("maintenance_request", maintenanceFromRow, "requested_at"),
+      read("daily_logs", dailyLogFromRow, "date"),
+      readCrewPoolPoints(),
     ]);
-  return { materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streaks: streakRows, currentUserId, offlineQueue: [], maintenanceRequests };
+  return { materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streaks: streakRows, currentUserId, offlineQueue: [], maintenanceRequests, dailyLogs, crewPoolPoints };
 }
 
 export async function insertMaintenanceRequest(request: MaintenanceRequest) {
@@ -245,6 +291,7 @@ export async function upsertSite(site: Site) {
     qbo_project_id: site.qboProjectId ?? null,
     qbo_project_name: site.qboProjectName ?? null,
     source: site.source,
+    drive_folder_url: site.driveFolderUrl ?? null,
   });
   if (error) throw error;
 }

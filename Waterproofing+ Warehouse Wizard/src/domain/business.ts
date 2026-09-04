@@ -1,5 +1,6 @@
 import type {
   AppState,
+  DailyLog,
   MaintenanceRequest,
   MaintenanceTargetType,
   Material,
@@ -349,4 +350,27 @@ export function respondToMaintenanceRequest(
         : item,
     ),
   };
+}
+
+const DAILY_LOG_ENTRY_POINTS = 5;
+
+export function creditOrPool(state: AppState, userId: string, points: number, reason: string, ref: string, now = new Date().toISOString()): AppState {
+  const recipient = state.users.find((item) => item.id === userId);
+  if (recipient?.status === "Inactive") {
+    return { ...state, crewPoolPoints: state.crewPoolPoints + points };
+  }
+  const event: PointsEvent = { id: id("pe"), userId, type: "daily_log_entry", points, reason, ref, ts: now };
+  return { ...state, pointsEvents: [event, ...state.pointsEvents] };
+}
+
+export function submitDailyLog(
+  state: AppState,
+  submittedByUserId: string,
+  input: Omit<DailyLog, "id" | "createdAt">,
+  now = new Date().toISOString(),
+): AppState {
+  if (!input.workCompleted.trim() || !input.toDoNextTime.trim() || !input.siteId || !input.completedByUserId) return state;
+  const log: DailyLog = { ...input, id: id("dlog"), createdAt: now };
+  const withLog = { ...state, dailyLogs: [log, ...state.dailyLogs] };
+  return creditOrPool(withLog, input.completedByUserId, DAILY_LOG_ENTRY_POINTS, "Daily log entry submitted", `dailylog:${log.id}`, now);
 }

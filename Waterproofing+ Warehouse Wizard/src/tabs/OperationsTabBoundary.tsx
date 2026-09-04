@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { categoryLabels } from "../data/seed";
 import { ALLOWED_MATERIAL_UNITS, batteryState, canResolveMaintenanceRequests, dailyProgress, id, isKmEntryTask, isTaskDone, money, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
-import type { AppState, Category, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, TruckLog, TruckTask, TxType, User } from "../types";
+import type { AppState, Category, DailyLog, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, TruckLog, TruckTask, TxType, User } from "../types";
 import { BulkToolSheet, canManage, Kpi, Pill, ProgressRing, serviceName, siteName, userName } from "../App";
 import type { Tab as AppTab } from "../App";
 
@@ -30,7 +30,7 @@ function ImageFilePicker({ accept, value, onChange }: { accept?: string; value?:
   </div>;
 }
 
-export default function OperationsTabBoundary({ activeTab, state, role, currentUser, userId, toggleTask, openSheet, saveMaterial, setExactCount, setTab, submitTransactions, saveSite, saveTool, saveTruck, saveTask, removeTask, submitMaintenance, respondMaintenance, focusTarget, onFocusHandled }: {
+export default function OperationsTabBoundary({ activeTab, state, role, currentUser, userId, toggleTask, openSheet, saveMaterial, setExactCount, setTab, submitTransactions, submitDailyLog, saveSite, saveTool, saveTruck, saveTask, removeTask, submitMaintenance, respondMaintenance, focusTarget, onFocusHandled }: {
   activeTab: Tab;
   state: AppState;
   role: Role;
@@ -42,6 +42,7 @@ export default function OperationsTabBoundary({ activeTab, state, role, currentU
   setExactCount: (material: Material, qty: number) => void;
   setTab: (tab: AppTab) => void;
   submitTransactions: (txs: Omit<Transaction, "id" | "ts">[], chosenDate?: string) => void;
+  submitDailyLog: (input: Omit<DailyLog, "id" | "createdAt">) => void;
   saveSite: (site: Site) => void;
   saveTool: (tool: ToolItem, message?: string) => void;
   saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void;
@@ -54,7 +55,7 @@ export default function OperationsTabBoundary({ activeTab, state, role, currentU
 }) {
   if (activeTab === "inventory") return <Inventory state={state} role={role} openSheet={openSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
   if (activeTab === "tremco") return <Tremco state={state} role={role} openSheet={openSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} />;
-  if (activeTab === "log") return <LogMaterials state={state} userId={userId} submitTransactions={submitTransactions} saveSite={saveSite} setTab={setTab} />;
+  if (activeTab === "log") return <LogMaterials state={state} userId={userId} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} setTab={setTab} />;
   if (activeTab === "tools") return <Tools state={state} role={role} userId={userId} openSheet={openSheet} saveTool={saveTool} />;
   return <Trucks state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
 }
@@ -106,7 +107,16 @@ function Tremco({ state, role, openSheet, saveMaterial, setExactCount, setTab }:
   return <><InventorySegments activeTab="tremco" setTab={setTab} /><p className="tiny muted">Highest-value items, billed back to projects. Counted on the 1st of each month; on-hand quantities come from the warehouse count, not the office cross-reference sheet.</p><div className="search"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Tremco item or bin" /></div><section className="card inv-card">{list.length ? list.map((material) => <MaterialRow key={material.id} material={material} onClick={() => openSheet({ title: material.name, content: <MaterialDetail material={material} role={role} setExactCount={setExactCount} saveMaterial={saveMaterial} /> })} />) : <p className="tiny muted">No Tremco items flagged yet.</p>}</section>{list.length > 0 && <button className="btn line block" onClick={() => printInventoryLog(state, list, "Tremco")}>Export Tremco log for CFO</button>}{canManage(role) && <button className="btn line block" onClick={() => openSheet({ title: "New Tremco item", content: <MaterialForm material={{ id: id("m"), name: "", category: "waterproofing", unit: "Unit", step: 1, pack: "", unitsPerPallet: 0, cost: 0, strictTracking: true, qty: 0, reorderPoint: 1, bin: "", isTremco: true }} saveMaterial={saveMaterial} /> })}>Add Tremco item</button>}</>;
 }
 
-function LogMaterials({ state, userId, submitTransactions, saveSite, setTab }: { state: AppState; userId: string; submitTransactions: (txs: Omit<Transaction, "id" | "ts">[], chosenDate?: string) => void; saveSite: (site: Site) => void; setTab: (tab: AppTab) => void }) {
+function printDailyLogs(state: AppState, list: DailyLog[]) {
+  const html = `<!doctype html><html><head><title>Daily Logs</title><style>body{font-family:Arial;padding:28px;color:#132135}.top{border-bottom:3px solid #0b6ea8;padding-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px}th,td{border-bottom:1px solid #e2e8f1;padding:8px;text-align:left;vertical-align:top}</style></head><body><div class="top"><h1>Daily Logs</h1><p>Waterproofing+ · ${new Date().toLocaleDateString("en-CA")}</p></div><table><thead><tr><th>Date</th><th>Job</th><th>Service</th><th>Completed by</th><th>Materials installed</th><th>Work completed</th><th>Challenges</th><th>To do next time</th></tr></thead><tbody>${list.map((log) => `<tr><td>${log.date}</td><td>${siteName(state, log.siteId)}</td><td>${serviceName(state, log.serviceId)}</td><td>${userName(state, log.completedByUserId)}</td><td>${log.materialsInstalled ?? ""}</td><td>${log.workCompleted}</td><td>${log.challenges ?? ""}</td><td>${log.toDoNextTime}</td></tr>`).join("")}</tbody></table><script>window.onload=function(){setTimeout(function(){window.print()},250)}</script></body></html>`;
+  const w = window.open("", "_blank");
+  if (w) {
+    w.document.write(html);
+    w.document.close();
+  }
+}
+
+function LogMaterials({ state, userId, submitTransactions, submitDailyLog, saveSite, setTab }: { state: AppState; userId: string; submitTransactions: (txs: Omit<Transaction, "id" | "ts">[], chosenDate?: string) => void; submitDailyLog: (input: Omit<DailyLog, "id" | "createdAt">) => void; saveSite: (site: Site) => void; setTab: (tab: AppTab) => void }) {
   const [siteId, setSiteId] = useState(state.sites[0]?.id);
   const [serviceId, setServiceId] = useState<ServiceId>("wp");
   const [type, setType] = useState<TxType>("use");
@@ -114,14 +124,27 @@ function LogMaterials({ state, userId, submitTransactions, saveSite, setTab }: {
   const [query, setQuery] = useState("");
   const [newSite, setNewSite] = useState("");
   const [logDate, setLogDate] = useState(todayKey());
+  const activeUsers = state.users.filter((item) => item.status !== "Inactive");
+  const [completedByUserId, setCompletedByUserId] = useState(userId);
+  const [materialsInstalled, setMaterialsInstalled] = useState("");
+  const [workCompleted, setWorkCompleted] = useState("");
+  const [challenges, setChallenges] = useState("");
+  const [toDoNextTime, setToDoNextTime] = useState("");
   const materials = state.materials.filter((material) => material.strictTracking !== false && (!query || material.name.toLowerCase().includes(query.toLowerCase())));
   const total = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
-  const myRecentLogs = state.transactions.filter((tx) => tx.userId === userId).slice(0, 5);
+  const myRecentLogs = state.dailyLogs.filter((log) => log.submittedByUserId === userId).slice(0, 5);
+  const selectedSite = state.sites.find((item) => item.id === siteId);
+  const canSubmit = serviceRequired(siteId, serviceId) && total > 0 && workCompleted.trim() && toDoNextTime.trim() && completedByUserId;
   const add = (material: Material, sign = 1) => setCart((current) => ({ ...current, [material.id]: Math.max(0, (current[material.id] ?? 0) + sign * material.step) }));
   const submit = () => {
-    if (!serviceRequired(siteId, serviceId) || total <= 0) return;
+    if (!canSubmit || !siteId) return;
     submitTransactions(Object.entries(cart).filter(([, qty]) => qty > 0).map(([materialId, qty]) => ({ materialId, qty, type, siteId, serviceId, userId })), logDate);
+    submitDailyLog({ siteId, serviceId, date: logDate, materialsInstalled: materialsInstalled.trim() || undefined, workCompleted: workCompleted.trim(), challenges: challenges.trim() || undefined, toDoNextTime: toDoNextTime.trim(), completedByUserId, submittedByUserId: userId });
     setCart({});
+    setMaterialsInstalled("");
+    setWorkCompleted("");
+    setChallenges("");
+    setToDoNextTime("");
   };
   const addSite = () => {
     if (!newSite.trim()) return;
@@ -130,7 +153,7 @@ function LogMaterials({ state, userId, submitTransactions, saveSite, setTab }: {
     setSiteId(site.id);
     setNewSite("");
   };
-  return <><InventorySegments activeTab="log" setTab={setTab} /><section className="card"><label className="fld">Date</label><input className="in" type="date" value={logDate} max={todayKey()} onChange={(event) => setLogDate(event.target.value)} /><label className="fld">Job site</label><div className="selrow">{state.sites.map((site) => <button key={site.id} className={`sopt ${siteId === site.id ? "on" : ""}`} onClick={() => setSiteId(site.id)}>{site.name}</button>)}</div><div className="row-action"><input className="in" value={newSite} onChange={(event) => setNewSite(event.target.value)} placeholder="+ Add job site" /><button className="btn line sm" onClick={addSite}>Add</button></div><label className="fld">Service</label><div className="selrow">{state.services.map((service) => <button key={service.id} className={`sopt ${serviceId === service.id ? "on" : ""}`} onClick={() => setServiceId(service.id)}>{service.name}</button>)}</div><div className="seg">{(["use", "deliver", "return", "receive", "loss"] as TxType[]).map((item) => <button key={item} className={type === item ? "on" : ""} onClick={() => setType(item)}>{item}</button>)}</div></section><div className="search"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search materials to add" /></div><section className="card">{materials.map((material) => <div className="line-item" key={material.id}><div className="mid"><b>{material.name}</b><div className="tiny muted">{material.qty} {material.unit} on hand · locked unit</div></div><div className="qtybox"><button onClick={() => add(material, -1)}>-</button><input readOnly value={cart[material.id] ?? 0} /><button onClick={() => add(material, 1)}>+</button></div>{cart[material.id] > 0 && <button className="btn line sm" onClick={() => setCart((current) => ({ ...current, [material.id]: 0 }))}>Remove</button>}</div>)}</section>
+  return <><InventorySegments activeTab="log" setTab={setTab} /><section className="card"><label className="fld">Date</label><input className="in" type="date" value={logDate} max={todayKey()} onChange={(event) => setLogDate(event.target.value)} /><label className="fld">Job site</label><div className="selrow">{state.sites.map((site) => <button key={site.id} className={`sopt ${siteId === site.id ? "on" : ""}`} onClick={() => setSiteId(site.id)}>{site.name}</button>)}</div><div className="row-action"><input className="in" value={newSite} onChange={(event) => setNewSite(event.target.value)} placeholder="+ Add job site" /><button className="btn line sm" onClick={addSite}>Add</button></div>{selectedSite?.driveFolderUrl && <a className="tiny" href={selectedSite.driveFolderUrl} target="_blank" rel="noreferrer">Job details / site plans →</a>}<label className="fld">Service</label><div className="selrow">{state.services.map((service) => <button key={service.id} className={`sopt ${serviceId === service.id ? "on" : ""}`} onClick={() => setServiceId(service.id)}>{service.name}</button>)}</div><div className="seg">{(["use", "deliver", "return", "receive", "loss"] as TxType[]).map((item) => <button key={item} className={type === item ? "on" : ""} onClick={() => setType(item)}>{item}</button>)}</div></section><div className="search"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search materials to add" /></div><section className="card">{materials.map((material) => <div className="line-item" key={material.id}><div className="mid"><b>{material.name}</b><div className="tiny muted">{material.qty} {material.unit} on hand · locked unit</div></div><div className="qtybox"><button onClick={() => add(material, -1)}>-</button><input readOnly value={cart[material.id] ?? 0} /><button onClick={() => add(material, 1)}>+</button></div>{cart[material.id] > 0 && <button className="btn line sm" onClick={() => setCart((current) => ({ ...current, [material.id]: 0 }))}>Remove</button>}</div>)}</section>
     {total > 0 && (
       <div className="cart-summary">
         <div className="cart-summary-info">
@@ -143,8 +166,9 @@ function LogMaterials({ state, userId, submitTransactions, saveSite, setTab }: {
         <button className="cart-clear-btn" onClick={() => setCart({})}>Clear</button>
       </div>
     )}
-    <button className="btn good block" disabled={total <= 0} onClick={submit}>Submit log ({total} units)</button>
-    <section className="card"><h3>Your recent logs</h3>{myRecentLogs.length ? myRecentLogs.map((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); return <div className="line-item" key={tx.id}><div className="mid"><b>{material?.name ?? "Material"}</b><div className="tiny muted">{new Date(tx.ts).toLocaleDateString("en-CA")} · {tx.type} · {siteName(state, tx.siteId)}</div></div><span className="tiny muted">{tx.qty} {material?.unit}</span></div>; }) : <p className="tiny muted">Nothing logged yet — submitted logs show up here and feed straight into Inventory.</p>}</section></>;
+    <section className="card"><h3>Daily log</h3><label className="fld">Materials installed</label><textarea className="in" value={materialsInstalled} onChange={(event) => setMaterialsInstalled(event.target.value)} placeholder="Square feet / linear feet, optional" /><label className="fld">Work completed*</label><textarea className="in" value={workCompleted} onChange={(event) => setWorkCompleted(event.target.value)} /><label className="fld">Challenges</label><textarea className="in" value={challenges} onChange={(event) => setChallenges(event.target.value)} placeholder="Optional" /><label className="fld">To do next time*</label><textarea className="in" value={toDoNextTime} onChange={(event) => setToDoNextTime(event.target.value)} /><label className="fld">Completed by</label><select className="in" value={completedByUserId} onChange={(event) => setCompletedByUserId(event.target.value)}>{activeUsers.map((item) => <option key={item.id} value={item.id}>{item.name}{item.orgRole ? ` — ${item.orgRole}` : ""}</option>)}</select></section>
+    <button className="btn good block" disabled={!canSubmit} onClick={submit}>Submit daily log ({total} units)</button>
+    <section className="card"><div className="sec-h"><h3>Your recent daily logs</h3>{myRecentLogs.length > 0 && <button className="link" onClick={() => printDailyLogs(state, myRecentLogs)}>Export</button>}</div>{myRecentLogs.length ? myRecentLogs.map((log) => <div className="line-item" key={log.id}><div className="mid"><b>{siteName(state, log.siteId)}</b><div className="tiny muted">{log.date} · {serviceName(state, log.serviceId)} · {log.workCompleted}</div></div></div>) : <p className="tiny muted">Nothing logged yet — submitted logs show up here and feed straight into Inventory.</p>}</section></>;
 }
 
 function Tools({ state, role, userId, openSheet, saveTool }: { state: AppState; role: Role; userId: string; openSheet: (sheet: { title: string; content: React.ReactNode }) => void; saveTool: (tool: ToolItem, message?: string) => void }) {
