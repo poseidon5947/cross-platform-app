@@ -75,6 +75,7 @@ const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true" || !isSupabaseConfig
 const LazyOperationsTabs = React.lazy(() => import("./tabs/OperationsTabBoundary"));
 const LazyPeopleTab = React.lazy(() => import("./tabs/PeopleTabBoundary"));
 const LazyAdminTab = React.lazy(() => import("./tabs/AdminTabBoundary"));
+const LazyCfoTab = React.lazy(() => import("./tabs/CfoTabBoundary"));
 
 const tabTitles = {
   home: ["Today", "Trucks, tools and stock at a glance"],
@@ -85,6 +86,7 @@ const tabTitles = {
   trucks: ["Trucks & daily tasks", "Daily, weekly and monthly work by service"],
   crew: ["Crew & points", "100% daily tasks earns points"],
   admin: ["Admin", "Imports, integrations, exports and role management"],
+  cfo: ["Reports", "Inventory, Tremco, and Daily Log — view and export"],
 } as const;
 
 export type Tab = keyof typeof tabTitles;
@@ -201,6 +203,10 @@ export function App() {
     : state.users.find((user) => user.id === state.currentUserId) ?? state.users[0];
   const pendingCount = state.offlineQueue.length;
   const [title, sub] = tabTitles[tab];
+
+  useEffect(() => {
+    if (currentUser.role === "cfo" && tab === "home") setTab("cfo");
+  }, [currentUser.role, tab]);
 
   useEffect(() => {
     const flush = async () => {
@@ -433,22 +439,30 @@ export function App() {
           {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
           {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} saveSite={saveSite} resolveTransaction={resolveTransaction} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} />}
+          {tab === "cfo" && <LazyCfoTab state={state} />}
         </React.Suspense>
       </main>
 
       <nav className="tabs">
-        {(["home", "inventory", "tools", "trucks", "crew"] as Tab[]).map((item) => (
-          <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>
-            <NavIcon tab={item} />
-            {item === "inventory" ? "Inventory" : item[0].toUpperCase() + item.slice(1)}
-          </button>
-        ))}
-        {canManage(currentUser.role) && (
-          <button className={tab === "admin" ? "on" : ""} onClick={() => setTab("admin")}>
+        {currentUser.role === "cfo" ? (
+          <button className={tab === "cfo" ? "on" : ""} onClick={() => setTab("cfo")}>
             <NavIcon tab={"admin"} />
-            Admin
+            Reports
           </button>
-        )}
+        ) : <>
+          {(["home", "inventory", "tools", "trucks", "crew"] as Tab[]).map((item) => (
+            <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>
+              <NavIcon tab={item} />
+              {item === "inventory" ? "Inventory" : item[0].toUpperCase() + item.slice(1)}
+            </button>
+          ))}
+          {canManage(currentUser.role) && (
+            <button className={tab === "admin" ? "on" : ""} onClick={() => setTab("admin")}>
+              <NavIcon tab={"admin"} />
+              Admin
+            </button>
+          )}
+        </>}
       </nav>
       <div className="bottom-bar">
         <button className="fab btn good" onClick={handlePrimaryAction}>{primaryActionLabel}</button>
@@ -620,6 +634,7 @@ function NavIcon({ tab }: { tab: Tab | "admin" }) {
     log: null,
     tremco: null,
     admin: <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><path d="M18 2l1.5 1.5M18 7l1.5-1.5M13 2l-1.5 1.5M13 7l-1.5-1.5"/></svg>,
+    cfo: null,
   };
   return <span className="nav-svg">{icons[tab]}</span>;
 }

@@ -1,4 +1,4 @@
-export type Role = "admin" | "manager" | "crew";
+export type Role = "admin" | "manager" | "crew" | "cfo";
 export type Category =
   | "waterproofing"
   | "drainage"
