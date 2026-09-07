@@ -450,10 +450,10 @@ export function App() {
             Reports
           </button>
         ) : <>
-          {(["home", "inventory", "tools", "trucks", "crew"] as Tab[]).map((item) => (
-            <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>
+          {(["home", "inventory", "tremco", "log", "tools", "trucks", "crew"] as Tab[]).map((item) => (
+            <button key={item} className={`${tab === item ? "on" : ""} ${item === "tremco" || item === "log" ? "nav-desktop-extra" : ""}`} onClick={() => setTab(item)}>
               <NavIcon tab={item} />
-              {item === "inventory" ? "Inventory" : item[0].toUpperCase() + item.slice(1)}
+              {item === "inventory" ? "Inventory" : item === "tremco" ? "Tremco" : item === "log" ? "Daily Log" : item[0].toUpperCase() + item.slice(1)}
             </button>
           ))}
           {canManage(currentUser.role) && (
@@ -631,8 +631,8 @@ function NavIcon({ tab }: { tab: Tab | "admin" }) {
     tools: <svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6 6a1.5 1.5 0 0 0 2 2l6-6a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3Z" /></svg>,
     trucks: <svg viewBox="0 0 24 24"><path d="M3 6h11v9H3z" /><path d="M14 9h4l3 3v3h-7z" /><circle cx="7" cy="18" r="1.6" /><circle cx="17" cy="18" r="1.6" /></svg>,
     crew: <svg viewBox="0 0 24 24"><path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /><path d="M2 21a6 6 0 0 1 12 0" /><path d="M16 4a4 4 0 0 1 0 8M22 21a6 6 0 0 0-6-6" /></svg>,
-    log: null,
-    tremco: null,
+    log: <svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z" /><path d="M14 3v4h4" /><path d="M9 13h6M9 17h6M9 9h2" /></svg>,
+    tremco: <svg viewBox="0 0 24 24"><path d="M12 2.5c3.5 4.2 6 7.4 6 10.6a6 6 0 1 1-12 0c0-3.2 2.5-6.4 6-10.6Z" /></svg>,
     admin: <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><path d="M18 2l1.5 1.5M18 7l1.5-1.5M13 2l-1.5 1.5M13 7l-1.5-1.5"/></svg>,
     cfo: null,
   };

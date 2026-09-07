@@ -840,6 +840,7 @@ input[disabled], .in[disabled] { opacity: .6; background: var(--bg-3); cursor: n
 }
 .tabs button:hover { color: var(--primary); background: var(--primary-dim); }
 .tabs button.on { color: var(--primary); }
+.nav-desktop-extra { display: none; }
 .nav-svg { width: 22px; height: 22px; display: grid; place-items: center; }
 .nav-svg svg {
   width: 22px; height: 22px;
@@ -1026,6 +1027,7 @@ main > *:nth-child(5) { animation-delay: .15s; }
     font-weight: 700;
   }
   .tabs button .nav-svg { width: 20px; height: 20px; }
+  .nav-desktop-extra { display: flex; }
 
   .bottom-bar {
     left: auto;
