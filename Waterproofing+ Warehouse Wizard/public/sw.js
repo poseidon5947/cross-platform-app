@@ -1,4 +1,4 @@
-const CACHE = "warehouse-wizard-v2";
+const CACHE = "warehouse-wizard-v3";
 const ASSETS = ["/", "/index.html", "/manifest.webmanifest", "/pwa-icon.svg"];
 
 self.addEventListener("install", (event) => {
