@@ -53,6 +53,9 @@ export interface CompensationRecord {
   retentionBonusAmount?: number;
   retentionBonusPayoutDate?: string;
   costOfLivingIncrease?: number;
+  startingHourlyWage?: number;
+  lastIncreaseDate?: string;
+  lastIncreaseHourlyWage?: number;
   updatedAt: string;
 }
 

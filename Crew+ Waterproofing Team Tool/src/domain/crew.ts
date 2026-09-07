@@ -569,7 +569,7 @@ function triggerDepartureCashout(state: CrewState, userId: string, now: string) 
   };
 }
 
-export function setCompensation(state: CrewState, adminId: string, userId: string, patch: Partial<Pick<CompensationRecord, "grossAnnualWages" | "payBand" | "retentionBonusAmount" | "retentionBonusPayoutDate" | "costOfLivingIncrease">>, now = new Date().toISOString()) {
+export function setCompensation(state: CrewState, adminId: string, userId: string, patch: Partial<Pick<CompensationRecord, "grossAnnualWages" | "payBand" | "retentionBonusAmount" | "retentionBonusPayoutDate" | "costOfLivingIncrease" | "startingHourlyWage" | "lastIncreaseDate" | "lastIncreaseHourlyWage">>, now = new Date().toISOString()) {
   const admin = state.users.find((item) => item.id === adminId);
   if (!admin || admin.role !== "admin") return state;
   const existing = (state.compensation ?? []).find((item) => item.userId === userId);

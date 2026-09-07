@@ -144,7 +144,9 @@ const profileToRow = (item: Profile) => ({
 const compensationToRow = (item: any) => ({
   id: item.id, user_id: item.userId, gross_annual_wages: item.grossAnnualWages ?? null, pay_band: item.payBand ?? null,
   retention_bonus_amount: item.retentionBonusAmount ?? null, retention_bonus_payout_date: item.retentionBonusPayoutDate ?? null,
-  cost_of_living_increase: item.costOfLivingIncrease ?? null, updated_at: item.updatedAt,
+  cost_of_living_increase: item.costOfLivingIncrease ?? null,
+  starting_hourly_wage: item.startingHourlyWage ?? null, last_increase_date: item.lastIncreaseDate ?? null,
+  last_increase_hourly_wage: item.lastIncreaseHourlyWage ?? null, updated_at: item.updatedAt,
 });
 
 const reviewToRow = (item: any) => ({
@@ -316,6 +318,9 @@ const compensationFromRow = (row: any): CompensationRecord => ({
   retentionBonusAmount: row.retention_bonus_amount == null ? undefined : Number(row.retention_bonus_amount),
   retentionBonusPayoutDate: row.retention_bonus_payout_date ?? undefined,
   costOfLivingIncrease: row.cost_of_living_increase == null ? undefined : Number(row.cost_of_living_increase),
+  startingHourlyWage: row.starting_hourly_wage == null ? undefined : Number(row.starting_hourly_wage),
+  lastIncreaseDate: row.last_increase_date ?? undefined,
+  lastIncreaseHourlyWage: row.last_increase_hourly_wage == null ? undefined : Number(row.last_increase_hourly_wage),
   updatedAt: row.updated_at,
 });
 

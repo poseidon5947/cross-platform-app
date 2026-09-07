@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
-import { acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
+import { acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
 import type { IncidentReportInput, OnboardingInput } from "../types";
 
 describe("Crew+ wallet", () => {
@@ -74,6 +74,19 @@ describe("Crew+ wallet", () => {
     expect(state.redemptions).toHaveLength(1);
     state = setEmploymentStatus(state, "u8", "u3", "Inactive", "voluntary", "2026-08-15T09:00:00Z");
     expect(state.redemptions).toHaveLength(1);
+  });
+
+  it("records starting wage and last-increase history alongside existing compensation fields", () => {
+    let state = createSeedState();
+    state = setCompensation(state, "u8", "u3", { startingHourlyWage: 28, lastIncreaseDate: "2026-06-01", lastIncreaseHourlyWage: 31 }, "2026-06-01T09:00:00Z");
+    const comp = state.compensation!.find((item) => item.userId === "u3");
+    expect(comp).toMatchObject({ startingHourlyWage: 28, lastIncreaseDate: "2026-06-01", lastIncreaseHourlyWage: 31 });
+  });
+
+  it("blocks a non-admin from setting compensation", () => {
+    const state = createSeedState();
+    const result = setCompensation(state, "u3", "u3", { startingHourlyWage: 100 }, "2026-06-01T09:00:00Z");
+    expect(result).toBe(state);
   });
 });
 
