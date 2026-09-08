@@ -434,7 +434,7 @@ export function App() {
       </header>
 
       <main>
-        {tab === "home" && <Home state={state} userId={currentUser.id} setTab={setTab} goToFocus={goToFocus} openGraph={setGraphModal} />}
+        {tab === "home" && <Home state={state} role={currentUser.role} userId={currentUser.id} setTab={setTab} goToFocus={goToFocus} openGraph={setGraphModal} />}
         <React.Suspense fallback={<TabSkeleton />}>
           {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
@@ -450,8 +450,8 @@ export function App() {
             Reports
           </button>
         ) : <>
-          {(["home", "inventory", "tremco", "log", "tools", "trucks", "crew"] as Tab[]).map((item) => (
-            <button key={item} className={`${tab === item ? "on" : ""} ${item === "tremco" || item === "log" ? "nav-desktop-extra" : ""}`} onClick={() => setTab(item)}>
+          {(["home", "log", "trucks", "tools", "inventory", "tremco", "crew"] as Tab[]).map((item) => (
+            <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>
               <NavIcon tab={item} />
               {item === "inventory" ? "Inventory" : item === "tremco" ? "Tremco" : item === "log" ? "Daily Log" : item[0].toUpperCase() + item.slice(1)}
             </button>
@@ -506,7 +506,7 @@ function ShellMessage({ title, detail }: { title: string; detail: string }) {
   return <div className="app auth loading-screen"><section className="card"><div className="brand loading-brand"><span className={`logo ${loading ? "loading-mark" : ""}`} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2.5c3.5 4.2 6 7.4 6 10.6a6 6 0 1 1-12 0c0-3.2 2.5-6.4 6-10.6Z" fill="currentColor" /></svg></span><div><h1>{title}</h1><p>{detail}</p></div></div>{loading && <div className="loading-line" aria-hidden="true"><i /></div>}</section></div>;
 }
 
-function Home({ state, userId, setTab, goToFocus, openGraph }: { state: AppState; userId: string; setTab: (tab: Tab) => void; goToFocus: (tab: Tab, focus: string) => void; openGraph: (t: GraphType) => void }) {
+function Home({ state, role, userId, setTab, goToFocus, openGraph }: { state: AppState; role: Role; userId: string; setTab: (tab: Tab) => void; goToFocus: (tab: Tab, focus: string) => void; openGraph: (t: GraphType) => void }) {
   const trackedMaterials = state.materials.filter((material) => material.strictTracking !== false);
   const lows = trackedMaterials.filter((material) => stockStatus(material).key !== "good");
   const today = todayKey();
@@ -518,9 +518,10 @@ function Home({ state, userId, setTab, goToFocus, openGraph }: { state: AppState
   const priceChanges = priceChangeMaterials(state.materials);
   const maintenance = state.maintenanceRequests.filter((request) => request.status === "open").length;
   const incompleteTasks = Math.max(0, progress.total - progress.done);
-  const attention = [{ count: maintenance, label: "Open maintenance requests", tab: "trucks" as Tab, focus: "maintenance" }, { count: incompleteTasks, label: "Truck tasks remaining today", tab: "trucks" as Tab, focus: "tasks" }, { count: lows.length, label: "Items below reorder threshold", tab: "inventory" as Tab, focus: "low-stock" }].filter((item) => item.count > 0);
+  const needsReviewCount = state.transactions.filter((tx) => tx.needsReview).length;
+  const attention = [{ count: maintenance, label: "Open maintenance requests", tab: "trucks" as Tab, focus: "maintenance" }, { count: incompleteTasks, label: "Truck tasks remaining today", tab: "trucks" as Tab, focus: "tasks" }, { count: lows.length, label: "Items below reorder threshold", tab: "inventory" as Tab, focus: "low-stock" }, ...(canManage(role) ? [{ count: needsReviewCount, label: "Daily log items need review", tab: "admin" as Tab, focus: "" }] : [])].filter((item) => item.count > 0);
   return <>
-    {attention.length > 0 && <section className="attention-strip" aria-label="Needs attention"><div className="attention-title"><span aria-hidden="true">!</span><b>Needs attention</b></div><div className="attention-rows">{attention.map((item) => <button key={item.label} onClick={() => goToFocus(item.tab, item.focus)}><span>{item.label}</span><b>{item.count}</b><span aria-hidden="true">→</span></button>)}</div></section>}
+    {attention.length > 0 && <section className="attention-strip" aria-label="Needs attention"><div className="attention-title"><span aria-hidden="true">!</span><b>Needs attention</b></div><div className="attention-rows">{attention.map((item) => <button key={item.label} onClick={() => item.focus ? goToFocus(item.tab, item.focus) : setTab(item.tab)}><span>{item.label}</span><b>{item.count}</b><span aria-hidden="true">→</span></button>)}</div></section>}
     <div className="banner"><b>{progress.pct === 100 ? "Daily tasks complete" : "Crew-first workflow"}</b><span>{progress.done}/{progress.total} daily tasks complete today.</span></div>
     <div className="kpis">
       <Kpi label="SKUs tracked"  value={trackedMaterials.length}  sub={`${state.materials.length - trackedMaterials.length} reference only`} onClick={() => openGraph("inventory_stock")} />
@@ -564,7 +565,7 @@ export function ProgressRing({ pct }: { pct: number }) {
 
 function Activity({ state, tx }: { state: AppState; tx: Transaction }) {
   const material = state.materials.find((item) => item.id === tx.materialId);
-  return <div className="act"><div className="ai">{tx.type.slice(0, 2).toUpperCase()}</div><div className="atxt"><b>{tx.type}</b> {tx.qty} {material?.unit} {material?.name}<div className="tiny muted">{userName(state, tx.userId)} · {siteName(state, tx.siteId)}</div></div><div className="atime">{new Date(tx.ts).toLocaleDateString("en-CA")}</div></div>;
+  return <div className="act"><div className="ai">{tx.type.slice(0, 2).toUpperCase()}</div><div className="atxt">{tx.needsReview ? <><b>{tx.type}</b> {tx.rawQtyText ?? ""} {tx.rawUnitText ?? ""} {tx.rawItemText} <span className="pill warn">Needs review</span></> : <><b>{tx.type}</b> {tx.qty} {material?.unit} {material?.name}</>}<div className="tiny muted">{userName(state, tx.userId)} · {siteName(state, tx.siteId)}</div></div><div className="atime">{new Date(tx.ts).toLocaleDateString("en-CA")}</div></div>;
 }
 
 function BottomSheet({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
