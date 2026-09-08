@@ -132,8 +132,11 @@ function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog,
   const [toDoNextTime, setToDoNextTime] = useState("");
   const materials = state.materials.filter((material) => material.strictTracking !== false && (!query || material.name.toLowerCase().includes(query.toLowerCase())));
   const total = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
+  const [logMonth, setLogMonth] = useState("");
   const sortedLogs = [...state.dailyLogs].sort((a, b) => b.date.localeCompare(a.date));
-  const recentLogs = canManage(role) ? sortedLogs.slice(0, 20) : sortedLogs.filter((log) => log.submittedByUserId === userId).slice(0, 5);
+  const recentLogs = canManage(role)
+    ? sortedLogs.filter((log) => !logMonth || log.date.slice(0, 7) === logMonth).slice(0, 50)
+    : sortedLogs.filter((log) => log.submittedByUserId === userId).slice(0, 5);
   const selectedSite = state.sites.find((item) => item.id === siteId);
   const canSubmit = serviceRequired(siteId, serviceId) && total > 0 && workCompleted.trim() && toDoNextTime.trim() && completedByUserId;
   const add = (material: Material, sign = 1) => setCart((current) => ({ ...current, [material.id]: Math.max(0, (current[material.id] ?? 0) + sign * material.step) }));
@@ -171,7 +174,7 @@ function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog,
       </div>
     )}
     <button className="btn good block" disabled={!canSubmit} onClick={submit}>Submit daily log ({total} units)</button>
-    <section className="card"><div className="sec-h"><h3>{canManage(role) ? "All recent daily logs" : "Your recent daily logs"}</h3>{recentLogs.length > 0 && <button className="link" onClick={() => printDailyLogs(state, recentLogs)}>Export</button>}</div>{recentLogs.length ? recentLogs.map((log) => <div className="line-item" key={log.id}><div className="mid"><b>{siteName(state, log.siteId)}</b><div className="tiny muted">{log.date} · {serviceName(state, log.serviceId)} · {userName(state, log.completedByUserId)}</div><div className="tiny muted">{log.workCompleted}</div></div></div>) : <p className="tiny muted">Nothing logged yet — submitted logs show up here and feed straight into Inventory.</p>}</section></>;
+    <section className="card"><div className="sec-h"><h3>{canManage(role) ? "All daily logs" : "Your recent daily logs"}</h3>{recentLogs.length > 0 && <button className="link" onClick={() => printDailyLogs(state, recentLogs)}>Export</button>}</div>{canManage(role) && <input className="in" type="month" value={logMonth} onChange={(event) => setLogMonth(event.target.value)} placeholder="All months" />}{recentLogs.length ? recentLogs.map((log) => <div className="line-item" key={log.id}><div className="mid"><b>{siteName(state, log.siteId)}</b><div className="tiny muted">{log.date} · {serviceName(state, log.serviceId)} · {userName(state, log.completedByUserId)}</div><div className="tiny muted">{log.workCompleted}</div></div></div>) : <p className="tiny muted">Nothing logged for this month.</p>}</section></>;
 }
 
 function Tools({ state, role, userId, openSheet, saveTool }: { state: AppState; role: Role; userId: string; openSheet: (sheet: { title: string; content: React.ReactNode }) => void; saveTool: (tool: ToolItem, message?: string) => void }) {
