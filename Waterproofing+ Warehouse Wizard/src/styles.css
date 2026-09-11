@@ -142,7 +142,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   font-weight: 700;
   font-size: 16px;
   letter-spacing: -0.2px;
-  min-width: 0;
+  min-width: 108px;
   flex: 1 1 auto;
 }
 .brandrow .brand > div {
@@ -204,7 +204,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   background: rgba(255,255,255,.15);
   border: 1px solid rgba(255,255,255,.22);
   color: #fff;
-  padding: 6px 12px;
+  padding: 4px;
   border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
@@ -213,6 +213,14 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   max-width: 96px;
 }
 .whoami:hover { background: rgba(255,255,255,.22); }
+/* Below desktop width the name competes with the brand and the theme
+   controls for the same row, so only the avatar shows — tapping it still
+   opens the full account sheet. */
+.whoami span:last-child { display: none; }
+@media (min-width: 760px) {
+  .whoami { padding: 6px 12px; }
+  .whoami span:last-child { display: block; }
+}
 .whoami span:last-child {
   overflow: hidden;
   white-space: nowrap;
@@ -987,6 +995,7 @@ main > *:nth-child(5) { animation-delay: .15s; }
     padding: 24px 28px 140px;
     overflow-y: auto;
   }
+  .whoami { max-width: 220px; }
   .kpis { grid-template-columns: repeat(4, minmax(0,1fr)); }
   .kpis.compact { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .inv-card { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 0 18px; }
