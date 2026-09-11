@@ -1045,6 +1045,15 @@ main > *:nth-child(5) { animation-delay: .15s; }
   .admin-tab { flex: 0 0 82px !important; width: 82px !important; }
   .sheet { max-width: 580px; }
   .card:hover { box-shadow: var(--shadow-lg); }
+
+  /* Mouse users have no visible scrollbar or swipe gesture to reveal the
+     rest of a horizontally-scrolling row, so on desktop these wrap instead
+     of clipping the last item (chips/selrow scroll on mobile by design). */
+  .chips, .selrow {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    padding-bottom: 0;
+  }
 }
 
 /* ── Landscape mobile ── */
