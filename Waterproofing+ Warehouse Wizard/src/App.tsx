@@ -446,7 +446,7 @@ export function App() {
       <nav className="tabs">
         {currentUser.role === "cfo" ? (
           <button className={tab === "cfo" ? "on" : ""} onClick={() => setTab("cfo")}>
-            <NavIcon tab={"admin"} />
+            <NavIcon tab={"cfo"} />
             Reports
           </button>
         ) : <>
@@ -456,6 +456,12 @@ export function App() {
               {item === "inventory" ? "Inventory" : item === "tremco" ? "Tremco" : item === "log" ? "Daily Log" : item[0].toUpperCase() + item.slice(1)}
             </button>
           ))}
+          {canManage(currentUser.role) && (
+            <button className={tab === "cfo" ? "on" : ""} onClick={() => setTab("cfo")}>
+              <NavIcon tab={"cfo"} />
+              Reports
+            </button>
+          )}
           {canManage(currentUser.role) && (
             <button className={tab === "admin" ? "on" : ""} onClick={() => setTab("admin")}>
               <NavIcon tab={"admin"} />
@@ -635,7 +641,7 @@ function NavIcon({ tab }: { tab: Tab | "admin" }) {
     log: <svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z" /><path d="M14 3v4h4" /><path d="M9 13h6M9 17h6M9 9h2" /></svg>,
     tremco: <svg viewBox="0 0 24 24"><path d="M12 2.5c3.5 4.2 6 7.4 6 10.6a6 6 0 1 1-12 0c0-3.2 2.5-6.4 6-10.6Z" /></svg>,
     admin: <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><path d="M18 2l1.5 1.5M18 7l1.5-1.5M13 2l-1.5 1.5M13 7l-1.5-1.5"/></svg>,
-    cfo: null,
+    cfo: <svg viewBox="0 0 24 24"><path d="M4 19h16" /><path d="M6 19V9l4-3 4 3v10" /><path d="M14 19v-6l4-2v8" /></svg>,
   };
   return <span className="nav-svg">{icons[tab]}</span>;
 }

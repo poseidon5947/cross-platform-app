@@ -268,7 +268,15 @@ export function combineDateWithNow(dateStr?: string, now = new Date()) {
   if (!dateStr) return now.toISOString();
   const [year, month, day] = dateStr.split("-").map(Number);
   if (!year || !month || !day) return now.toISOString();
-  return new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds()).toISOString();
+  const pad = (value: number, len = 2) => String(value).padStart(len, "0");
+  // Build the ISO string directly instead of round-tripping through a local
+  // Date object: constructing with local y/m/d/h/m/s and then calling
+  // toISOString() re-interprets those fields in the caller's timezone,
+  // which can silently shift the calendar date across a UTC day boundary
+  // (e.g. UTC+9 pushes a late-day local time into the next UTC day). The
+  // chosen date is meant to be stored exactly as picked, with the current
+  // wall-clock time along for the ride - not converted between zones.
+  return `${pad(year, 4)}-${pad(month)}-${pad(day)}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${pad(now.getMilliseconds(), 3)}Z`;
 }
 
 export function applyTruckLog(

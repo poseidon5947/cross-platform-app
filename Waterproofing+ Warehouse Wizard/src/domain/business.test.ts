@@ -89,11 +89,14 @@ describe("truck logs", () => {
 });
 
 describe("backdated log entries", () => {
-  it("combines a chosen date with the current time of day", () => {
+  it("combines a chosen date with the current wall-clock time, regardless of the caller's timezone", () => {
     const now = new Date("2026-08-30T21:14:07.500Z");
     const combined = combineDateWithNow("2026-08-28", now);
+    // The calendar date must be exactly what was picked - never shifted by
+    // the caller's local timezone, which is the bug this guards against.
     expect(combined.slice(0, 10)).toBe("2026-08-28");
-    expect(new Date(combined).getUTCHours()).toBe(now.getUTCHours());
+    // The local wall-clock hour is carried over as-is (not timezone-converted).
+    expect(new Date(combined).getUTCHours()).toBe(now.getHours());
   });
 
   it("falls back to now when no date is chosen", () => {
