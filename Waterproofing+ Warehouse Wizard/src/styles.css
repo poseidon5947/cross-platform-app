@@ -480,6 +480,8 @@ input[disabled], .in[disabled] { opacity: .6; background: var(--bg-3); cursor: n
 /* ── Segment ── */
 .seg {
   display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
   background: var(--bg-3);
   border-radius: var(--r-sm);
   padding: 4px;
@@ -487,7 +489,8 @@ input[disabled], .in[disabled] { opacity: .6; background: var(--bg-3); cursor: n
   border: 1px solid var(--line);
 }
 .seg button {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 74px;
   padding: 9px;
   border-radius: 6px;
   font-size: 13.5px;
