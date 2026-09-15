@@ -149,6 +149,9 @@ const truckTaskFromRow = (row: any): TruckTask => ({
   freq: row.freq,
   timeOfDay: row.time_of_day ?? undefined,
   requiredForDailyPoints: row.required_for_daily_points ?? true,
+  section: row.section ?? "trucks",
+  category: row.category ?? undefined,
+  personResponsible: row.person_responsible ?? undefined,
 });
 const completionFromRow = (row: any): TaskCompletion => ({ id: row.id, userId: row.user_id, taskId: row.task_id, periodKey: row.period_key, completedAt: row.completed_at });
 const pointsFromRow = (row: any): PointsEvent => ({ id: row.id, userId: row.user_id, type: row.type, points: row.points, reason: row.reason, ref: row.ref, ts: row.ts });
@@ -408,6 +411,9 @@ export async function upsertTask(task: TruckTask) {
     freq: task.freq,
     time_of_day: task.timeOfDay ?? null,
     required_for_daily_points: task.requiredForDailyPoints ?? true,
+    section: task.section,
+    category: task.category ?? null,
+    person_responsible: task.personResponsible ?? null,
   });
   if (error) throw error;
 }

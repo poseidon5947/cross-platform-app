@@ -83,7 +83,7 @@ const tabTitles = {
   tremco: ["Tremco", "Highest-value tracked items, billed back to projects"],
   log: ["Daily inventory log", "Fast crew flow with offline sync"],
   tools: ["Tools & equipment", "Check in/out, damage and battery charge"],
-  trucks: ["Trucks & daily tasks", "Daily, weekly and monthly work by service"],
+  trucks: ["Tasks", "Trucks, warehouse and job-site checklists"],
   crew: ["Crew & points", "100% daily tasks earns points"],
   admin: ["Admin", "Imports, integrations, exports and role management"],
   cfo: ["Reports", "Inventory, Tremco, and Daily Log — view and export"],
@@ -453,7 +453,7 @@ export function App() {
           {(["home", "log", "trucks", "tools", "inventory", "tremco", "crew"] as Tab[]).map((item) => (
             <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>
               <NavIcon tab={item} />
-              {item === "inventory" ? "Inventory" : item === "tremco" ? "Tremco" : item === "log" ? "Daily Log" : item[0].toUpperCase() + item.slice(1)}
+              {item === "inventory" ? "Inventory" : item === "tremco" ? "Tremco" : item === "log" ? "Daily Log" : item === "trucks" ? "Tasks" : item[0].toUpperCase() + item.slice(1)}
             </button>
           ))}
           {canManage(currentUser.role) && (

@@ -10,11 +10,12 @@ export type Category =
   | "consumables"
   | "ppe"
   | "shop";
-export type ServiceId = "wp" | "ins" | "inj" | "trf" | "veh";
+export type ServiceId = "wp" | "ins" | "inj" | "trf" | "veh" | "cfi" | "xps" | "always";
 export type TxType = "use" | "deliver" | "loss" | "receive" | "return" | "adjust";
 export type ToolStatus = "in" | "out";
 export type ToolCondition = "good" | "repair" | "damaged";
-export type TaskFrequency = "daily" | "weekly" | "monthly";
+export type TaskFrequency = "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | "as_needed";
+export type TaskSection = "trucks" | "warehouse" | "services";
 export type MaterialUnit = "Unit" | "Roll" | "Drum" | "Box" | "Sausage";
 export type PointsEventType =
   | "daily_100"
@@ -182,6 +183,9 @@ export interface TruckTask {
   freq: TaskFrequency;
   timeOfDay?: "start" | "end" | "job_start" | "job_completion" | "pack_list";
   requiredForDailyPoints?: boolean;
+  section: TaskSection;
+  category?: string;
+  personResponsible?: string;
 }
 
 export interface TaskCompletion {
