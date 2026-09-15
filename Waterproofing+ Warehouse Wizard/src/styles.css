@@ -627,6 +627,20 @@ input[disabled], .in[disabled] { opacity: .6; background: var(--bg-3); cursor: n
 .line-item:last-child { border-bottom: 0; }
 .line-item b { font-weight: 700; font-size: 14px; color: var(--ink); }
 
+/* Needs-review rows pack a text block + 3 controls + a button - too much
+   for one flex row at any width, so it's a stacked mini-form instead. */
+.needs-review-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.needs-review-row:last-child { border-bottom: 0; }
+.needs-review-row b { font-weight: 700; font-size: 14px; color: var(--ink); }
+.needs-review-qty-row { display: flex; gap: 8px; }
+.needs-review-qty-row .in { flex: 1; min-width: 0; }
+
 /* ── Forms ── */
 .form-stack { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 4px; }
 .file-picker { display: grid; gap: 8px; }

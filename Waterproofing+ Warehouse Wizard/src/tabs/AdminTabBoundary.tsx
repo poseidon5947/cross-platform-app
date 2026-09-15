@@ -32,7 +32,7 @@ function NeedsReviewRow({ tx, state, resolveTransaction }: { tx: Transaction; st
   const [materialId, setMaterialId] = useState("");
   const [qty, setQty] = useState(tx.rawQtyText ?? "");
   const [unit, setUnit] = useState<MaterialUnit | "">("");
-  return <div className="line-item">
+  return <div className="needs-review-row">
     <div className="mid">
       <b>{tx.rawItemText ?? "Unlabeled item"}</b>
       <div className="tiny muted">{new Date(tx.ts).toLocaleDateString("en-CA")} · {siteName(state, tx.siteId)} · {userName(state, tx.userId)} · raw qty: {tx.rawQtyText ?? "—"} {tx.rawUnitText ?? ""}</div>
@@ -41,12 +41,14 @@ function NeedsReviewRow({ tx, state, resolveTransaction }: { tx: Transaction; st
       <option value="">Pick the real item…</option>
       {state.materials.map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}
     </select>
-    <input className="in" type="number" step="any" value={qty} onChange={(event) => setQty(event.target.value)} placeholder="Qty" />
-    <select className="in" value={unit} onChange={(event) => setUnit(event.target.value as MaterialUnit)}>
-      <option value="">Unit (optional note)</option>
-      {ALLOWED_MATERIAL_UNITS.map((item) => <option key={item} value={item}>{item}</option>)}
-    </select>
-    <button className="btn primary sm" disabled={!materialId || !qty || Number(qty) <= 0} onClick={() => resolveTransaction(tx.id, materialId, Number(qty), unit || undefined)}>Resolve</button>
+    <div className="needs-review-qty-row">
+      <input className="in" type="number" step="any" value={qty} onChange={(event) => setQty(event.target.value)} placeholder="Qty" />
+      <select className="in" value={unit} onChange={(event) => setUnit(event.target.value as MaterialUnit)}>
+        <option value="">Unit (optional note)</option>
+        {ALLOWED_MATERIAL_UNITS.map((item) => <option key={item} value={item}>{item}</option>)}
+      </select>
+    </div>
+    <button className="btn primary block" disabled={!materialId || !qty || Number(qty) <= 0} onClick={() => resolveTransaction(tx.id, materialId, Number(qty), unit || undefined)}>Resolve</button>
   </div>;
 }
 
