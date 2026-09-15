@@ -107,6 +107,12 @@ const siteFromRow = (row: any): Site => ({
   qboProjectName: row.qbo_project_name ?? undefined,
   source: row.source ?? "manual",
   driveFolderUrl: row.drive_folder_url ?? undefined,
+  company: row.company ?? undefined,
+  siteContactName: row.site_contact_name ?? undefined,
+  siteContactPhone: row.site_contact_phone ?? undefined,
+  siteContactEmail: row.site_contact_email ?? undefined,
+  startDate: row.start_date ?? undefined,
+  endDate: row.end_date ?? undefined,
 });
 
 const serviceFromRow = (row: any): Service => ({ id: row.id, name: row.name, short: row.id.toUpperCase() });
@@ -313,6 +319,12 @@ export async function upsertSite(site: Site) {
     qbo_project_name: site.qboProjectName ?? null,
     source: site.source,
     drive_folder_url: site.driveFolderUrl ?? null,
+    company: site.company ?? null,
+    site_contact_name: site.siteContactName ?? null,
+    site_contact_phone: site.siteContactPhone ?? null,
+    site_contact_email: site.siteContactEmail ?? null,
+    start_date: site.startDate ?? null,
+    end_date: site.endDate ?? null,
   });
   if (error) throw error;
 }

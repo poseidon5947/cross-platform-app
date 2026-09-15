@@ -68,6 +68,12 @@ export interface Site {
   qboProjectName?: string;
   source: "manual" | "quickbooks";
   driveFolderUrl?: string;
+  company?: string;
+  siteContactName?: string;
+  siteContactPhone?: string;
+  siteContactEmail?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface Service {

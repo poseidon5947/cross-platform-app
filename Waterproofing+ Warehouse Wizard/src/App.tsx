@@ -76,6 +76,7 @@ const LazyOperationsTabs = React.lazy(() => import("./tabs/OperationsTabBoundary
 const LazyPeopleTab = React.lazy(() => import("./tabs/PeopleTabBoundary"));
 const LazyAdminTab = React.lazy(() => import("./tabs/AdminTabBoundary"));
 const LazyCfoTab = React.lazy(() => import("./tabs/CfoTabBoundary"));
+const LazyJobsTab = React.lazy(() => import("./tabs/JobsTabBoundary"));
 
 const tabTitles = {
   home: ["Today", "Trucks, tools and stock at a glance"],
@@ -85,7 +86,8 @@ const tabTitles = {
   tools: ["Tools & equipment", "Check in/out, damage and battery charge"],
   trucks: ["Tasks", "Trucks, warehouse and job-site checklists"],
   crew: ["Crew & points", "100% daily tasks earns points"],
-  admin: ["Admin", "Imports, integrations, exports and role management"],
+  jobs: ["Jobs", "Active jobs, contacts, and site documents"],
+  admin: ["Admin", "Crew, imports, and integrations"],
   cfo: ["Reports", "Inventory, Tremco, and Daily Log — view and export"],
 } as const;
 
@@ -438,8 +440,9 @@ export function App() {
         <React.Suspense fallback={<TabSkeleton />}>
           {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
-          {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} saveSite={saveSite} resolveTransaction={resolveTransaction} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} />}
-          {tab === "cfo" && <LazyCfoTab state={state} />}
+          {tab === "jobs" && <LazyJobsTab state={state} role={currentUser.role} saveSite={saveSite} openSheet={setSheet} />}
+          {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} setState={setState} openSheet={setSheet} />}
+          {tab === "cfo" && <LazyCfoTab state={state} resolveTransaction={resolveTransaction} />}
         </React.Suspense>
       </main>
 
@@ -450,10 +453,10 @@ export function App() {
             Reports
           </button>
         ) : <>
-          {(["home", "log", "trucks", "tools", "inventory", "tremco", "crew"] as Tab[]).map((item) => (
+          {(["home", "log", "trucks", "tools", "inventory", "jobs"] as Tab[]).map((item) => (
             <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>
               <NavIcon tab={item} />
-              {item === "inventory" ? "Inventory" : item === "tremco" ? "Tremco" : item === "log" ? "Daily Log" : item === "trucks" ? "Tasks" : item[0].toUpperCase() + item.slice(1)}
+              {item === "inventory" ? "Inventory" : item === "log" ? "Daily Log" : item === "trucks" ? "Tasks" : item[0].toUpperCase() + item.slice(1)}
             </button>
           ))}
           {canManage(currentUser.role) && (
@@ -640,6 +643,7 @@ function NavIcon({ tab }: { tab: Tab | "admin" }) {
     crew: <svg viewBox="0 0 24 24"><path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /><path d="M2 21a6 6 0 0 1 12 0" /><path d="M16 4a4 4 0 0 1 0 8M22 21a6 6 0 0 0-6-6" /></svg>,
     log: <svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z" /><path d="M14 3v4h4" /><path d="M9 13h6M9 17h6M9 9h2" /></svg>,
     tremco: <svg viewBox="0 0 24 24"><path d="M12 2.5c3.5 4.2 6 7.4 6 10.6a6 6 0 1 1-12 0c0-3.2 2.5-6.4 6-10.6Z" /></svg>,
+    jobs: <svg viewBox="0 0 24 24"><path d="M3 8h18v11H3z" /><path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M3 13h18" /></svg>,
     admin: <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><path d="M18 2l1.5 1.5M18 7l1.5-1.5M13 2l-1.5 1.5M13 7l-1.5-1.5"/></svg>,
     cfo: <svg viewBox="0 0 24 24"><path d="M4 19h16" /><path d="M6 19V9l4-3 4 3v10" /><path d="M14 19v-6l4-2v8" /></svg>,
   };
