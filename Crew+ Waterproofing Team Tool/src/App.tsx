@@ -194,6 +194,42 @@ function useRemoteState(fallback: CrewState) {
   return { state, setState, sessionUserId, loading: query.isFetching && !query.data && Boolean(sessionUserId), error, login, logout };
 }
 
+function hsaReminderWindow(now: Date) {
+  const year = now.getFullYear();
+  const start = new Date(Date.UTC(year, 9, 15));
+  const end = new Date(Date.UTC(year, 11, 31, 23, 59, 59));
+  return { active: now >= start && now <= end, year };
+}
+
+function HsaReminderBanner({ user }: { user: Profile }) {
+  const { active, year } = hsaReminderWindow(new Date());
+  const storageKey = `hsa-reminder-dismissed-${year}`;
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(storageKey) === "true";
+    } catch {
+      return false;
+    }
+  });
+  if (user.employmentType !== "full_time" || !active || dismissed) return null;
+  const dismiss = () => {
+    try {
+      localStorage.setItem(storageKey, "true");
+    } catch {
+      // ignore storage errors
+    }
+    setDismissed(true);
+  };
+  return <section className="panel card hsa-reminder">
+    <div className="section-head">
+      <h3>Health Spending Account reminder</h3>
+      <button onClick={dismiss}>Dismiss</button>
+    </div>
+    <p>This is a reminder to use your Health Spending Account! You must use the money from now until December 31 of this calendar year — the amount renews on January 1 of next year.</p>
+    <p className="muted">How it works: you spend $100 on the bill, the employer remits $100 plus the 6% admin fee plus GST on that fee (about $106.30 total), and you get $100 back. The HSA is not insurance — you can explore insurance separately.</p>
+  </section>;
+}
+
 function Home({ state, user, setTab, openGraph }: { state: CrewState; user: Profile; setTab: (tab: Tab) => void; openGraph: (type: GraphType) => void }) {
   const board = leaderboard(state).slice(0, 5);
   const trajectory = bonusTrajectory(state.reviews.filter((review) => review.userId === user.id && review.status === "completed").flatMap((review) => Object.values(review.ratings).filter(Boolean) as ReviewRating[]));
@@ -210,7 +246,7 @@ function Home({ state, user, setTab, openGraph }: { state: CrewState; user: Prof
     { count: compliance, label: "Compliance flags", tab: "certs" as Tab },
     { count: redemptions, label: "Reward approvals", tab: "rewards" as Tab },
   ].filter((item) => item.count > 0);
-  return <>{attention.length > 0 && <section className="attention-strip" aria-label="Needs attention"><div className="attention-title"><span aria-hidden="true">!</span><b>Needs attention</b></div><div className="attention-rows">{attention.map((item) => <button key={item.label} onClick={() => setTab(item.tab)}><span>{item.label}</span><b>{item.count}</b><span aria-hidden="true">→</span></button>)}</div></section>}<div className="grid two"><section className="panel card hero-panel card-interactive" onClick={() => openGraph("points_trend")}><h3>{walletBalance(state.pointsEvents, user.id)} points</h3><p>Shared wallet from Warehouse Wizard, SOP+, and Crew+. Tap for the 30-day trend.</p><div className="hero-actions"><button className="primary" onClick={(event) => { event.stopPropagation(); setTab("wallet"); }}>Open wallet</button><button className="primary" onClick={(event) => { event.stopPropagation(); setTab("certs"); }}>Compliance</button></div></section><section className="panel card"><div className="section-head"><h3>Bonus trajectory</h3><span className={`status ${trajectory}`}>{trajectory.toUpperCase()}</span></div><p className="muted">Trajectory is visible to everyone. Dollars stay admin/CFO-only.</p><div className="score-grid"><div className="score-tile"><strong>{state.reviews.filter((review) => review.userId === user.id && review.status === "completed").length}</strong><span>completed reviews</span></div><div className="score-tile"><strong>{state.certifications.filter((cert) => cert.userId === user.id).length}</strong><span>cert records</span></div></div><button onClick={() => setTab("bonus")}>Open scorecard</button></section><section className="panel card card-interactive" onClick={() => openGraph("leaderboard")}><div className="section-head"><h3>Leaderboard</h3><span className="pill">Chart</span></div>{board.map((row, index) => <div className="lb" key={row.user.id}><b>{index + 1}. {row.user.name}</b><span className="pill">{row.balance} pts</span></div>)}</section><section className="panel card"><h3>Weekly value-share</h3><p>{state.values[0].weeklyRitual}</p><div className="facts"><span>Monday 6:30am</span><span>+5 points</span></div><button onClick={() => setTab("reviews")}>Review cadence</button></section></div></>;
+  return <><HsaReminderBanner user={user} />{attention.length > 0 && <section className="attention-strip" aria-label="Needs attention"><div className="attention-title"><span aria-hidden="true">!</span><b>Needs attention</b></div><div className="attention-rows">{attention.map((item) => <button key={item.label} onClick={() => setTab(item.tab)}><span>{item.label}</span><b>{item.count}</b><span aria-hidden="true">→</span></button>)}</div></section>}<div className="grid two"><section className="panel card hero-panel card-interactive" onClick={() => openGraph("points_trend")}><h3>{walletBalance(state.pointsEvents, user.id)} points</h3><p>Shared wallet from Warehouse Wizard, SOP+, and Crew+. Tap for the 30-day trend.</p><div className="hero-actions"><button className="primary" onClick={(event) => { event.stopPropagation(); setTab("wallet"); }}>Open wallet</button><button className="primary" onClick={(event) => { event.stopPropagation(); setTab("certs"); }}>Compliance</button></div></section><section className="panel card"><div className="section-head"><h3>Bonus trajectory</h3><span className={`status ${trajectory}`}>{trajectory.toUpperCase()}</span></div><p className="muted">Trajectory is visible to everyone. Dollars stay admin/CFO-only.</p><div className="score-grid"><div className="score-tile"><strong>{state.reviews.filter((review) => review.userId === user.id && review.status === "completed").length}</strong><span>completed reviews</span></div><div className="score-tile"><strong>{state.certifications.filter((cert) => cert.userId === user.id).length}</strong><span>cert records</span></div></div><button onClick={() => setTab("bonus")}>Open scorecard</button></section><section className="panel card card-interactive" onClick={() => openGraph("leaderboard")}><div className="section-head"><h3>Leaderboard</h3><span className="pill">Chart</span></div>{board.map((row, index) => <div className="lb" key={row.user.id}><b>{index + 1}. {row.user.name}</b><span className="pill">{row.balance} pts</span></div>)}</section><section className="panel card"><h3>Weekly value-share</h3><p>{state.values[0].weeklyRitual}</p><div className="facts"><span>Monday 6:30am</span><span>+5 points</span></div><button onClick={() => setTab("reviews")}>Review cadence</button></section></div></>;
 }
 
 function LoginScreen({ error, onLogin }: { error: string; onLogin: (email: string, password: string) => Promise<void> }) {
