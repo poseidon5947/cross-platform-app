@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { validateMaterialsCsv } from "../data/csvImport";
 import { invokeMaterialsImport, invokeQuickBooksConnect, invokeQuickBooksSync } from "../data/repo";
 import { money, priceChangeMaterials, reorderEstimate } from "../domain/business";
@@ -9,7 +9,7 @@ import PeopleTabBoundary from "./PeopleTabBoundary";
 
 type AdminSection = "crew" | "csv" | "po" | "quickbooks" | "settings";
 
-export default function AdminTabBoundary({ state, role, notify, remoteMode, saveMaterial, currentTheme, onThemeChange, openThemeEditor, setState, openSheet }: {
+export default function AdminTabBoundary({ state, role, notify, remoteMode, saveMaterial, currentTheme, onThemeChange, openThemeEditor, setState, openSheet, focusTarget, onFocusHandled }: {
   state: AppState;
   role: Role;
   notify: (message: string) => void;
@@ -20,8 +20,10 @@ export default function AdminTabBoundary({ state, role, notify, remoteMode, save
   openThemeEditor: () => void;
   setState: (state: AppState | ((current: AppState) => AppState)) => void;
   openSheet: (sheet: { title: string; content: React.ReactNode }) => void;
+  focusTarget?: string | null;
+  onFocusHandled?: () => void;
 }) {
-  return <Admin state={state} role={role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={onThemeChange} openThemeEditor={openThemeEditor} setState={setState} openSheet={openSheet} />;
+  return <Admin state={state} role={role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={onThemeChange} openThemeEditor={openThemeEditor} setState={setState} openSheet={openSheet} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
 }
 
 function buildPoText(state: AppState) {
@@ -32,8 +34,14 @@ function buildPoText(state: AppState) {
   }).concat([`Subtotal ${money(estimate.subtotal)}`, `GST ${money(estimate.gst)}`, `Freight ${money(estimate.freight)}`, `Total ${money(estimate.total)}`]).join("\n");
 }
 
-function Admin({ state, role, notify, remoteMode, saveMaterial, currentTheme, onThemeChange, openThemeEditor, setState, openSheet }: { state: AppState; role: Role; notify: (message: string) => void; remoteMode: boolean; saveMaterial: (material: Material, includeQty?: boolean) => void; currentTheme: Theme; onThemeChange: (theme: Theme) => void; openThemeEditor: () => void; setState: (state: AppState | ((current: AppState) => AppState)) => void; openSheet: (sheet: { title: string; content: React.ReactNode }) => void }) {
-  const [section, setSection] = useState<AdminSection>("crew");
+function Admin({ state, role, notify, remoteMode, saveMaterial, currentTheme, onThemeChange, openThemeEditor, setState, openSheet, focusTarget, onFocusHandled }: { state: AppState; role: Role; notify: (message: string) => void; remoteMode: boolean; saveMaterial: (material: Material, includeQty?: boolean) => void; currentTheme: Theme; onThemeChange: (theme: Theme) => void; openThemeEditor: () => void; setState: (state: AppState | ((current: AppState) => AppState)) => void; openSheet: (sheet: { title: string; content: React.ReactNode }) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
+  const [section, setSection] = useState<AdminSection>(() => (focusTarget === "csv" ? "csv" : "crew"));
+
+  useEffect(() => {
+    if (!focusTarget) return;
+    if (focusTarget === "csv") setSection("csv");
+    onFocusHandled?.();
+  }, [focusTarget]);
   const estimate = reorderEstimate(state.materials);
   const priceChanges = priceChangeMaterials(state.materials);
   const [report, setReport] = useState<string>(() => priceChanges.length ? `${priceChanges.length} price change${priceChanges.length === 1 ? "" : "s"} active` : "");

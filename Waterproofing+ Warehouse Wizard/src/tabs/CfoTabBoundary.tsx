@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ALLOWED_MATERIAL_UNITS, money, monthlyInventoryLogCsv, stockStatus } from "../domain/business";
 import type { AppState, DailyLog, MaterialUnit, Transaction } from "../types";
 import { Pill, serviceName, siteName, userName } from "../App";
@@ -70,10 +70,17 @@ function printReport(state: AppState) {
   }
 }
 
-export default function CfoTabBoundary({ state, resolveTransaction }: { state: AppState; resolveTransaction: (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit) => void }) {
+export default function CfoTabBoundary({ state, resolveTransaction, focusTarget, onFocusHandled }: { state: AppState; resolveTransaction: (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
   const [section, setSection] = useState<"inventory" | "tremco" | "log">("inventory");
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const inMonth = (dateStr: string) => !month || dateStr.slice(0, 7) === month;
+
+  useEffect(() => {
+    if (!focusTarget) return;
+    const targetId = focusTarget === "needs-review" ? "wz-section-needs-review" : focusTarget === "exports" ? "wz-section-exports" : null;
+    if (targetId) requestAnimationFrame(() => document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    onFocusHandled?.();
+  }, [focusTarget]);
 
   const inventoryTx = state.transactions.filter((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); return (!tx.needsReview ? !material?.isTremco : true) && inMonth(tx.ts); });
   const tremcoTx = state.transactions.filter((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); return material?.isTremco && inMonth(tx.ts); });
@@ -109,12 +116,12 @@ export default function CfoTabBoundary({ state, resolveTransaction }: { state: A
       {monthLogs.length > 0 && <button className="btn line block" onClick={() => printDailyLogs(state, monthLogs, month)}>Export Daily Log</button>}
     </>}
 
-    <section className="card wide">
+    <section className="card wide" id="wz-section-needs-review">
       <div className="sec-h"><div><h3>Needs review</h3><p className="tiny muted">Imported or messy log entries where the item, quantity, or unit wasn't clear. Fix by the 10th of every month.</p></div><Pill tone={needsReview.length ? "warn" : "good"}>{needsReview.length}</Pill></div>
       {needsReview.length ? needsReview.map((tx) => <NeedsReviewRow key={tx.id} tx={tx} state={state} resolveTransaction={resolveTransaction} />) : <p className="tiny muted">Nothing needs review.</p>}
     </section>
 
-    <section className="card">
+    <section className="card" id="wz-section-exports">
       <h3>Exports</h3>
       <p className="tiny muted">Cost report can be printed to PDF by your browser. BuilderTrend remains a CSV/PDF export stub.</p>
       <button className="btn line block" onClick={() => printReport(state)}>Print cost report</button>
