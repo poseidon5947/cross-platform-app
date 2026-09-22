@@ -352,3 +352,25 @@ export async function certMediaSignedUrl(storageKey: string) {
   if (error) return "";
   return data.signedUrl;
 }
+
+export type PrivateDocScope = "onboarding" | "incidents";
+
+export async function uploadPrivateDoc(scope: PrivateDocScope, userId: string, file: File) {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+  // The insert policy reads the user id out of the second path segment, so the
+  // scope folder has to come first and the id second.
+  const storageKey = `${scope}/${userId}/${crypto.randomUUID()}-${safeName}`;
+  const { error } = await requireClient().storage.from("crew-private-docs").upload(storageKey, file, {
+    cacheControl: "31536000",
+    upsert: false,
+    contentType: file.type || undefined,
+  });
+  if (error) throw error;
+  return storageKey;
+}
+
+export async function privateDocSignedUrl(storageKey: string) {
+  const { data, error } = await requireClient().storage.from("crew-private-docs").createSignedUrl(storageKey, 60 * 60);
+  if (error) return "";
+  return data.signedUrl;
+}

@@ -982,6 +982,31 @@ textarea:disabled {
   border: 1px solid var(--line);
 }
 
+/* Upload failures need to read as failures - there is no generic .bad text
+   class, only the pill variant. */
+.file-picker small.bad,
+.doc-link small.bad {
+  color: var(--bad);
+}
+
+.doc-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.doc-link {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.doc-link button {
+  padding: 4px 10px;
+  font-size: 0.85rem;
+}
+
 .kpi-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto 120px 140px;
