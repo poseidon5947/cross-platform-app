@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { categoryLabels } from "../data/seed";
+import { uploadReceiptPhoto } from "../data/repo";
+import { isSupabaseConfigured } from "../integrations/supabase";
 import { ALLOWED_MATERIAL_UNITS, batteryState, canResolveMaintenanceRequests, dailyProgress, id, isKmEntryTask, isTaskDone, money, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
 import type { AppState, Category, DailyLog, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, TaskSection, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User } from "../types";
 import { BulkToolSheet, canManage, Kpi, Pill, ProgressRing, serviceName, siteName, userName } from "../App";
 import type { Tab as AppTab } from "../App";
 
 type Tab = "inventory" | "tremco" | "log" | "tools" | "trucks";
+
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true" || !isSupabaseConfigured();
 
 function InventorySegments({ activeTab, setTab }: { activeTab: Tab; setTab: (tab: AppTab) => void }) {
   return <div className="seg inv-segments">
@@ -439,9 +443,22 @@ function TruckLogForm({ state, saveTruck }: { state: AppState; saveTruck: (log: 
   const [gasStation, setGasStation] = useState("");
   const [totalCost, setTotalCost] = useState(0);
   const [receiptPhotoName, setReceiptPhotoName] = useState("");
+  const [receiptStatus, setReceiptStatus] = useState<"" | "uploading" | "done" | "failed">("");
+  const handleReceipt = async (file: File | null) => {
+    if (!file) { setReceiptPhotoName(""); setReceiptStatus(""); return; }
+    if (DEMO_MODE) { setReceiptPhotoName(file.name); setReceiptStatus("done"); return; }
+    setReceiptStatus("uploading");
+    try {
+      setReceiptPhotoName(await uploadReceiptPhoto(truckId || "unassigned", file));
+      setReceiptStatus("done");
+    } catch {
+      setReceiptPhotoName("");
+      setReceiptStatus("failed");
+    }
+  };
   const [repairs, setRepairs] = useState("");
   const [notes, setNotes] = useState("");
-  return <div><label className="fld">Truck</label><select className="in" value={truckId} onChange={(event) => { setTruckId(event.target.value); setKm(state.trucks.find((item) => item.id === event.target.value)?.km ?? 0); }}>{state.trucks.map((item) => <option key={item.id} value={item.id}>{item.name} - {item.km} km</option>)}</select><label className="fld">Date</label><input className="in" type="date" value={logDate} max={todayKey()} onChange={(event) => setLogDate(event.target.value)} /><NumberField label="Odometer KM" value={km} setValue={setKm} /><label className="fld">Job</label><select className="in" value={siteId} onChange={(event) => setSiteId(event.target.value)}>{state.sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select><label className="fld">Service</label><select className="in" value={serviceId} onChange={(event) => setServiceId(event.target.value as ServiceId)}>{state.services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select><label className="fld">Gas station</label><input className="in" value={gasStation} onChange={(event) => setGasStation(event.target.value)} placeholder="Station name" /><NumberField label="Total cost with GST" value={totalCost} setValue={setTotalCost} step={0.01} /><label className="fld">Receipt photo</label><ImageFilePicker accept="image/*" value={receiptPhotoName} onChange={(file) => setReceiptPhotoName(file?.name ?? "")} /><label className="check"><input type="checkbox" checked={fuelTopped} onChange={(event) => setFuelTopped(event.target.checked)} /> Fuel topped</label><label className="check"><input type="checkbox" checked={oilChecked} onChange={(event) => setOilChecked(event.target.checked)} /> Oil checked</label><label className="check"><input type="checkbox" checked={exteriorWash} onChange={(event) => setExteriorWash(event.target.checked)} /> Exterior wash</label><label className="fld">Repairs / issues</label><textarea className="in" value={repairs} onChange={(event) => setRepairs(event.target.value)} /><label className="fld">Notes</label><textarea className="in" value={notes} onChange={(event) => setNotes(event.target.value)} /><button className="btn primary block" disabled={!truckId || !siteId || !gasStation.trim() || totalCost <= 0} onClick={() => saveTruck({ truckId, km, driverId: state.currentUserId, siteId, serviceId, oilChecked, fuelTopped, gasStation: gasStation.trim(), totalCost, receiptPhotoName, exteriorWash, repairs, notes }, logDate)}>Save Gas Station Check</button></div>;
+  return <div><label className="fld">Truck</label><select className="in" value={truckId} onChange={(event) => { setTruckId(event.target.value); setKm(state.trucks.find((item) => item.id === event.target.value)?.km ?? 0); }}>{state.trucks.map((item) => <option key={item.id} value={item.id}>{item.name} - {item.km} km</option>)}</select><label className="fld">Date</label><input className="in" type="date" value={logDate} max={todayKey()} onChange={(event) => setLogDate(event.target.value)} /><NumberField label="Odometer KM" value={km} setValue={setKm} /><label className="fld">Job</label><select className="in" value={siteId} onChange={(event) => setSiteId(event.target.value)}>{state.sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select><label className="fld">Service</label><select className="in" value={serviceId} onChange={(event) => setServiceId(event.target.value as ServiceId)}>{state.services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select><label className="fld">Gas station</label><input className="in" value={gasStation} onChange={(event) => setGasStation(event.target.value)} placeholder="Station name" /><NumberField label="Total cost with GST" value={totalCost} setValue={setTotalCost} step={0.01} /><label className="fld">Receipt photo</label><ImageFilePicker accept="image/*" onChange={handleReceipt} />{receiptStatus === "uploading" && <p className="tiny muted">Uploading receipt…</p>}{receiptStatus === "done" && <p className="tiny muted">Receipt attached.</p>}{receiptStatus === "failed" && <p className="tiny error">Receipt upload failed — you can still save the check without it.</p>}<label className="check"><input type="checkbox" checked={fuelTopped} onChange={(event) => setFuelTopped(event.target.checked)} /> Fuel topped</label><label className="check"><input type="checkbox" checked={oilChecked} onChange={(event) => setOilChecked(event.target.checked)} /> Oil checked</label><label className="check"><input type="checkbox" checked={exteriorWash} onChange={(event) => setExteriorWash(event.target.checked)} /> Exterior wash</label><label className="fld">Repairs / issues</label><textarea className="in" value={repairs} onChange={(event) => setRepairs(event.target.value)} /><label className="fld">Notes</label><textarea className="in" value={notes} onChange={(event) => setNotes(event.target.value)} /><button className="btn primary block" disabled={!truckId || !siteId || !gasStation.trim() || totalCost <= 0 || receiptStatus === "uploading"} onClick={() => saveTruck({ truckId, km, driverId: state.currentUserId, siteId, serviceId, oilChecked, fuelTopped, gasStation: gasStation.trim(), totalCost, receiptPhotoName, exteriorWash, repairs, notes }, logDate)}>Save Gas Station Check</button></div>;
 }
 
 function TaskEditor({ state, section, saveTask, removeTask }: { state: AppState; section: TaskSection; saveTask: (task: TruckTask) => void; removeTask: (id: string) => void }) {

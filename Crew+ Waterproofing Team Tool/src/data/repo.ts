@@ -334,3 +334,21 @@ const pointsFromRow = (row: any): PointsEvent => ({
   ts: row.ts,
   source: row.source ?? undefined,
 });
+
+export async function uploadCertMedia(userId: string, certId: string, file: File) {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+  const storageKey = `crew/${userId}/${certId}/${crypto.randomUUID()}-${safeName}`;
+  const { error } = await requireClient().storage.from("crew-cert-media").upload(storageKey, file, {
+    cacheControl: "31536000",
+    upsert: false,
+    contentType: file.type || undefined,
+  });
+  if (error) throw error;
+  return storageKey;
+}
+
+export async function certMediaSignedUrl(storageKey: string) {
+  const { data, error } = await requireClient().storage.from("crew-cert-media").createSignedUrl(storageKey, 60 * 60);
+  if (error) return "";
+  return data.signedUrl;
+}

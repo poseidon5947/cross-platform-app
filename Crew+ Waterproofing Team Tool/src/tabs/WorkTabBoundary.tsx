@@ -4,6 +4,7 @@ import { removePushSubscription, savePushSubscription, sendTestPush } from "../d
 import type { Certification, CrewState, IncidentReport, IncidentReportInput, OnboardingInput, PolicyDocument, Profile, TimeOffKind } from "../types";
 import { useToast } from "../components/Toast";
 import { nameOf, REMOTE_MODE } from "../App";
+import { uploadCertMedia } from "../data/repo";
 
 type WorkTab = "profile" | "onboarding" | "timeoff" | "incidents" | "certs";
 
@@ -253,11 +254,20 @@ function ComplianceUserCard({ state, user, setState }: { state: CrewState; user:
   const red = certs.filter((cert) => levelFor(cert) === "red").length;
   const amber = certs.filter((cert) => levelFor(cert) === "amber").length;
   const updateCert = (certId: string, patch: Partial<Certification>) => setState((next) => ({ ...next, certifications: next.certifications.map((cert) => cert.id === certId && cert.userId === user.id ? { ...cert, ...patch } : cert) }));
+  const attachCertMedia = async (certId: string, file: File | null) => {
+    if (!file) { updateCert(certId, { certificatePhotoKey: undefined }); return; }
+    if (!REMOTE_MODE) { updateCert(certId, { certificatePhotoKey: file.name }); return; }
+    try {
+      updateCert(certId, { certificatePhotoKey: await uploadCertMedia(user.id, certId, file) });
+    } catch {
+      updateCert(certId, { certificatePhotoKey: undefined });
+    }
+  };
   const addCertification = () => {
     const type = state.certificationTypes.find((item) => item.id === certTypeId);
     if (!type) return;
     const cert: Certification = { id: `cert-${user.id}-${type.id}-${Date.now()}`, userId: user.id, certTypeId: type.id, name: type.name, issuingBody: type.issuingBody, status: "date_needed", note: "Crew-added certification; complete the fields and attach the certificate." };
     setState((next) => ({ ...next, certifications: [cert, ...next.certifications] }));
   };
-  return <section className="panel card compliance-card"><div className="section-head"><div><h3>{user.name}</h3><div className="cert-summary"><span className="pill bad">{red} urgent</span><span className="pill warn">{amber} upcoming</span></div></div><button onClick={() => setState((next) => awardCertsCurrent(next, user.id, today.slice(0, 7)))}>Current +{rulePoints(state, "earn-certs", 5)}</button></div><div className="add-cert"><select value={certTypeId} onChange={(event) => setCertTypeId(event.target.value)}>{state.certificationTypes.map((type) => <option value={type.id} key={type.id}>{type.name}</option>)}</select><button onClick={addCertification}>Add certification</button></div><div className="cert-list">{certs.length ? certs.map((cert) => <div className="line cert-record" key={cert.id}><b>{cert.name}</b><span className={`pill ${toneForCert(levelFor(cert))}`}>{cert.status}</span><small>{cert.expiresAt ? `expires ${cert.expiresAt}` : cert.courseDate ? `course ${cert.courseDate}` : cert.note || "expiry date needed"}</small><div className="field-stack"><label>Course date<input type="date" value={cert.courseDate ?? ""} onChange={(event) => updateCert(cert.id, { courseDate: event.target.value })} /></label><label>Expiry date<input type="date" value={cert.expiresAt ?? ""} onChange={(event) => updateCert(cert.id, { expiresAt: event.target.value })} /></label><label>Certificate number<input value={cert.certificateNumber ?? ""} placeholder="Certificate #" onChange={(event) => updateCert(cert.id, { certificateNumber: event.target.value })} /></label><label>Certificate photo or PDF<ImageFilePicker accept="image/*,.pdf" value={cert.certificatePhotoKey} onChange={(file) => updateCert(cert.id, { certificatePhotoKey: file?.name })} /></label><button onClick={() => setState((next) => awardCertDetail(next, cert.userId, cert.id))}>Save details +{rulePoints(state, "earn-cert-detail", 5)}</button></div></div>) : <p className="empty-state">No certifications yet. Add the first record above.</p>}</div></section>;
+  return <section className="panel card compliance-card"><div className="section-head"><div><h3>{user.name}</h3><div className="cert-summary"><span className="pill bad">{red} urgent</span><span className="pill warn">{amber} upcoming</span></div></div><button onClick={() => setState((next) => awardCertsCurrent(next, user.id, today.slice(0, 7)))}>Current +{rulePoints(state, "earn-certs", 5)}</button></div><div className="add-cert"><select value={certTypeId} onChange={(event) => setCertTypeId(event.target.value)}>{state.certificationTypes.map((type) => <option value={type.id} key={type.id}>{type.name}</option>)}</select><button onClick={addCertification}>Add certification</button></div><div className="cert-list">{certs.length ? certs.map((cert) => <div className="line cert-record" key={cert.id}><b>{cert.name}</b><span className={`pill ${toneForCert(levelFor(cert))}`}>{cert.status}</span><small>{cert.expiresAt ? `expires ${cert.expiresAt}` : cert.courseDate ? `course ${cert.courseDate}` : cert.note || "expiry date needed"}</small><div className="field-stack"><label>Course date<input type="date" value={cert.courseDate ?? ""} onChange={(event) => updateCert(cert.id, { courseDate: event.target.value })} /></label><label>Expiry date<input type="date" value={cert.expiresAt ?? ""} onChange={(event) => updateCert(cert.id, { expiresAt: event.target.value })} /></label><label>Certificate number<input value={cert.certificateNumber ?? ""} placeholder="Certificate #" onChange={(event) => updateCert(cert.id, { certificateNumber: event.target.value })} /></label><label>Certificate photo or PDF<ImageFilePicker accept="image/*,.pdf" value={cert.certificatePhotoKey} onChange={(file) => attachCertMedia(cert.id, file)} /></label><button onClick={() => setState((next) => awardCertDetail(next, cert.userId, cert.id))}>Save details +{rulePoints(state, "earn-cert-detail", 5)}</button></div></div>) : <p className="empty-state">No certifications yet. Add the first record above.</p>}</div></section>;
 }

@@ -334,6 +334,24 @@ export async function updateTool(tool: ToolItem) {
   if (error) throw error;
 }
 
+export async function uploadReceiptPhoto(truckId: string, file: File) {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+  const storageKey = `receipts/${truckId}/${crypto.randomUUID()}-${safeName}`;
+  const { error } = await requireClient().storage.from("warehouse-receipts").upload(storageKey, file, {
+    cacheControl: "31536000",
+    upsert: false,
+    contentType: file.type || undefined,
+  });
+  if (error) throw error;
+  return storageKey;
+}
+
+export async function receiptSignedUrl(storageKey: string) {
+  const { data, error } = await requireClient().storage.from("warehouse-receipts").createSignedUrl(storageKey, 60 * 60);
+  if (error) return "";
+  return data.signedUrl;
+}
+
 export async function upsertTruck(truck: Truck) {
   const { error } = await requireClient().from("trucks").upsert({
     id: isUuid(truck.id) ? truck.id : undefined,
