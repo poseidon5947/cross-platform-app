@@ -218,7 +218,10 @@ nav button:hover,
   color: #fff;
 }
 
-nav span {
+/* The count badge, not every span in the nav: the menu labels are wrapped in
+   .nav-label, so a bare `nav span` selector gave each one the badge's pill
+   background and floated it to the right of its own button. */
+nav .nav-count {
   float: right;
   min-width: 24px;
   padding: 2px 7px;
@@ -852,7 +855,6 @@ textarea:disabled {
 }
 
 .nav-count {
-  float: none;
   margin-left: 8px;
 }
 
