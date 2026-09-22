@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { categoryLabels } from "../data/seed";
 import { ALLOWED_MATERIAL_UNITS, batteryState, canResolveMaintenanceRequests, dailyProgress, id, isKmEntryTask, isTaskDone, money, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
-import type { AppState, Category, DailyLog, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, TaskSection, ToolCondition, ToolItem, Transaction, TruckLog, TruckTask, TxType, User } from "../types";
+import type { AppState, Category, DailyLog, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, TaskSection, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User } from "../types";
 import { BulkToolSheet, canManage, Kpi, Pill, ProgressRing, serviceName, siteName, userName } from "../App";
 import type { Tab as AppTab } from "../App";
 
@@ -30,7 +30,7 @@ function ImageFilePicker({ accept, value, onChange }: { accept?: string; value?:
   </div>;
 }
 
-export default function OperationsTabBoundary({ activeTab, state, role, currentUser, userId, toggleTask, openSheet, saveMaterial, setExactCount, setTab, submitTransactions, submitDailyLog, saveSite, saveTool, saveTruck, saveTask, removeTask, submitMaintenance, respondMaintenance, focusTarget, onFocusHandled }: {
+export default function OperationsTabBoundary({ activeTab, state, role, currentUser, userId, toggleTask, openSheet, saveMaterial, setExactCount, setTab, submitTransactions, submitDailyLog, saveSite, saveTool, saveTruck, saveTruckRecord, saveTask, removeTask, submitMaintenance, respondMaintenance, focusTarget, onFocusHandled }: {
   activeTab: Tab;
   state: AppState;
   role: Role;
@@ -46,6 +46,7 @@ export default function OperationsTabBoundary({ activeTab, state, role, currentU
   saveSite: (site: Site) => void;
   saveTool: (tool: ToolItem, message?: string) => void;
   saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void;
+  saveTruckRecord: (truck: Truck, message?: string) => void;
   saveTask: (task: TruckTask) => void;
   removeTask: (id: string) => void;
   submitMaintenance: (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string, deadlineAt?: string, chosenDate?: string) => void;
@@ -57,7 +58,7 @@ export default function OperationsTabBoundary({ activeTab, state, role, currentU
   if (activeTab === "tremco") return <Tremco state={state} role={role} openSheet={openSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} />;
   if (activeTab === "log") return <LogMaterials state={state} role={role} userId={userId} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} setTab={setTab} />;
   if (activeTab === "tools") return <Tools state={state} role={role} userId={userId} openSheet={openSheet} saveTool={saveTool} />;
-  return <Tasks state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
+  return <Tasks state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
 }
 
 function Chip({ on, children, onClick }: { on: boolean; children: React.ReactNode; onClick: () => void }) {
@@ -187,10 +188,23 @@ function Tools({ state, role, userId, openSheet, saveTool }: { state: AppState; 
     if (filter === "all") return true;
     return tool.serviceId === filter;
   });
-  return <><div className="kpis"><Kpi label="Checked out" value={state.tools.filter((tool) => tool.status === "out").length} sub={`of ${state.tools.length}`} /><Kpi label="Repair flags" value={state.tools.filter((tool) => tool.condition !== "good").length} sub="needs manager review" /></div><button className="btn primary block" onClick={() => openSheet({ title: "Check tools for job", content: <BulkToolSheet state={state} userId={userId} saveTool={saveTool} /> })}>Check tools for job</button><div className="chips"><Chip on={filter === "all"} onClick={() => setFilter("all")}>All</Chip><Chip on={filter === "charge"} onClick={() => setFilter("charge")}>🔋 Charge due {state.tools.filter(t => t.battery && batteryState(t.lastCharged).key === "bad").length > 0 ? `(${state.tools.filter(t => t.battery && batteryState(t.lastCharged).key === "bad").length})` : ""}</Chip>{state.services.map((service) => <Chip key={service.id} on={filter === service.id} onClick={() => setFilter(service.id)}>{service.name}</Chip>)}</div><section className="card">{list.map((tool) => { const charge = tool.battery ? batteryState(tool.lastCharged) : null; return <div className="tool-row" key={tool.id} onClick={() => openSheet({ title: tool.name, content: <ToolSheet state={state} role={role} userId={userId} tool={tool} saveTool={saveTool} /> })}><div><b>{tool.name}</b><div className="tiny muted">{serviceName(state, tool.serviceId)} {tool.status === "out" ? `- out with ${userName(state, tool.outBy)} - ${siteName(state, tool.outJob)}` : "- in warehouse"}</div></div><div className="tool-actions"><Pill tone={tool.status === "out" ? "warn" : "good"}>{tool.status}</Pill><Pill tone={tool.condition === "good" ? "good" : "bad"}>{tool.condition}</Pill>{charge && <Pill tone={charge.key}>{charge.label}</Pill>}</div></div>; })}</section></>;
+  return <><div className="kpis"><Kpi label="Checked out" value={state.tools.filter((tool) => tool.status === "out").length} sub={`of ${state.tools.length}`} /><Kpi label="Repair flags" value={state.tools.filter((tool) => tool.condition !== "good").length} sub="needs manager review" /></div><button className="btn primary block" onClick={() => openSheet({ title: "Check tools for job", content: <BulkToolSheet state={state} userId={userId} saveTool={saveTool} /> })}>Check tools for job</button><div className="chips"><Chip on={filter === "all"} onClick={() => setFilter("all")}>All</Chip><Chip on={filter === "charge"} onClick={() => setFilter("charge")}>🔋 Charge due {state.tools.filter(t => t.battery && batteryState(t.lastCharged).key === "bad").length > 0 ? `(${state.tools.filter(t => t.battery && batteryState(t.lastCharged).key === "bad").length})` : ""}</Chip>{state.services.map((service) => <Chip key={service.id} on={filter === service.id} onClick={() => setFilter(service.id)}>{service.name}</Chip>)}</div><section className="card">{list.map((tool) => { const charge = tool.battery ? batteryState(tool.lastCharged) : null; return <div className="tool-row" key={tool.id} onClick={() => openSheet({ title: tool.name, content: <ToolSheet state={state} role={role} userId={userId} tool={tool} saveTool={saveTool} /> })}><div><b>{tool.name}</b><div className="tiny muted">{serviceName(state, tool.serviceId)} {tool.status === "out" ? `- out with ${userName(state, tool.outBy)} - ${siteName(state, tool.outJob)}` : "- in warehouse"}</div></div><div className="tool-actions"><Pill tone={tool.status === "out" ? "warn" : "good"}>{tool.status}</Pill><Pill tone={tool.condition === "good" ? "good" : "bad"}>{tool.condition}</Pill>{charge && <Pill tone={charge.key}>{charge.label}</Pill>}</div></div>; })}</section>{canManage(role) && <button className="btn line block" onClick={() => openSheet({ title: "New tool", content: <ToolForm state={state} saveTool={saveTool} /> })}>Add new tool</button>}</>;
 }
 
-function Tasks({ state, role, currentUser, toggleTask, openSheet, saveTruck, saveTask, removeTask, submitMaintenance, respondMaintenance, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; toggleTask: (taskId: string) => void; openSheet: (sheet: { title: string; content: React.ReactNode }) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; saveTask: (task: TruckTask) => void; removeTask: (id: string) => void; submitMaintenance: (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string, deadlineAt?: string, chosenDate?: string) => void; respondMaintenance: (requestId: string, note: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
+function ToolForm({ state, tool, saveTool }: { state: AppState; tool?: ToolItem; saveTool: (tool: ToolItem, message?: string) => void }) {
+  const [draft, setDraft] = useState<ToolItem>(tool ?? { id: id("t"), name: "", serviceId: "veh", battery: false, status: "in", condition: "good" });
+  const set = <K extends keyof ToolItem>(key: K, value: ToolItem[K]) => setDraft((current) => ({ ...current, [key]: value }));
+  return <div className="form-stack">
+    <label className="fld">Tool name</label>
+    <input className="in" value={draft.name} onChange={(event) => set("name", event.target.value)} />
+    <label className="fld">Service</label>
+    <select className="in" value={draft.serviceId} onChange={(event) => set("serviceId", event.target.value as ServiceId)}>{state.services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select>
+    <label className="check"><input type="checkbox" checked={draft.battery} onChange={(event) => set("battery", event.target.checked)} /> Cordless / battery powered</label>
+    <button className="btn primary block" disabled={!draft.name.trim()} onClick={() => saveTool(draft, tool ? "Tool updated" : "Tool added")}>Save tool</button>
+  </div>;
+}
+
+function Tasks({ state, role, currentUser, toggleTask, openSheet, saveTruck, saveTruckRecord, saveTask, removeTask, submitMaintenance, respondMaintenance, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; toggleTask: (taskId: string) => void; openSheet: (sheet: { title: string; content: React.ReactNode }) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; saveTruckRecord: (truck: Truck, message?: string) => void; saveTask: (task: TruckTask) => void; removeTask: (id: string) => void; submitMaintenance: (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string, deadlineAt?: string, chosenDate?: string) => void; respondMaintenance: (requestId: string, note: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
   const [section, setSection] = useState<TaskSection>("trucks");
   return <>
     <div className="seg inv-segments">
@@ -198,13 +212,13 @@ function Tasks({ state, role, currentUser, toggleTask, openSheet, saveTruck, sav
       <button className={section === "warehouse" ? "on" : ""} onClick={() => setSection("warehouse")}>Warehouse</button>
       <button className={section === "services" ? "on" : ""} onClick={() => setSection("services")}>Services</button>
     </div>
-    {section === "trucks" && <TrucksSection state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />}
+    {section === "trucks" && <TrucksSection state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />}
     {section === "warehouse" && <WarehouseTasksSection state={state} role={role} toggleTask={toggleTask} openSheet={openSheet} saveTask={saveTask} removeTask={removeTask} />}
     {section === "services" && <ServicesTasksSection state={state} role={role} toggleTask={toggleTask} openSheet={openSheet} saveTask={saveTask} removeTask={removeTask} />}
   </>;
 }
 
-function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTruck, saveTask, removeTask, submitMaintenance, respondMaintenance, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; toggleTask: (taskId: string) => void; openSheet: (sheet: { title: string; content: React.ReactNode }) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; saveTask: (task: TruckTask) => void; removeTask: (id: string) => void; submitMaintenance: (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string, deadlineAt?: string, chosenDate?: string) => void; respondMaintenance: (requestId: string, note: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
+function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTruck, saveTruckRecord, saveTask, removeTask, submitMaintenance, respondMaintenance, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; toggleTask: (taskId: string) => void; openSheet: (sheet: { title: string; content: React.ReactNode }) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; saveTruckRecord: (truck: Truck, message?: string) => void; saveTask: (task: TruckTask) => void; removeTask: (id: string) => void; submitMaintenance: (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string, deadlineAt?: string, chosenDate?: string) => void; respondMaintenance: (requestId: string, note: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
   const canResolve = canResolveMaintenanceRequests(currentUser);
   const openRequests = state.maintenanceRequests.filter((item) => item.status === "open");
   const resolvedRequests = state.maintenanceRequests.filter((item) => item.status === "resolved");
@@ -238,16 +252,16 @@ function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTr
     {canManage(role) && <button className="btn line block" onClick={() => openSheet({ title: "Edit Trucks tasks", content: <TaskEditor state={state} section="trucks" saveTask={saveTask} removeTask={removeTask} /> })}>Edit task list</button>}
     {state.trucks.length > 0 && (
       <section className="card">
-        <div className="sec-h"><h2>Fleet</h2></div>
+        <div className="sec-h"><h2>Fleet</h2>{canManage(role) && <button className="link" onClick={() => openSheet({ title: "Add truck", content: <TruckForm saveTruckRecord={saveTruckRecord} /> })}>Add truck</button>}</div>
         <div className="truck-list">
           {state.trucks.map(truck => {
             const lastLog = state.truckLogs.filter(l => l.truckId === truck.id).sort((a, b) => b.ts.localeCompare(a.ts))[0];
             return (
-              <div className="truck-item" key={truck.id}>
+              <div className="truck-item" key={truck.id} onClick={canManage(role) ? () => openSheet({ title: truck.name, content: <TruckForm truck={truck} saveTruckRecord={saveTruckRecord} /> }) : undefined} style={canManage(role) ? { cursor: "pointer" } : undefined}>
                 <div className="truck-icon">🚛</div>
                 <div className="mid">
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{truck.name}</div>
-                  <div className="tiny muted">{truck.km.toLocaleString()} km · last service {new Date(truck.lastServiced).toLocaleDateString('en-CA')}</div>
+                  <div className="tiny muted">{truck.km ? `${truck.km.toLocaleString()} km` : "No mileage yet"} · last service {formatServiceDate(truck.lastServiced)}</div>
                 </div>
                 {lastLog && <div className="tiny muted">{new Date(lastLog.ts).toLocaleDateString('en-CA')}</div>}
               </div>
@@ -297,6 +311,26 @@ function ServicesTasksSection({ state, role, toggleTask, openSheet, saveTask, re
     <section className="card">{visibleTasks.length ? visibleTasks.map((task) => <TaskRow key={task.id} task={task} done={isTaskDone(state.taskCompletions, state.currentUserId, task)} toggleTask={toggleTask} />) : <p className="tiny muted">No tasks for this filter.</p>}</section>
     {canManage(role) && <button className="btn line block" onClick={() => openSheet({ title: "Edit Services tasks", content: <TaskEditor state={state} section="services" saveTask={saveTask} removeTask={removeTask} /> })}>Edit task list</button>}
   </>;
+}
+
+function formatServiceDate(value?: string) {
+  if (!value) return "not recorded";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "not recorded" : parsed.toLocaleDateString("en-CA");
+}
+
+function TruckForm({ truck, saveTruckRecord }: { truck?: Truck; saveTruckRecord: (truck: Truck, message?: string) => void }) {
+  const [draft, setDraft] = useState<Truck>(truck ?? { id: id("tr"), name: "", km: 0, lastServiced: "", lastOil: 0 });
+  const set = <K extends keyof Truck>(key: K, value: Truck[K]) => setDraft((current) => ({ ...current, [key]: value }));
+  return <div className="form-stack">
+    <label className="fld">Truck name</label>
+    <input className="in" value={draft.name} onChange={(event) => set("name", event.target.value)} placeholder="Make, model (year) - plate" />
+    <NumberField label="Current mileage (km)" value={draft.km} setValue={(value) => set("km", value)} />
+    <label className="fld">Last serviced</label>
+    <input className="in" type="date" value={draft.lastServiced ?? ""} onChange={(event) => set("lastServiced", event.target.value)} />
+    <NumberField label="Last oil change (km)" value={draft.lastOil} setValue={(value) => set("lastOil", value)} />
+    <button className="btn primary block" disabled={!draft.name.trim()} onClick={() => saveTruckRecord(draft, truck ? "Truck updated" : "Truck added")}>Save truck</button>
+  </div>;
 }
 
 function TaskGroup({ title, subtitle, tasks, state, toggleTask, currentUser, saveTruck }: { title: string; subtitle: string; tasks: TruckTask[]; state: AppState; toggleTask: (taskId: string) => void; currentUser: User; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void }) {

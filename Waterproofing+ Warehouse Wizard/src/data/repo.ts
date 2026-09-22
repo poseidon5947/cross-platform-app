@@ -334,6 +334,17 @@ export async function updateTool(tool: ToolItem) {
   if (error) throw error;
 }
 
+export async function upsertTruck(truck: Truck) {
+  const { error } = await requireClient().from("trucks").upsert({
+    id: isUuid(truck.id) ? truck.id : undefined,
+    name: truck.name,
+    km: truck.km,
+    last_serviced: truck.lastServiced || null,
+    last_oil: truck.lastOil,
+  });
+  if (error) throw error;
+}
+
 export async function persistPoints(events: PointsEvent[], _streak?: Streak) {
   const client = requireClient();
   for (const event of events) {

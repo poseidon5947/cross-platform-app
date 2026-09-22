@@ -37,6 +37,7 @@ import {
   upsertMaterial,
   upsertSite,
   upsertTask,
+  upsertTruck,
 } from "./data/repo";
 import {
   applyTransactions,
@@ -68,7 +69,7 @@ import {
   stepForMaterialUnit,
 } from "./domain/business";
 import { isSupabaseConfigured, supabase } from "./integrations/supabase";
-import type { AppState, Category, DailyLog, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, PointsEvent, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, TruckLog, TruckTask, TxType, User } from "./types";
+import type { AppState, Category, DailyLog, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, PointsEvent, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User } from "./types";
 
 const STORAGE_KEY = "warehouse-wizard-state-v4";
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true" || !isSupabaseConfigured();
@@ -330,8 +331,13 @@ export function App() {
   };
 
   const saveTool = (tool: ToolItem, message = "Tool updated") => {
-    patchState((current) => ({ ...current, tools: current.tools.map((item) => item.id === tool.id ? tool : item) }), message);
+    patchState((current) => ({ ...current, tools: current.tools.some((item) => item.id === tool.id) ? current.tools.map((item) => item.id === tool.id ? tool : item) : [...current.tools, tool] }), message);
     if (remoteMode) updateTool(tool).then(invalidateRemote).catch((err) => notify(`Tool sync failed: ${err.message}`));
+  };
+
+  const saveTruckRecord = (truck: Truck, message = "Truck updated") => {
+    patchState((current) => ({ ...current, trucks: current.trucks.some((item) => item.id === truck.id) ? current.trucks.map((item) => item.id === truck.id ? truck : item) : [...current.trucks, truck] }), message);
+    if (remoteMode) upsertTruck(truck).then(invalidateRemote).catch((err) => notify(`Truck sync failed: ${err.message}`));
   };
 
   const saveTruck = (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => {
@@ -438,7 +444,7 @@ export function App() {
       <main>
         {tab === "home" && <Home state={state} role={currentUser.role} userId={currentUser.id} setTab={setTab} goToFocus={goToFocus} openGraph={setGraphModal} />}
         <React.Suspense fallback={<TabSkeleton />}>
-          {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
+          {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
           {tab === "jobs" && <LazyJobsTab state={state} role={currentUser.role} saveSite={saveSite} openSheet={setSheet} />}
           {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} setState={setState} openSheet={setSheet} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
