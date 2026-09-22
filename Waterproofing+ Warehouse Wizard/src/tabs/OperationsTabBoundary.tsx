@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { categoryLabels } from "../data/seed";
-import { uploadReceiptPhoto } from "../data/repo";
+import { receiptSignedUrl, uploadReceiptPhoto } from "../data/repo";
 import { isSupabaseConfigured } from "../integrations/supabase";
 import { ALLOWED_MATERIAL_UNITS, batteryState, canResolveMaintenanceRequests, dailyProgress, id, isKmEntryTask, isTaskDone, money, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
 import type { AppState, Category, DailyLog, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, TaskSection, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User } from "../types";
@@ -256,12 +256,12 @@ function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTr
     {canManage(role) && <button className="btn line block" onClick={() => openSheet({ title: "Edit Trucks tasks", content: <TaskEditor state={state} section="trucks" saveTask={saveTask} removeTask={removeTask} /> })}>Edit task list</button>}
     {state.trucks.length > 0 && (
       <section className="card">
-        <div className="sec-h"><h2>Fleet</h2>{canManage(role) && <button className="link" onClick={() => openSheet({ title: "Add truck", content: <TruckForm saveTruckRecord={saveTruckRecord} /> })}>Add truck</button>}</div>
+        <div className="sec-h"><h2>Fleet</h2>{canManage(role) && <button className="link" onClick={() => openSheet({ title: "Add truck", content: <TruckForm state={state} saveTruckRecord={saveTruckRecord} /> })}>Add truck</button>}</div>
         <div className="truck-list">
           {state.trucks.map(truck => {
             const lastLog = state.truckLogs.filter(l => l.truckId === truck.id).sort((a, b) => b.ts.localeCompare(a.ts))[0];
             return (
-              <div className="truck-item" key={truck.id} onClick={canManage(role) ? () => openSheet({ title: truck.name, content: <TruckForm truck={truck} saveTruckRecord={saveTruckRecord} /> }) : undefined} style={canManage(role) ? { cursor: "pointer" } : undefined}>
+              <div className="truck-item" key={truck.id} onClick={canManage(role) ? () => openSheet({ title: truck.name, content: <TruckForm state={state} truck={truck} saveTruckRecord={saveTruckRecord} /> }) : undefined} style={canManage(role) ? { cursor: "pointer" } : undefined}>
                 <div className="truck-icon">🚛</div>
                 <div className="mid">
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{truck.name}</div>
@@ -323,7 +323,38 @@ function formatServiceDate(value?: string) {
   return Number.isNaN(parsed.getTime()) ? "not recorded" : parsed.toLocaleDateString("en-CA");
 }
 
-function TruckForm({ truck, saveTruckRecord }: { truck?: Truck; saveTruckRecord: (truck: Truck, message?: string) => void }) {
+// Receipts live in a private bucket, so they open through a short-lived signed
+// URL rather than a direct link.
+function ReceiptLink({ storageKey }: { storageKey: string }) {
+  const [status, setStatus] = useState<"" | "opening" | "failed">("");
+  if (DEMO_MODE) return <span className="tiny muted">{storageKey}</span>;
+  const open = async () => {
+    setStatus("opening");
+    const url = await receiptSignedUrl(storageKey);
+    setStatus(url ? "" : "failed");
+    if (url) window.open(url, "_blank", "noopener");
+  };
+  return <button className="link" onClick={open} disabled={status === "opening"}>
+    {status === "opening" ? "Opening..." : status === "failed" ? "Could not open" : "View receipt"}
+  </button>;
+}
+
+function TruckReceipts({ state, truckId }: { state: AppState; truckId: string }) {
+  const logs = state.truckLogs
+    .filter((log) => log.truckId === truckId && log.receiptPhotoName)
+    .sort((a, b) => b.ts.localeCompare(a.ts))
+    .slice(0, 10);
+  if (!logs.length) return null;
+  return <div className="receipt-history">
+    <label className="fld">Gas station receipts</label>
+    {logs.map((log) => <div className="receipt-history-row" key={log.id}>
+      <span className="tiny muted">{new Date(log.ts).toLocaleDateString("en-CA")}{log.gasStation ? ` · ${log.gasStation}` : ""}{log.totalCost ? ` · ${money(log.totalCost)}` : ""}</span>
+      <ReceiptLink storageKey={log.receiptPhotoName as string} />
+    </div>)}
+  </div>;
+}
+
+function TruckForm({ state, truck, saveTruckRecord }: { state: AppState; truck?: Truck; saveTruckRecord: (truck: Truck, message?: string) => void }) {
   const [draft, setDraft] = useState<Truck>(truck ?? { id: id("tr"), name: "", km: 0, lastServiced: "", lastOil: 0 });
   const set = <K extends keyof Truck>(key: K, value: Truck[K]) => setDraft((current) => ({ ...current, [key]: value }));
   return <div className="form-stack">
@@ -334,6 +365,7 @@ function TruckForm({ truck, saveTruckRecord }: { truck?: Truck; saveTruckRecord:
     <input className="in" type="date" value={draft.lastServiced ?? ""} onChange={(event) => set("lastServiced", event.target.value)} />
     <NumberField label="Last oil change (km)" value={draft.lastOil} setValue={(value) => set("lastOil", value)} />
     <button className="btn primary block" disabled={!draft.name.trim()} onClick={() => saveTruckRecord(draft, truck ? "Truck updated" : "Truck added")}>Save truck</button>
+    {truck && <TruckReceipts state={state} truckId={truck.id} />}
   </div>;
 }
 

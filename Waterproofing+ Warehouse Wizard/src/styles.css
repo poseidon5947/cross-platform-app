@@ -2104,3 +2104,7 @@ main > *:nth-child(5) { animation-delay: .15s; }
   background: #fff;
   animation: loading-line 1.25s ease-in-out infinite;
 }
+
+/* Receipt history inside the truck sheet - one row per stored receipt. */
+.receipt-history { display: grid; gap: 6px; margin-top: 16px; }
+.receipt-history-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
