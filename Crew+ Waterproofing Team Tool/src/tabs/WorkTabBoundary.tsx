@@ -44,7 +44,9 @@ function ImageFilePicker({ accept, value, status, onChange }: { accept?: string;
 // short-lived signed URL at the moment someone asks for it.
 function PrivateDocLink({ storageKey, label }: { storageKey: string; label: string }) {
   const [status, setStatus] = useState<"" | "opening" | "failed">("");
-  if (!REMOTE_MODE) return <span className="muted">{fileLabel(storageKey)}</span>;
+  // Records saved before uploads worked hold a bare filename rather than a
+  // storage key, and there is no file behind those to sign for.
+  if (!REMOTE_MODE || !storageKey.includes("/")) return <span className="muted">{fileLabel(storageKey)} (not stored)</span>;
   const open = async () => {
     setStatus("opening");
     const url = await privateDocSignedUrl(storageKey);

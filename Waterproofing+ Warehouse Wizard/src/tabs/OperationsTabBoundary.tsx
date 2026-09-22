@@ -327,7 +327,8 @@ function formatServiceDate(value?: string) {
 // URL rather than a direct link.
 function ReceiptLink({ storageKey }: { storageKey: string }) {
   const [status, setStatus] = useState<"" | "opening" | "failed">("");
-  if (DEMO_MODE) return <span className="tiny muted">{storageKey}</span>;
+  // Logs from before uploads worked hold a bare filename, not a storage key.
+  if (DEMO_MODE || !storageKey.includes("/")) return <span className="tiny muted">{storageKey} (not stored)</span>;
   const open = async () => {
     setStatus("opening");
     const url = await receiptSignedUrl(storageKey);
