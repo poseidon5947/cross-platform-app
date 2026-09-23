@@ -46,7 +46,10 @@ export function App() {
   const currentUser = state.users.find((user) => user.id === state.currentUserId) ?? state.users[0];
   const today = new Date().toISOString().slice(0, 10);
   const newHireRestricted = isNewHireRestricted(currentUser, today);
-  const visibleTabs = (["home", "profile", "onboarding", "wallet", "rituals", "reviews", "forms", "timeoff", "incidents", "bonus", "certs", "rewards", "feedback", "admin"] as const).filter((item) => !newHireRestricted || NEW_HIRE_TABS.includes(item));
+  const visibleTabs = (["home", "profile", "onboarding", "wallet", "rituals", "reviews", "forms", "timeoff", "incidents", "bonus", "certs", "rewards", "feedback", "admin"] as const).filter((item) => !newHireRestricted || NEW_HIRE_TABS.includes(item))
+    // Admin gates all of its own content on admin/editConfig, so a manager or
+    // crew member opening it got an empty shell - drop the tab instead.
+    .filter((item) => item !== "admin" || currentUser.role === "admin");
   const activeTab = visibleTabs.includes(tab) ? tab : "home";
   // The phone bar only has room for a handful of tabs, but the rail nav is
   // hidden below 900px - so anything not listed here used to be unreachable on
