@@ -1,4 +1,4 @@
-import type { Cadence, Certification, CertificationType, CompensationRecord, CrewState, IncidentReportInput, OnboardingInput, PointsEvent, Profile, QuarterlyReviewDetail, RedemptionStatus, Review, ReviewRating, ReviewType, RolePermissionKey, TimeOffKind } from "../types";
+import type { Cadence, Certification, CertificationType, CompensationRecord, CrewState, FeedbackEntry, IncidentReportInput, OnboardingInput, PointsEvent, Profile, QuarterlyReviewDetail, RedemptionStatus, Review, ReviewRating, ReviewType, RolePermissionKey, TimeOffKind } from "../types";
 
 export const JOB_RESPONSIBILITY_ITEMS = [
   "Arrives prepared and on time",
@@ -286,7 +286,10 @@ export function submitFeedback(state: CrewState, userId: string, message: string
   if (!message.trim() || !shouldAward(state.pointsEvents, ref, "crew_feedback")) return state;
   // TODO confirm with client: feedback was included in the defaulted "+5 etc." group.
   const event: PointsEvent = { id: uid("pe"), userId, type: "crew_feedback", points: rulePoints(state, "earn-feedback", 5), reason: "Company feedback submitted", ref, ts: now, source: "crew" };
-  return { ...state, pointsEvents: [event, ...state.pointsEvents] };
+  // The message itself used to be dropped here - only the points event was kept,
+  // so nobody could ever read what people wrote.
+  const entry: FeedbackEntry = { id: uid("fb"), userId, message: message.trim(), ts: now, pointsEventRef: event.id };
+  return { ...state, pointsEvents: [event, ...state.pointsEvents], feedbackEntries: [entry, ...state.feedbackEntries] };
 }
 
 export function wordCount(value: string) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
-import { isoWeekKey, quarterKey, quarterMonths, quarterlyLeaderboard, ritualPeriodKey, acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
+import { submitFeedback, isoWeekKey, quarterKey, quarterMonths, quarterlyLeaderboard, ritualPeriodKey, acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
 import type { IncidentReportInput, OnboardingInput } from "../types";
 
 describe("Crew+ wallet", () => {
@@ -362,5 +362,25 @@ describe("period keys drive the recurring awards", () => {
     expect(ritualPeriodKey("daily", day)).toBe("2026-09-23");
     expect(ritualPeriodKey("weekly", day)).toBe("2026-W39");
     expect(ritualPeriodKey("monthly", day)).toBe("2026-09");
+  });
+});
+
+describe("company feedback", () => {
+  it("keeps what the person wrote, not just the points", () => {
+    let state = createSeedState();
+    expect(state.feedbackEntries).toHaveLength(0);
+    state = submitFeedback(state, "u3", "  The gravel bins need better labels.  ", "2026-09-23T09:00:00Z");
+    expect(state.feedbackEntries).toHaveLength(1);
+    expect(state.feedbackEntries[0].message).toBe("The gravel bins need better labels.");
+    expect(state.feedbackEntries[0].userId).toBe("u3");
+    // and it is still tied to the points event that was awarded for it
+    const event = state.pointsEvents.find((item) => item.id === state.feedbackEntries[0].pointsEventRef);
+    expect(event?.type).toBe("crew_feedback");
+  });
+
+  it("stores nothing for an empty message", () => {
+    let state = createSeedState();
+    state = submitFeedback(state, "u3", "   ", "2026-09-23T09:00:00Z");
+    expect(state.feedbackEntries).toHaveLength(0);
   });
 });

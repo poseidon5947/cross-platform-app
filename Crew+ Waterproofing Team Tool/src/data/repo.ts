@@ -24,7 +24,7 @@ export async function getCurrentSession() {
 }
 
 export async function loadRemoteState(currentUserId: string): Promise<Partial<CrewState>> {
-  const [profiles, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusConfigs, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, rolePermissions, jobDescriptions, configs, incidentReports, onboarding, compensation] = await Promise.all([
+  const [profiles, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusConfigs, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, rolePermissions, jobDescriptions, configs, incidentReports, onboarding, compensation, feedbackEntries] = await Promise.all([
     read("profiles", profileFromRow, "name"),
     read("points_events", pointsFromRow, "ts"),
     read("crew_reward", (row) => ({ id: row.id, name: row.name, points: Number(row.points), approxValue: row.approx_value ?? undefined, limitStock: row.limit_stock ?? undefined, active: row.active, note: row.note ?? undefined }), "points"),
@@ -58,6 +58,7 @@ export async function loadRemoteState(currentUserId: string): Promise<Partial<Cr
     read("crew_incident_report", (row) => ({ id: row.id, employeeName: row.employee_name, employeeRole: row.employee_role, employeePhone: row.employee_phone ?? undefined, location: row.location, dateOfIncident: row.date_of_incident, timeOfIncident: row.time_of_incident, incidentCause: row.incident_cause, incidentDetails: row.incident_details, actionTaken: row.action_taken, policeNotified: row.police_notified, followUpRequired: row.follow_up_required ?? undefined, photoFileNames: row.photo_file_names ?? [], reportedByUserId: row.reported_by_user_id, reportedByName: row.reported_by_name, reportedByRole: row.reported_by_role, reportedByPhone: row.reported_by_phone ?? undefined, confirmedByUserId: row.confirmed_by_user_id ?? undefined, confirmedByName: row.confirmed_by_name ?? undefined, confirmedAt: row.confirmed_at ?? undefined, createdAt: row.created_at }), "created_at"),
     read("crew_onboarding", (row) => ({ id: row.id, userId: row.user_id, dateOfBirth: row.date_of_birth, address: row.address, city: row.city, postalCode: row.postal_code, sin: row.sin, driversLicenseNumber: row.drivers_license_number, allergiesMedical: row.allergies_medical ?? undefined, hourlyWage: Number(row.hourly_wage), startDate: row.start_date, vacationPayAcknowledged: row.vacation_pay_acknowledged, directDepositSignedName: row.direct_deposit_signed_name, directDepositSignedAt: row.direct_deposit_signed_at, hoursTrackingSignedName: row.hours_tracking_signed_name, hoursTrackingSignedAt: row.hours_tracking_signed_at, directDepositFileName: row.direct_deposit_file_name ?? undefined, driversLicenseFrontFileName: row.drivers_license_front_file_name ?? undefined, driversLicenseBackFileName: row.drivers_license_back_file_name ?? undefined, emergencyContactName: row.emergency_contact_name, emergencyContactRelationship: row.emergency_contact_relationship ?? undefined, emergencyContactPhone: row.emergency_contact_phone, emergencyContactEmail: row.emergency_contact_email ?? undefined, completedAt: row.completed_at }), "created_at"),
     read("crew_compensation", compensationFromRow, "updated_at"),
+    read("crew_feedback", (row: any) => ({ id: row.id, userId: row.user_id, message: row.message, ts: row.ts, pointsEventRef: row.points_event_ref ?? undefined }), "ts"),
   ]);
   // crew_config and crew_bonus_config are single-row tables behind narrow RLS
   // policies, so a user who cannot read one gets an empty array here. Spreading
@@ -68,7 +69,7 @@ export async function loadRemoteState(currentUserId: string): Promise<Partial<Cr
     ...(configs[0] ? { config: configs[0] } : {}),
     ...(bonusConfigs[0] ? { bonusConfig: bonusConfigs[0] } : {}),
   };
-  return { currentUserId, ...singletons, users: profiles, rolePermissions, jobDescriptions, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, incidentReports, onboarding, compensation };
+  return { currentUserId, ...singletons, users: profiles, rolePermissions, jobDescriptions, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, incidentReports, onboarding, compensation, feedbackEntries };
 }
 
 export async function awardPoints(payload: { userId: string; ruleKey: string; ref: string; weekKey?: string }) {
@@ -199,6 +200,11 @@ const certificationToRow = (item: any) => ({
   certificate_photo_key: item.certificatePhotoKey ?? null,
 });
 
+const feedbackToRow = (item: any) => ({
+  id: item.id, user_id: item.userId, message: item.message, ts: item.ts,
+  points_event_ref: item.pointsEventRef ?? null,
+});
+
 const recognitionToRow = (item: any) => ({
   id: item.id, from_user_id: item.fromUserId, to_user_id: item.toUserId, message: item.message, ts: item.ts,
   points_event_ref: item.pointsEventRef ?? null,
@@ -237,6 +243,7 @@ const SYNC_ENTITIES: { key: keyof CrewState; table: string; mode: SyncMode; toRo
   { key: "policyAcknowledgments", table: "crew_policy_acknowledgment", mode: "insert", toRow: policyAckToRow },
   { key: "certifications", table: "crew_certification", mode: "upsert", toRow: certificationToRow },
   { key: "recognitions", table: "crew_recognition", mode: "insert", toRow: recognitionToRow },
+  { key: "feedbackEntries", table: "crew_feedback", mode: "insert", toRow: feedbackToRow },
   { key: "redemptions", table: "crew_reward_redemption", mode: "upsert", toRow: redemptionToRow },
 ];
 

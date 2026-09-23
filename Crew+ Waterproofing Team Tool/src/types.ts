@@ -240,6 +240,14 @@ export interface Recognition {
   pointsEventRef?: string;
 }
 
+export interface FeedbackEntry {
+  id: string;
+  userId: string;
+  message: string;
+  ts: string;
+  pointsEventRef?: string;
+}
+
 export interface Nudge {
   id: string;
   userId?: string;
@@ -529,6 +537,7 @@ export interface CrewState {
   certificationTypes: CertificationType[];
   certifications: Certification[];
   recognitions: Recognition[];
+  feedbackEntries: FeedbackEntry[];
   nudges: Nudge[];
   forms: CrewForm[];
   formQuestions: CrewFormQuestion[];
