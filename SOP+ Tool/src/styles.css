@@ -930,7 +930,7 @@ textarea:disabled {
     bottom: 0;
     z-index: 60;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 6px;
     padding: 8px 8px calc(8px + var(--safe-b));
     background: #0f1a2a;
@@ -938,10 +938,24 @@ textarea:disabled {
   }
 
   .mobile-nav button {
-    min-height: 46px;
-    padding: 0;
     text-align: center;
-    font-size: 13px;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* The global button rule carries four :not() qualifiers, so it outranks any
+     plain `.mobile-nav button` selector and was holding these to its 38px
+     min-height with 14px of side padding. Phone controls are tapped with work
+     gloves on, so match the chain and give everything a 44px target. */
+  button:not(.primary):not(.sop-row):not(.danger):not(.media) {
+    min-height: 44px;
+  }
+
+  .mobile-nav button:not(.primary):not(.sop-row):not(.danger):not(.media) {
+    min-height: 46px;
+    padding: 0 2px;
   }
 
   main {

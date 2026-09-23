@@ -2108,3 +2108,15 @@ main > *:nth-child(5) { animation-delay: .15s; }
 /* Receipt history inside the truck sheet - one row per stored receipt. */
 .receipt-history { display: grid; gap: 6px; margin-top: 16px; }
 .receipt-history-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+
+@media (max-width: 900px) {
+  /* These compute to about 38-40px from padding alone. On a phone they are
+     tapped on site, often with work gloves, so hold them at the 44px target.
+     Chips keep their horizontal scroll here by design - swiping reveals the
+     rest, which is why the wrap rule above is desktop-only. */
+  .seg button,
+  .chip,
+  .selrow .sopt {
+    min-height: 44px;
+  }
+}

@@ -162,7 +162,7 @@ export function App() {
       </main>
 
       <footer className="mobile-nav">
-        {(["home", "library", "build", "review"] as const).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>{titleFor(item)}</button>)}
+        {(["home", "library", "build", "review", "admin"] as const).map((item) => <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>{titleFor(item)}</button>)}
       </footer>
 
       {sheet === "create" && <CreateSheet state={state} close={() => setSheet(null)} save={(draft) => setState((next) => createSop(next, draft))} />}
