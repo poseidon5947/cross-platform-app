@@ -60,7 +60,7 @@ export function ThemeEditor({ currentTheme, onThemeChange, onClose }: ThemeEdito
 
   /* ── Update one color key and re-derive its dim/glow ── */
   const updateColor = (key: keyof Theme['colors'], hex: string) => {
-    let patch: Partial<Theme['colors']> = { [key]: hex };
+    const patch: Partial<Theme['colors']> = { [key]: hex };
 
     // Auto-derive companion vars for main colour keys
     const derivedMap: Record<string, { dim: keyof Theme['colors']; glow?: keyof Theme['colors'] }> = {
