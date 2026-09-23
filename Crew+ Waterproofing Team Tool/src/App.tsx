@@ -33,6 +33,12 @@ export function App() {
   const [tab, setTab] = useState<Tab>("home");
   const [theme, setTheme] = useThemePreference();
   const [graphModal, setGraphModal] = useState<GraphType | null>(null);
+  // Declared here, with the other hooks, and NOT further down beside the nav
+  // code it serves: the loading and login early returns below mean anything
+  // declared after them runs a different number of hooks once a session
+  // exists, which React rejects outright ("rendered more hooks than during
+  // the previous render") and the whole app unmounts.
+  const [moreNavOpen, setMoreNavOpen] = useState(false);
   const { showToast } = useToast();
   useRipple();
 
@@ -51,10 +57,6 @@ export function App() {
     // crew member opening it got an empty shell - drop the tab instead.
     .filter((item) => item !== "admin" || currentUser.role === "admin");
   const activeTab = visibleTabs.includes(tab) ? tab : "home";
-  // The phone bar only has room for a handful of tabs, but the rail nav is
-  // hidden below 900px - so anything not listed here used to be unreachable on
-  // a phone entirely, including Onboarding. The rest move into a More sheet.
-  const [moreNavOpen, setMoreNavOpen] = useState(false);
   const primaryTabs = visibleTabs.filter((item) => MOBILE_PRIMARY_TABS.includes(item));
   const overflowTabs = visibleTabs.filter((item) => !MOBILE_PRIMARY_TABS.includes(item));
   const balance = walletBalance(state.pointsEvents, currentUser.id);
