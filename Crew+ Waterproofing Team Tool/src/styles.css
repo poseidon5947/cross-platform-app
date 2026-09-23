@@ -972,6 +972,34 @@ textarea:disabled {
   margin-top: 10px;
 }
 
+/* The scale beside "Crew scale"/"Office scale" is a legend explaining the wording,
+   not a control. It used to be built from <button>s, so it invited a click that did
+   nothing; these spans carry the same chip look without pretending to be tappable. */
+.review-scale span {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+/* The real rating picker, shown on a non-quarterly review a manager can complete. */
+.review-rate {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 4px;
+}
+
+.review-rate .ritual {
+  grid-template-columns: minmax(0, 140px) auto;
+  justify-content: start;
+  border-bottom: 0;
+  padding: 4px 0;
+}
+
 .field-stack {
   display: grid;
   gap: 12px;

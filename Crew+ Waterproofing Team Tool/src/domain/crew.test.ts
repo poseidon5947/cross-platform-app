@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
-import { acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
+import { isoWeekKey, quarterKey, quarterMonths, quarterlyLeaderboard, ritualPeriodKey, acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
 import type { IncidentReportInput, OnboardingInput } from "../types";
 
 describe("Crew+ wallet", () => {
@@ -319,3 +319,48 @@ function incidentInput(): IncidentReportInput {
     reportedByPhone: "613-539-5322",
   };
 }
+
+describe("period keys drive the recurring awards", () => {
+  it("derives the ISO week the same way `date +%G-W%V` does", () => {
+    expect(isoWeekKey(new Date("2026-09-23T12:00:00"))).toBe("2026-W39");
+    expect(isoWeekKey(new Date("2026-07-27T12:00:00"))).toBe("2026-W31");
+  });
+
+  it("rolls the quarter over on October 1 - the bug that was filed under Q3 forever", () => {
+    expect(quarterKey(new Date("2026-09-30T12:00:00"))).toBe("2026-Q3");
+    expect(quarterKey(new Date("2026-10-01T12:00:00"))).toBe("2026-Q4");
+  });
+
+  it("covers all three months of a quarter in the leaderboard", () => {
+    expect(quarterMonths("2026-Q3")).toEqual(["2026-07", "2026-08", "2026-09"]);
+    const users = [{ id: "u3" }] as any;
+    const events = [
+      { id: "a", userId: "u3", type: "crew_feedback", points: 10, reason: "", ref: "a", ts: "2026-07-05T00:00:00Z" },
+      { id: "b", userId: "u3", type: "crew_feedback", points: 5, reason: "", ref: "b", ts: "2026-09-05T00:00:00Z" },
+      { id: "c", userId: "u3", type: "crew_feedback", points: 99, reason: "", ref: "c", ts: "2026-11-05T00:00:00Z" },
+    ] as any;
+    // July + September count, November (Q4) does not.
+    expect(quarterlyLeaderboard(events, users, "2026-Q3")[0].balance).toBe(15);
+  });
+
+  it("lets a ritual be earned again in the next period", () => {
+    let state = createSeedState();
+    const valueId = state.values[0].id;
+    const thisWeek = ritualPeriodKey("weekly", new Date("2026-09-23T12:00:00"));
+    const nextWeek = ritualPeriodKey("weekly", new Date("2026-09-30T12:00:00"));
+    expect(thisWeek).not.toBe(nextWeek);
+    const before = state.pointsEvents.length;
+    state = completeRitual(state, "u3", valueId, "weekly", thisWeek);
+    state = completeRitual(state, "u3", valueId, "weekly", thisWeek); // same period: refused
+    expect(state.pointsEvents.length).toBe(before + 1);
+    state = completeRitual(state, "u3", valueId, "weekly", nextWeek); // new period: awarded
+    expect(state.pointsEvents.length).toBe(before + 2);
+  });
+
+  it("gives each cadence its own period key", () => {
+    const day = new Date("2026-09-23T12:00:00");
+    expect(ritualPeriodKey("daily", day)).toBe("2026-09-23");
+    expect(ritualPeriodKey("weekly", day)).toBe("2026-W39");
+    expect(ritualPeriodKey("monthly", day)).toBe("2026-09");
+  });
+});

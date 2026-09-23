@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { averageQuarterlyRating, awardKpiHit, bonusAdminReviewNoticeActive, bonusEmployeeNoticeActive, bonusPercentForAverage, bonusTrajectory, canRunReviews, canSeeBonusDollars, cashoutPromptActive, cashoutReward, completeQuarterlyReview, completeReview, completeRitual, confirmCustomerReview, employeeReviewSubmission, estimatedBonusDollars, giveRecognition, impliedRewardValue, JOB_RESPONSIBILITY_ITEMS, KPI_REVIEW_ITEMS, leaderboard, nextQuarterDeadline, nextRedemptionWindow, OVERALL_RATING_LABELS, quarterlyLeaderboard, requestCashout, rulePoints, setCompensation, submitFeedback, submitQuarterlyReviewAnswers, submitQuarterlySwot, walletBalance, wordCount } from "../domain/crew";
-import type { CrewState, Profile, QuarterlyReviewDetail, Review, ReviewRating } from "../types";
+import { averageQuarterlyRating, awardKpiHit, bonusAdminReviewNoticeActive, bonusEmployeeNoticeActive, bonusPercentForAverage, bonusTrajectory, canRunReviews, canSeeBonusDollars, cashoutPromptActive, cashoutReward, completeQuarterlyReview, completeReview, completeRitual, confirmCustomerReview, employeeReviewSubmission, estimatedBonusDollars, giveRecognition, impliedRewardValue, JOB_RESPONSIBILITY_ITEMS, KPI_REVIEW_ITEMS, leaderboard, nextQuarterDeadline, nextRedemptionWindow, OVERALL_RATING_LABELS, quarterlyLeaderboard, quarterKey, ritualPeriodKey, shouldAward, requestCashout, rulePoints, setCompensation, submitFeedback, submitQuarterlyReviewAnswers, submitQuarterlySwot, walletBalance, wordCount } from "../domain/crew";
+import type { Cadence, CrewState, Profile, QuarterlyReviewDetail, Review, ReviewRating } from "../types";
 import { useToast } from "../components/Toast";
 import { nameOf, Metric } from "../App";
 
@@ -17,7 +17,7 @@ export default function PerformanceTabBoundary({ activeTab, state, user, setStat
 
 function Wallet({ state, user, setState }: { state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
   const { showToast } = useToast();
-  const quarter = quarterlyLeaderboard(state.pointsEvents, state.users, "2026-07");
+  const quarter = quarterlyLeaderboard(state.pointsEvents, state.users, quarterKey());
   const now = new Date().toISOString();
   const balance = walletBalance(state.pointsEvents, user.id);
   const showCashoutPrompt = cashoutPromptActive(state, user.id, now);
@@ -33,14 +33,44 @@ function Wallet({ state, user, setState }: { state: CrewState; user: Profile; se
 }
 
 function Rituals({ state, user, setState }: { state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
+  const { showToast } = useToast();
   const pointsFor = (cadence: "daily" | "weekly" | "monthly") => rulePoints(state, cadence === "daily" ? "earn-daily" : cadence === "weekly" ? "earn-weekly" : "earn-monthly", 5);
-  return <div className="library">{state.values.map((value) => <section className="panel card" key={value.id}><div className="section-head"><div><h3>{value.name}</h3><p>{value.wording}</p></div><span className="pill">Value</span></div><div className="ritual"><b>Weekly</b><span>{value.weeklyRitual}</span><button onClick={() => setState((next) => completeRitual(next, user.id, value.id, "weekly", "2026-W31"))}>Complete +{pointsFor("weekly")}</button></div></section>)}</div>;
+  // Daily and monthly rituals have prompts in crew_value_ritual and their own
+  // earning rules, but only the weekly one was ever rendered, so two thirds of the
+  // ritual points were unreachable. A cadence is shown when it has a prompt.
+  const cadences: { key: Cadence; label: string; prompt: (value: CrewState["values"][number]) => string }[] = [
+    { key: "daily", label: "Daily", prompt: (value) => value.dailyRitual },
+    { key: "weekly", label: "Weekly", prompt: (value) => value.weeklyRitual },
+    { key: "monthly", label: "Monthly", prompt: (value) => value.monthlyRitual },
+  ];
+  const complete = (valueId: string, cadence: Cadence) => {
+    const periodKey = ritualPeriodKey(cadence);
+    const ref = `ritual:${user.id}:${valueId}:${cadence}:${periodKey}`;
+    // completeRitual returns the state untouched when this period is already
+    // claimed. Without this check the button just went dead and said nothing.
+    if (!shouldAward(state.pointsEvents, ref, "crew_habit_ritual")) {
+      showToast("Already completed for this period — it opens again next time round.", "warn");
+      return;
+    }
+    setState((next) => completeRitual(next, user.id, valueId, cadence, periodKey));
+    showToast(`Nice work. +${pointsFor(cadence)} points.`);
+  };
+  return <div className="library">{state.values.map((value) => <section className="panel card" key={value.id}><div className="section-head"><div><h3>{value.name}</h3><p>{value.wording}</p></div><span className="pill">Value</span></div>
+    {cadences.filter((cadence) => cadence.prompt(value)).map((cadence) => {
+      const done = !shouldAward(state.pointsEvents, `ritual:${user.id}:${value.id}:${cadence.key}:${ritualPeriodKey(cadence.key)}`, "crew_habit_ritual");
+      return <div className="ritual" key={cadence.key}><b>{cadence.label}</b><span>{cadence.prompt(value)}</span>
+        {done ? <span className="pill good">Done</span> : <button onClick={() => complete(value.id, cadence.key)}>Complete +{pointsFor(cadence.key)}</button>}
+      </div>;
+    })}
+  </section>)}</div>;
 }
 
 function Reviews({ state, user, setState }: { state: CrewState; user: Profile; setState: React.Dispatch<React.SetStateAction<CrewState>> }) {
   const visible = canRunReviews(state, user) ? state.reviews : state.reviews.filter((review) => review.userId === user.id);
   const crewScale = user.branch === "field";
+  const { showToast } = useToast();
   const [openReviewId, setOpenReviewId] = useState<string | null>(null);
+  const [draftRatings, setDraftRatings] = useState<Record<string, Partial<Review["ratings"]>>>({});
   const openReview = state.reviews.find((item) => item.id === openReviewId);
   const canManage = canRunReviews(state, user);
   return <div className="grid two"><section className="panel card wide"><div className="section-head"><h3>Review cadence</h3><span className="pill">{visible.length} visible</span></div>{visible.map((review) => {
@@ -53,12 +83,33 @@ function Reviews({ state, user, setState }: { state: CrewState; user: Profile; s
       {review.status !== "completed" && isQuarterly && isSubject && submission && <span className="pill good">Self-assessment submitted</span>}
       {review.status !== "completed" && isQuarterly && !isSubject && canManage && submission && <button onClick={() => setOpenReviewId(review.id)}>Complete review</button>}
       {review.status !== "completed" && isQuarterly && !isSubject && canManage && !submission && <span className="pill warn">Waiting on self-assessment</span>}
-      {review.status !== "completed" && !isQuarterly && canManage && <button onClick={() => setState((next) => { const subject = next.users.find((item) => item.id === review.userId); const ratings = subject?.branch === "field" ? { responsibilities: "meets" as const, values: "meets" as const, kpis: "meets" as const } : { responsibilities: 3 as const, values: 3 as const, kpis: 3 as const }; return completeReview(next, review.id, ratings); })}>Complete +{rulePoints(state, "earn-review", 5)}</button>}
+      {review.status !== "completed" && !isQuarterly && canManage && (() => {
+        // Every non-quarterly review used to be filed as "meets"/3 no matter what
+        // the manager thought - there was no control to say otherwise.
+        const subjectScale = state.users.find((item) => item.id === review.userId)?.branch === "field";
+        const options: ReviewRating[] = subjectScale ? ["below", "meets", "exceeds"] : [1, 2, 3, 4, 5];
+        const draft = draftRatings[review.id] ?? {};
+        const axes: { key: keyof Review["ratings"]; label: string }[] = [
+          { key: "responsibilities", label: "Responsibilities" },
+          { key: "values", label: "Values" },
+          { key: "kpis", label: "KPIs" },
+        ];
+        const ready = axes.every((axis) => draft[axis.key] !== undefined);
+        return <div className="review-rate">
+          {axes.map((axis) => <div className="ritual" key={axis.key}>
+            <b>{axis.label}</b>
+            <div className="seg review-scale">{options.map((option) => <button key={String(option)} className={draft[axis.key] === option ? "on" : ""} aria-pressed={draft[axis.key] === option}
+              onClick={() => setDraftRatings((current) => ({ ...current, [review.id]: { ...current[review.id], [axis.key]: option } }))}>{typeof option === "string" ? option[0].toUpperCase() + option.slice(1) : option}</button>)}</div>
+          </div>)}
+          <button disabled={!ready} onClick={() => { setState((next) => completeReview(next, review.id, draft as Review["ratings"])); showToast("Review completed."); }}>Complete +{rulePoints(state, "earn-review", 5)}</button>
+          {!ready && <p className="tiny muted">Rate all three to complete this review.</p>}
+        </div>;
+      })()}
     </div>;
   })}</section>
   {openReview && openReview.userId === user.id && !employeeReviewSubmission(state, openReview) && <QuarterlyReviewEmployeeForm state={state} user={user} review={openReview} setState={setState} onDone={() => setOpenReviewId(null)} />}
   {openReview && canManage && openReview.status !== "completed" && employeeReviewSubmission(state, openReview) && <QuarterlyReviewManagerForm state={state} manager={user} review={openReview} setState={setState} onDone={() => setOpenReviewId(null)} />}
-  <section className="panel card"><h3>{crewScale ? "Crew scale" : "Office scale"}</h3>{crewScale ? <div className="seg review-scale"><button>Below</button><button className="on">Meets</button><button>Exceeds</button></div> : <div className="seg review-scale"><button>1</button><button>2</button><button className="on">3</button><button>4</button><button>5</button></div>}<p className="muted">Crew reviews use Below, Meets, and Exceeds. Office roles may use the optional 1-5 scale.</p></section><section className="panel card wide"><div className="section-head"><h3>KPIs</h3><span className="pill">{user.orgRole}</span></div>{state.kpis.filter((kpi) => kpi.role === user.orgRole).map((kpi) => <div className="line" key={kpi.id}><b>{kpi.name}</b><span>{kpi.target || "Target TBD"}</span><button onClick={() => setState((next) => awardKpiHit(next, user.id, kpi.id, "2026-Q3"))}>Mark hit +{rulePoints(state, "earn-kpi", 5)}</button></div>)}</section><section className="panel card wide"><h3>Between-review notes</h3>{state.reviewNotes.length ? state.reviewNotes.map((note) => <div className="line" key={note.id}><b>{nameOf(state, note.userId)}</b><span>{note.note}</span><small>{note.ts.slice(0, 10)}</small></div>) : <p className="empty-state">No lightweight notes yet.</p>}</section></div>;
+  <section className="panel card"><h3>{crewScale ? "Crew scale" : "Office scale"}</h3><div className="seg review-scale" role="img" aria-label={crewScale ? "Rating scale: Below, Meets, Exceeds" : "Rating scale: 1 to 5"}>{(crewScale ? ["Below", "Meets", "Exceeds"] : ["1", "2", "3", "4", "5"]).map((label) => <span key={label}>{label}</span>)}</div><p className="muted">Crew reviews use Below, Meets, and Exceeds. Office roles may use the optional 1-5 scale.</p></section><section className="panel card wide"><div className="section-head"><h3>KPIs</h3><span className="pill">{user.orgRole}</span></div>{state.kpis.filter((kpi) => kpi.role === user.orgRole).map((kpi) => <div className="line" key={kpi.id}><b>{kpi.name}</b><span>{kpi.target || "Target TBD"}</span><button onClick={() => setState((next) => awardKpiHit(next, user.id, kpi.id, quarterKey()))}>Mark hit +{rulePoints(state, "earn-kpi", 5)}</button></div>)}</section><section className="panel card wide"><h3>Between-review notes</h3>{state.reviewNotes.length ? state.reviewNotes.map((note) => <div className="line" key={note.id}><b>{nameOf(state, note.userId)}</b><span>{note.note}</span><small>{note.ts.slice(0, 10)}</small></div>) : <p className="empty-state">No lightweight notes yet.</p>}</section></div>;
 }
 
 function QuarterlyReviewEmployeeForm({ state, user, review, setState, onDone }: { state: CrewState; user: Profile; review: Review; setState: React.Dispatch<React.SetStateAction<CrewState>>; onDone: () => void }) {

@@ -43,6 +43,43 @@ export function shouldAward(events: PointsEvent[], ref: string, type: string) {
   return !events.some((event) => event.ref === ref && event.type === type);
 }
 
+/**
+ * Period keys for the points program. These used to be typed into the Performance
+ * tab as literals ("2026-W31", "2026-Q3"), which quietly capped every recurring
+ * award: the award refs are built from the key, so a fixed key means the ref never
+ * changes and `shouldAward` refuses every repeat for the rest of time. They are
+ * derived from the clock here so a new week or quarter really is a new period.
+ */
+export function isoWeekKey(date = new Date()) {
+  // Shift to the Thursday of this week, whose calendar year is the ISO week-year.
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+export function monthKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export function quarterKey(date = new Date()) {
+  return `${date.getFullYear()}-Q${Math.floor(date.getMonth() / 3) + 1}`;
+}
+
+export function ritualPeriodKey(cadence: Cadence, date = new Date()) {
+  if (cadence === "daily") return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  if (cadence === "weekly") return isoWeekKey(date);
+  return monthKey(date);
+}
+
+/** The three `YYYY-MM` prefixes a quarter key covers. */
+export function quarterMonths(key: string) {
+  const [year, quarter] = [Number(key.slice(0, 4)), Number(key.slice(-1))];
+  const first = (quarter - 1) * 3;
+  return [0, 1, 2].map((offset) => `${year}-${String(first + offset + 1).padStart(2, "0")}`);
+}
+
 export function habitPointsThisWeek(events: PointsEvent[], userId: string, weekKey: string) {
   return events
     .filter((event) => event.userId === userId && event.type.startsWith("crew_habit") && event.ref.includes(weekKey))
@@ -458,11 +495,17 @@ export function confirmCustomerReview(state: CrewState, userId: string, kind: "g
   return { ...state, pointsEvents: [event, ...state.pointsEvents] };
 }
 
-export function quarterlyLeaderboard(events: PointsEvent[], users: Profile[], quarterKey: string) {
+export function quarterlyLeaderboard(events: PointsEvent[], users: Profile[], key: string) {
+  // Takes a quarter ("2026-Q3") and counts all three of its months. It used to be
+  // handed a single "YYYY-MM" and substring-matched it, so the "Quarter leaderboard"
+  // only ever showed one month of the quarter.
+  const months = quarterMonths(key);
   return users
     .map((user) => ({
       user,
-      balance: events.filter((event) => event.userId === user.id && event.ts.includes(quarterKey)).reduce((sum, event) => sum + event.points, 0),
+      balance: events
+        .filter((event) => event.userId === user.id && months.some((month) => event.ts.startsWith(month)))
+        .reduce((sum, event) => sum + event.points, 0),
     }))
     .sort((a, b) => b.balance - a.balance);
 }
