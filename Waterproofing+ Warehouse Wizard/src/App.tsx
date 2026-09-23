@@ -515,7 +515,7 @@ export function App() {
       {sheet && <BottomSheet title={sheet.title} onClose={() => setSheet(null)}>{sheet.content}</BottomSheet>}
       <ToastHost />
       {confetti && <Confetti />}
-      {graphModal && <GraphModal type={graphModal} state={state} onClose={() => setGraphModal(null)} />}
+      {graphModal && <GraphModal type={graphModal} state={state} showMoney={canManage(currentUser.role)} onClose={() => setGraphModal(null)} />}
       {showAppearance && (
         <BottomSheet title="Appearance" onClose={() => setShowAppearance(false)}>
           <AppearanceSheet

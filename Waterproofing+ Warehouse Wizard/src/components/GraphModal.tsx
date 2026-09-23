@@ -14,6 +14,8 @@ interface GraphModalProps {
   type: GraphType;
   state: AppState;
   onClose: () => void;
+  /** Crew must not see material prices, and two of these panels print dollars. */
+  showMoney?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────
@@ -197,7 +199,7 @@ function ActivityTrendGraph({ state }: { state: AppState }) {
   );
 }
 
-function InventoryStockGraph({ state }: { state: AppState }) {
+function InventoryStockGraph({ state, showMoney = true }: { state: AppState; showMoney?: boolean }) {
   const sorted = [...state.materials].sort((a, b) => {
     const pa = a.qty / Math.max(a.reorderPoint, 1);
     const pb = b.qty / Math.max(b.reorderPoint, 1);
@@ -216,7 +218,7 @@ function InventoryStockGraph({ state }: { state: AppState }) {
         <div className="gm-stat"><div className="gm-stat-val" style={{ color: '#c53030' }}>{outOfStock}</div><div className="gm-stat-lbl">Out of stock</div></div>
       </div>
       <div className="gm-stat-row" style={{ marginTop: 0 }}>
-        <div className="gm-stat wide"><div className="gm-stat-val">{money(totalValue)}</div><div className="gm-stat-lbl">Total inventory value</div></div>
+        {showMoney && <div className="gm-stat wide"><div className="gm-stat-val">{money(totalValue)}</div><div className="gm-stat-lbl">Total inventory value</div></div>}
       </div>
       <div className="gm-chart-label">Stock Level vs Reorder Point — Lowest 12</div>
       <div className="gm-gauge-list">
@@ -367,7 +369,7 @@ function Losses30dGraph({ state }: { state: AppState }) {
   );
 }
 
-function ReorderAlertGraph({ state }: { state: AppState }) {
+function ReorderAlertGraph({ state, showMoney = true }: { state: AppState; showMoney?: boolean }) {
   const lows = state.materials.filter(m => m.qty <= m.reorderPoint).sort((a, b) => (a.qty / Math.max(a.reorderPoint, 1)) - (b.qty / Math.max(b.reorderPoint, 1)));
   const critical = lows.filter(m => m.qty === 0);
   const subtotal  = lows.reduce((s, m) => s + Math.max(0, m.reorderPoint - m.qty) * m.cost, 0);
@@ -377,7 +379,7 @@ function ReorderAlertGraph({ state }: { state: AppState }) {
       <div className="gm-stat-row">
         <div className="gm-stat"><div className="gm-stat-val" style={{ color: '#c53030' }}>{critical.length}</div><div className="gm-stat-lbl">Out of stock</div></div>
         <div className="gm-stat"><div className="gm-stat-val" style={{ color: '#b87200' }}>{lows.length}</div><div className="gm-stat-lbl">Below reorder</div></div>
-        <div className="gm-stat"><div className="gm-stat-val">{money(subtotal)}</div><div className="gm-stat-lbl">Est. reorder cost</div></div>
+        {showMoney && <div className="gm-stat"><div className="gm-stat-val">{money(subtotal)}</div><div className="gm-stat-lbl">Est. reorder cost</div></div>}
       </div>
       <div className="gm-chart-label">Stock Level — Items at Risk</div>
       <div className="gm-gauge-list">
@@ -403,7 +405,7 @@ const GRAPH_META: Record<GraphType, { title: string; sub: string }> = {
 };
 
 // ─── Main export ──────────────────────────────────────────
-export function GraphModal({ type, state, onClose }: GraphModalProps) {
+export function GraphModal({ type, state, onClose, showMoney = true }: GraphModalProps) {
   const meta = GRAPH_META[type];
   const ref  = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
@@ -449,10 +451,10 @@ export function GraphModal({ type, state, onClose }: GraphModalProps) {
         {/* Body */}
         <div className="gm-body">
           {type === 'activity_trend'  && <ActivityTrendGraph  state={state} />}
-          {type === 'inventory_stock' && <InventoryStockGraph state={state} />}
+          {type === 'inventory_stock' && <InventoryStockGraph state={state} showMoney={showMoney} />}
           {type === 'tools_status'    && <ToolsStatusGraph    state={state} />}
           {type === 'crew_points'     && <CrewPointsGraph     state={state} />}
-          {type === 'reorder_alert'   && <ReorderAlertGraph   state={state} />}
+          {type === 'reorder_alert'   && <ReorderAlertGraph   state={state} showMoney={showMoney} />}
           {type === 'losses_30d'      && <Losses30dGraph      state={state} />}
         </div>
       </div>

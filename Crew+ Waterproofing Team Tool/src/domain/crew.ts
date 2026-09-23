@@ -672,15 +672,15 @@ export function canApproveRedemptions(state: CrewState, user: Profile) {
 }
 
 /**
- * Mirrors the award-points function, which treats earn-kpi as a manager rule: a
- * crew member clicking "Mark hit" got the result row saved and the points refused
- * with 403 "This award requires manager/admin approval". KPI attainment feeds the
- * performance review, so manager sign-off is the right rule - the button just
- * should not have been offered to everyone.
+ * Mirrors managerCrewRules in the award-points function: earn-review, earn-kpi,
+ * earn-google, earn-compliment, earn-safety and earn-certs all need manager or
+ * admin approval. Where the UI offered one of those to everyone, a crew member
+ * got the record saved and the points refused with 403 "This award requires
+ * manager/admin approval" - a button that looked like it worked and did not.
  *
  * isHrOwner over there also requires role "admin", so this is the whole gate.
  */
-export function canAwardKpiHit(user: Profile) {
+export function canAwardManagerRule(user: Profile) {
   return user.role === "admin" || user.role === "manager";
 }
 
