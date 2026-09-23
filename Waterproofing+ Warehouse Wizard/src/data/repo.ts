@@ -390,12 +390,17 @@ function dayKeyFromRef(ref: string) {
 }
 
 export async function upsertCompletion(userId: string, taskId: string, periodKey: string) {
+  // Without an explicit conflict target PostgREST resolves against the primary
+  // key, and `id` is not in this payload - so the row is inserted fresh and hits
+  // the unique(user_id, task_id, period_key) constraint instead of merging. That
+  // surfaced as "Task saved locally, it will sync when connection returns" plus a
+  // phantom offline-queue entry on a task that was already complete server-side.
   const { error } = await requireClient().from("task_completions").upsert({
     user_id: userId,
     task_id: taskId,
     period_key: periodKey,
     completed_at: new Date().toISOString(),
-  });
+  }, { onConflict: "user_id,task_id,period_key" });
   if (error) throw error;
 }
 
