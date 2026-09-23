@@ -20,6 +20,7 @@ const LazyPerformanceTabs = lazy(() => import("./tabs/PerformanceTabBoundary"));
 const LazyAdminTabs = lazy(() => import("./tabs/AdminTabBoundary"));
 type Tab = "home" | "profile" | "onboarding" | "wallet" | "rituals" | "reviews" | "forms" | "timeoff" | "incidents" | "bonus" | "certs" | "rewards" | "feedback" | "admin";
 const NEW_HIRE_TABS: Tab[] = ["home", "profile", "onboarding", "timeoff", "incidents", "certs"];
+const MOBILE_PRIMARY_TABS: Tab[] = ["home", "profile", "onboarding", "timeoff", "incidents"];
 const WORK_TABS = ["profile", "onboarding", "timeoff", "incidents", "certs"] as const;
 const PERFORMANCE_TABS = ["wallet", "rituals", "reviews", "forms", "bonus", "feedback"] as const;
 const ADMIN_TABS = ["rewards", "admin"] as const;
@@ -47,6 +48,12 @@ export function App() {
   const newHireRestricted = isNewHireRestricted(currentUser, today);
   const visibleTabs = (["home", "profile", "onboarding", "wallet", "rituals", "reviews", "forms", "timeoff", "incidents", "bonus", "certs", "rewards", "feedback", "admin"] as const).filter((item) => !newHireRestricted || NEW_HIRE_TABS.includes(item));
   const activeTab = visibleTabs.includes(tab) ? tab : "home";
+  // The phone bar only has room for a handful of tabs, but the rail nav is
+  // hidden below 900px - so anything not listed here used to be unreachable on
+  // a phone entirely, including Onboarding. The rest move into a More sheet.
+  const [moreNavOpen, setMoreNavOpen] = useState(false);
+  const primaryTabs = visibleTabs.filter((item) => MOBILE_PRIMARY_TABS.includes(item));
+  const overflowTabs = visibleTabs.filter((item) => !MOBILE_PRIMARY_TABS.includes(item));
   const balance = walletBalance(state.pointsEvents, currentUser.id);
   const certsVisibleToUser = currentUser.role === "admin" || currentUser.role === "manager" ? state.certifications : state.certifications.filter((cert) => cert.userId === currentUser.id);
   const certAlerts = certsVisibleToUser.filter((cert) => certAlertLevelFromType(cert, state.certificationTypes?.find((type) => type.id === cert.certTypeId), new Date().toISOString().slice(0, 10)) !== "green");
@@ -97,8 +104,15 @@ export function App() {
         </TabView>
       </main>
 
+      {moreNavOpen && <div className="mobile-more-backdrop" onClick={() => setMoreNavOpen(false)} />}
+      {moreNavOpen && <nav className="mobile-more" aria-label="More sections">
+        {overflowTabs.map((item) => (
+          <button key={item} className={activeTab === item ? "on" : ""} onClick={() => { setTab(item); setMoreNavOpen(false); }}>{titleFor(item)}</button>
+        ))}
+      </nav>}
       <footer className="mobile-nav">
-        {(["home", "profile", "timeoff", "incidents", "certs"] as const).map((item) => <button key={item} className={activeTab === item ? "on" : ""} onClick={() => setTab(item)}>{titleFor(item)}</button>)}
+        {primaryTabs.map((item) => <button key={item} className={activeTab === item ? "on" : ""} onClick={() => { setTab(item); setMoreNavOpen(false); }}>{titleFor(item)}</button>)}
+        {overflowTabs.length > 0 && <button className={`more${moreNavOpen || overflowTabs.includes(activeTab) ? " on" : ""}`} aria-expanded={moreNavOpen} onClick={() => setMoreNavOpen((open) => !open)}>More</button>}
       </footer>
       <ToastHost />
       {graphModal && <GraphModal type={graphModal} state={state} onClose={() => setGraphModal(null)} />}

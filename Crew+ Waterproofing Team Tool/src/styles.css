@@ -843,6 +843,13 @@ textarea:disabled {
   display: none;
 }
 
+/* Overflow sheet for the tabs that do not fit the phone bar. Hidden on desktop,
+   where the rail nav shows every tab already. */
+.mobile-more,
+.mobile-more-backdrop {
+  display: none;
+}
+
 /* Crew+ screens on top of the shared Van Isle suite system */
 .crew-mark {
   background: linear-gradient(135deg, var(--accent), #0b6ea8);
@@ -1354,25 +1361,90 @@ textarea:disabled {
     height: 36px;
   }
 
+  .mobile-more-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 59;
+    background: rgba(8, 20, 34, .45);
+  }
+
+  .mobile-more {
+    display: grid;
+    gap: 4px;
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    z-index: 61;
+    bottom: calc(74px + var(--safe-b));
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: 8px;
+    border-radius: var(--r-md);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+
+  .mobile-more button {
+    min-height: 46px;
+    padding: 0 14px;
+    text-align: left;
+    font-weight: 800;
+    background: transparent;
+    color: var(--ink);
+    border-radius: var(--r-sm);
+  }
+
+  .mobile-more button.on {
+    background: var(--accent);
+    color: #fff;
+  }
+
   .mobile-nav {
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
     z-index: 60;
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 6px;
-    padding: 8px 8px calc(8px + var(--safe-b));
+    display: flex;
+    gap: 3px;
+    padding: 8px 6px calc(8px + var(--safe-b));
     background: #0f1a2a;
     box-shadow: 0 -8px 24px rgba(7, 22, 42, .18);
   }
 
   .mobile-nav button {
+    flex: 1 1 0;
+    min-width: 0;
     min-height: 46px;
-    padding: 0;
     text-align: center;
-    font-size: 13px;
+    font-weight: 700;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* The global button rule carries four :not() qualifiers, so its specificity
+     beats a plain `.mobile-nav button` however late this block sits. Matching
+     the chain is the least invasive way to win back the horizontal padding -
+     with 14px a side the labels truncated to "Ho..." on a phone. */
+  .mobile-nav button:not(.primary):not(.sop-row):not(.danger):not(.media) {
+    padding: 0 2px;
+    /* Same specificity problem as the padding: without this the bar collapses
+       to 38px, under the 44px touch target these are tapped with gloves on. */
+    min-height: 46px;
+  }
+
+  /* The overflow control is an affordance, not a destination - it takes only
+     the width it needs so the five real tabs keep theirs. */
+  .mobile-nav button.more {
+    flex: 0 0 auto;
+  }
+
+  .mobile-nav button.more:not(.primary):not(.sop-row):not(.danger):not(.media) {
+    padding: 0 10px;
   }
 
   main {

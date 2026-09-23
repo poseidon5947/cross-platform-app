@@ -59,7 +59,16 @@ export async function loadRemoteState(currentUserId: string): Promise<Partial<Cr
     read("crew_onboarding", (row) => ({ id: row.id, userId: row.user_id, dateOfBirth: row.date_of_birth, address: row.address, city: row.city, postalCode: row.postal_code, sin: row.sin, driversLicenseNumber: row.drivers_license_number, allergiesMedical: row.allergies_medical ?? undefined, hourlyWage: Number(row.hourly_wage), startDate: row.start_date, vacationPayAcknowledged: row.vacation_pay_acknowledged, directDepositSignedName: row.direct_deposit_signed_name, directDepositSignedAt: row.direct_deposit_signed_at, hoursTrackingSignedName: row.hours_tracking_signed_name, hoursTrackingSignedAt: row.hours_tracking_signed_at, directDepositFileName: row.direct_deposit_file_name ?? undefined, driversLicenseFrontFileName: row.drivers_license_front_file_name ?? undefined, driversLicenseBackFileName: row.drivers_license_back_file_name ?? undefined, emergencyContactName: row.emergency_contact_name, emergencyContactRelationship: row.emergency_contact_relationship ?? undefined, emergencyContactPhone: row.emergency_contact_phone, emergencyContactEmail: row.emergency_contact_email ?? undefined, completedAt: row.completed_at }), "created_at"),
     read("crew_compensation", compensationFromRow, "updated_at"),
   ]);
-  return { currentUserId, config: configs[0], users: profiles, rolePermissions, jobDescriptions, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusConfig: bonusConfigs[0], bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, incidentReports, onboarding, compensation };
+  // crew_config and crew_bonus_config are single-row tables behind narrow RLS
+  // policies, so a user who cannot read one gets an empty array here. Spreading
+  // `key: undefined` over the seed state wiped the fallback out and the first
+  // component to dereference it took the whole app down with it, so these two
+  // are only included when a row actually came back.
+  const singletons = {
+    ...(configs[0] ? { config: configs[0] } : {}),
+    ...(bonusConfigs[0] ? { bonusConfig: bonusConfigs[0] } : {}),
+  };
+  return { currentUserId, ...singletons, users: profiles, rolePermissions, jobDescriptions, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, incidentReports, onboarding, compensation };
 }
 
 export async function awardPoints(payload: { userId: string; ruleKey: string; ref: string; weekKey?: string }) {
