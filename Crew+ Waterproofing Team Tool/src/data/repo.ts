@@ -58,7 +58,7 @@ export async function loadRemoteState(currentUserId: string): Promise<Partial<Cr
     read("crew_incident_report", (row) => ({ id: row.id, employeeName: row.employee_name, employeeRole: row.employee_role, employeePhone: row.employee_phone ?? undefined, location: row.location, dateOfIncident: row.date_of_incident, timeOfIncident: row.time_of_incident, incidentCause: row.incident_cause, incidentDetails: row.incident_details, actionTaken: row.action_taken, policeNotified: row.police_notified, followUpRequired: row.follow_up_required ?? undefined, photoFileNames: row.photo_file_names ?? [], reportedByUserId: row.reported_by_user_id, reportedByName: row.reported_by_name, reportedByRole: row.reported_by_role, reportedByPhone: row.reported_by_phone ?? undefined, confirmedByUserId: row.confirmed_by_user_id ?? undefined, confirmedByName: row.confirmed_by_name ?? undefined, confirmedAt: row.confirmed_at ?? undefined, createdAt: row.created_at }), "created_at"),
     read("crew_onboarding", (row) => ({ id: row.id, userId: row.user_id, dateOfBirth: row.date_of_birth, address: row.address, city: row.city, postalCode: row.postal_code, sin: row.sin, driversLicenseNumber: row.drivers_license_number, allergiesMedical: row.allergies_medical ?? undefined, hourlyWage: Number(row.hourly_wage), startDate: row.start_date, vacationPayAcknowledged: row.vacation_pay_acknowledged, directDepositSignedName: row.direct_deposit_signed_name, directDepositSignedAt: row.direct_deposit_signed_at, hoursTrackingSignedName: row.hours_tracking_signed_name, hoursTrackingSignedAt: row.hours_tracking_signed_at, directDepositFileName: row.direct_deposit_file_name ?? undefined, driversLicenseFrontFileName: row.drivers_license_front_file_name ?? undefined, driversLicenseBackFileName: row.drivers_license_back_file_name ?? undefined, emergencyContactName: row.emergency_contact_name, emergencyContactRelationship: row.emergency_contact_relationship ?? undefined, emergencyContactPhone: row.emergency_contact_phone, emergencyContactEmail: row.emergency_contact_email ?? undefined, completedAt: row.completed_at }), "created_at"),
     read("crew_compensation", compensationFromRow, "updated_at"),
-    read("crew_feedback", (row: any) => ({ id: row.id, userId: row.user_id, message: row.message, ts: row.ts, pointsEventRef: row.points_event_ref ?? undefined }), "ts"),
+    readOptional("crew_feedback", (row: any) => ({ id: row.id, userId: row.user_id, message: row.message, ts: row.ts, pointsEventRef: row.points_event_ref ?? undefined }), "ts"),
   ]);
   // crew_config and crew_bonus_config are single-row tables behind narrow RLS
   // policies, so a user who cannot read one gets an empty array here. Spreading
@@ -287,6 +287,29 @@ export async function syncCrewState(prev: CrewState, next: CrewState) {
 async function read<T>(table: string, mapper: (row: any) => T, order: string) {
   const { data, error } = await requireClient().from(table).select("*").order(order, { ascending: true });
   if (error) throw error;
+  return (data ?? []).map(mapper);
+}
+
+/**
+ * Same as `read`, but tolerates the table not being there yet.
+ *
+ * These reads all sit in one Promise.all, so a single rejection fails the whole
+ * load and the app cannot start. A table whose migration has not been run against
+ * the shared project yet would do exactly that, which makes deploying the code and
+ * running the SQL an ordered pair - and getting that order wrong takes the app down
+ * for everyone. Only "relation does not exist" is swallowed; a permission or RLS
+ * problem still throws, because an empty list where rows exist is the failure mode
+ * that hid 67 daily logs.
+ */
+async function readOptional<T>(table: string, mapper: (row: any) => T, order: string): Promise<T[]> {
+  const { data, error } = await requireClient().from(table).select("*").order(order, { ascending: true });
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205" || /does not exist/i.test(error.message)) {
+      console.warn(`[crew] ${table} is not in the database yet - its migration still needs running.`);
+      return [];
+    }
+    throw error;
+  }
   return (data ?? []).map(mapper);
 }
 
