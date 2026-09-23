@@ -286,15 +286,25 @@ export function App() {
   };
 
   const submitTransactions = (txs: Omit<Transaction, "id" | "ts">[], chosenDate?: string) => {
-    patchState((current) => {
-      const dated = txs.map((tx) => ({ ...tx, id: id("tx"), ts: combineDateWithNow(chosenDate) }));
-      const queueItem = { id: id("oq"), type: "log_materials" as const, transactions: txs, queuedAt: new Date().toISOString() };
-      if (remoteMode) {
-        if (navigator.onLine) insertTransactions(txs).then(invalidateRemote).catch(() => setState((latest) => ({ ...latest, offlineQueue: [...latest.offlineQueue, queueItem] })));
-        else return { ...current, transactions: [...dated, ...current.transactions], materials: applyTransactions(current.materials, dated), offlineQueue: [...current.offlineQueue, queueItem] };
-      }
-      return { ...current, transactions: [...dated, ...current.transactions], materials: applyTransactions(current.materials, dated) };
-    }, navigator.onLine || !remoteMode ? "Log submitted" : "Saved offline. It will sync when connection returns.");
+    // The insert used to be fired from inside the state updater. React may run an
+    // updater more than once for a single dispatch, and every run sent another
+    // POST - with the transactions_apply_stock trigger behind this table, a
+    // duplicate deducts the same material twice. Everything with an effect now
+    // happens here, exactly once, and the updater only derives state.
+    const dated = txs.map((tx) => ({ ...tx, id: id("tx"), ts: combineDateWithNow(chosenDate) }));
+    const queueItem = { id: id("oq"), type: "log_materials" as const, transactions: txs, queuedAt: new Date().toISOString() };
+    const queueNow = remoteMode && !navigator.onLine;
+    patchState((current) => ({
+      ...current,
+      transactions: [...dated, ...current.transactions],
+      materials: applyTransactions(current.materials, dated),
+      offlineQueue: queueNow ? [...current.offlineQueue, queueItem] : current.offlineQueue,
+    }), navigator.onLine || !remoteMode ? "Log submitted" : "Saved offline. It will sync when connection returns.");
+    if (remoteMode && navigator.onLine) {
+      insertTransactions(txs)
+        .then(invalidateRemote)
+        .catch(() => setState((latest) => ({ ...latest, offlineQueue: [...latest.offlineQueue, queueItem] })));
+    }
   };
 
   const setExactCount = (material: Material, targetQty: number) => {
