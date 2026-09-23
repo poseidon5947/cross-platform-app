@@ -373,18 +373,29 @@ export function App() {
   };
 
   const submitDailyLog = (input: Omit<DailyLog, "id" | "createdAt">) => {
-    let createdLog: DailyLog | undefined;
-    let poolDelta = 0;
-    let createdEvent: PointsEvent | undefined;
-    patchState((current) => {
-      const applied = submitDailyLogDomain(current, current.currentUserId, input);
-      if (applied === current) return current;
-      createdLog = applied.dailyLogs[0];
-      poolDelta = applied.crewPoolPoints - current.crewPoolPoints;
-      if (poolDelta === 0) createdEvent = applied.pointsEvents[0];
-      return applied;
-    }, "Daily log submitted");
-    if (remoteMode && createdLog) {
+    // Worked out here rather than inside the state updater. React only evaluates
+    // an updater eagerly while its queue is empty, and this one is dispatched
+    // straight after the transactions update from the same click - so it ran
+    // late, the variables it used to assign were still undefined when the remote
+    // insert was decided, and the log was never sent. The toast fired anyway, so
+    // the entry looked saved and was gone on reload.
+    const applied = submitDailyLogDomain(state, state.currentUserId, input);
+    if (applied === state) {
+      notify("Daily log needs a job site, work completed, and what to do next time.");
+      return;
+    }
+    const createdLog = applied.dailyLogs[0];
+    const poolDelta = applied.crewPoolPoints - state.crewPoolPoints;
+    const createdEvent = poolDelta === 0 ? applied.pointsEvents[0] : undefined;
+    // Merged onto the latest state instead of replacing it, so the transactions
+    // written moments earlier in the same click are not discarded.
+    patchState((current) => ({
+      ...current,
+      dailyLogs: [createdLog, ...current.dailyLogs],
+      crewPoolPoints: current.crewPoolPoints + poolDelta,
+      pointsEvents: createdEvent ? [createdEvent, ...current.pointsEvents] : current.pointsEvents,
+    }), "Daily log submitted");
+    if (remoteMode) {
       insertDailyLog(createdLog)
         .then(() => (poolDelta > 0 ? addToCrewPool(poolDelta) : createdEvent ? persistPoints([createdEvent]) : Promise.resolve()))
         .then(invalidateRemote)
