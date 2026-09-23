@@ -249,7 +249,8 @@ type SyncMode = "insert" | "update" | "upsert";
 const SYNC_ENTITIES: { key: keyof CrewState; table: string; mode: SyncMode; toRow: (item: any) => Record<string, unknown> }[] = [
   { key: "users", table: "profiles", mode: "update", toRow: profileToRow },
   { key: "reviews", table: "crew_review", mode: "update", toRow: reviewToRow },
-  { key: "kpiResults", table: "crew_kpi_result", mode: "update", toRow: kpiResultToRow },
+  // "update" meant a result row that did not exist yet was silently skipped.
+  { key: "kpiResults", table: "crew_kpi_result", mode: "upsert", toRow: kpiResultToRow },
   { key: "formSubmissions", table: "crew_form_submission", mode: "insert", toRow: formSubmissionToRow },
   { key: "timeOffEntries", table: "crew_time_off_entry", mode: "insert", toRow: timeOffEntryToRow },
   { key: "incidentReports", table: "crew_incident_report", mode: "upsert", toRow: incidentReportToRow },

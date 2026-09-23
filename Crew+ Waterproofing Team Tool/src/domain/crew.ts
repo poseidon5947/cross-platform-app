@@ -252,11 +252,15 @@ export function awardKpiHit(state: CrewState, userId: string, kpiId: string, per
   if (!shouldAward(state.pointsEvents, ref, "crew_kpi_hit")) return state;
   // TODO confirm with client: KPI hit was included in the defaulted "+5 etc." group.
   const event: PointsEvent = { id: uid("pe"), userId, type: "crew_kpi_hit", points: rulePoints(state, "earn-kpi", 5), reason: "KPI target hit", ref, ts: now, source: "crew" };
-  return {
-    ...state,
-    pointsEvents: [event, ...state.pointsEvents],
-    kpiResults: state.kpiResults.map((item) => item.kpiId === kpiId && item.userId === userId && item.periodKey === periodKey ? { ...item, status: "hit" as const, pointsEventRef: event.id } : item),
-  };
+  // There is one result row per kpi/user/period and nothing creates them up
+  // front, so this used to map over an empty list and change nothing: the points
+  // were awarded and the KPI still read as not started, with no way to ever mark
+  // it. Create the row when it is not there yet.
+  const existing = state.kpiResults.find((item) => item.kpiId === kpiId && item.userId === userId && item.periodKey === periodKey);
+  const kpiResults = existing
+    ? state.kpiResults.map((item) => item === existing ? { ...item, status: "hit" as const, pointsEventRef: event.id } : item)
+    : [{ id: uid("kpir"), kpiId, userId, periodKey, status: "hit" as const, pointsEventRef: event.id }, ...state.kpiResults];
+  return { ...state, pointsEvents: [event, ...state.pointsEvents], kpiResults };
 }
 
 export function awardCertsCurrent(state: CrewState, userId: string, periodKey: string, now = new Date().toISOString()) {

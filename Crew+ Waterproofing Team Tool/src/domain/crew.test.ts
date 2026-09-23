@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
-import { submitFeedback, isoWeekKey, quarterKey, quarterMonths, quarterlyLeaderboard, ritualPeriodKey, acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
+import { awardKpiHit, submitFeedback, isoWeekKey, quarterKey, quarterMonths, quarterlyLeaderboard, ritualPeriodKey, acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
 import type { IncidentReportInput, OnboardingInput } from "../types";
 
 describe("Crew+ wallet", () => {
@@ -382,5 +382,37 @@ describe("company feedback", () => {
     let state = createSeedState();
     state = submitFeedback(state, "u3", "   ", "2026-09-23T09:00:00Z");
     expect(state.feedbackEntries).toHaveLength(0);
+  });
+});
+
+describe("KPI hits", () => {
+  it("creates the result row when there isn't one yet", () => {
+    // Production has zero crew_kpi_result rows, so this used to map over an empty
+    // list: the points were awarded and the KPI still read as not started.
+    let state = createSeedState();
+    state = { ...state, kpiResults: [] };
+    const kpiId = state.kpis[0].id;
+    state = awardKpiHit(state, "u3", kpiId, "2026-Q3");
+    expect(state.kpiResults).toHaveLength(1);
+    expect(state.kpiResults[0]).toMatchObject({ kpiId, userId: "u3", periodKey: "2026-Q3", status: "hit" });
+  });
+
+  it("updates the existing row rather than adding a second", () => {
+    let state = createSeedState();
+    const kpiId = state.kpis[0].id;
+    state = { ...state, kpiResults: [{ id: "kpir-1", kpiId, userId: "u3", periodKey: "2026-Q3", status: "not_started" } as any] };
+    state = awardKpiHit(state, "u3", kpiId, "2026-Q3");
+    expect(state.kpiResults).toHaveLength(1);
+    expect(state.kpiResults[0].status).toBe("hit");
+    expect(state.kpiResults[0].id).toBe("kpir-1");
+  });
+
+  it("keeps a different quarter as its own row", () => {
+    let state = createSeedState();
+    state = { ...state, kpiResults: [] };
+    const kpiId = state.kpis[0].id;
+    state = awardKpiHit(state, "u3", kpiId, "2026-Q3");
+    state = awardKpiHit(state, "u3", kpiId, "2026-Q4");
+    expect(state.kpiResults).toHaveLength(2);
   });
 });

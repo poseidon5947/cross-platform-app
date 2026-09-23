@@ -249,40 +249,49 @@ export function App() {
   };
 
   const toggleTask = (taskId: string) => {
-    patchState((current) => {
-      const task = current.truckTasks.find((item) => item.id === taskId);
-      if (!task) return current;
-      const pk = periodKey(task.freq);
-      const existing = current.taskCompletions.find(
-        (completion) => completion.userId === current.currentUserId && completion.taskId === task.id && completion.periodKey === pk,
-      );
-      const completions = existing
-        ? current.taskCompletions.filter((completion) => completion.id !== existing.id)
-        : [...current.taskCompletions, { id: id("tc"), userId: current.currentUserId, taskId: task.id, periodKey: pk, completedAt: new Date().toISOString() }];
-      const evaluated = evaluateDailyPoints({ ...current, taskCompletions: completions }, current.currentUserId);
-      if (evaluated.events.some((event) => event.type === "daily_100")) {
-        setConfetti(true);
-        window.setTimeout(() => setConfetti(false), 1800);
-        notify("100% complete. +25 points awarded.");
-      }
-      const queueItem = { id: id("oq"), type: "complete_task" as const, userId: current.currentUserId, taskId, periodKey: pk, queuedAt: new Date().toISOString() };
-      let offlineQueue = current.offlineQueue;
-      if (remoteMode) {
-        if (navigator.onLine) {
-          const syncCompletion = existing ? deleteCompletion(current.currentUserId, taskId, pk) : upsertCompletion(current.currentUserId, taskId, pk);
-          syncCompletion
-            .then(() => persistPoints(evaluated.events, evaluated.streak))
-            .then(invalidateRemote)
-            .catch(() => {
-              notify("Task saved locally; it will sync when connection returns.");
-              if (!existing) setState((latest) => ({ ...latest, offlineQueue: [...latest.offlineQueue, queueItem] }));
-            });
-        } else if (!existing) {
-          offlineQueue = [...offlineQueue, queueItem];
-        }
-      }
-      return { ...current, taskCompletions: completions, pointsEvents: [...current.pointsEvents, ...evaluated.events], streaks: upsertStreak(current.streaks, evaluated.streak), offlineQueue };
-    });
+    // Everything with an effect - the remote write, the points, the toast, the
+    // confetti timer - is worked out here and runs exactly once. It all used to
+    // sit inside the patchState updater, which React is free to run more than
+    // once for a single dispatch; the duplicate write is idempotent behind the
+    // unique constraint, but the second run still re-fired the toast and timer.
+    // The updater below only derives state now, which is all it should ever do.
+    const task = state.truckTasks.find((item) => item.id === taskId);
+    if (!task) return;
+    const pk = periodKey(task.freq);
+    const userId = state.currentUserId;
+    const existing = state.taskCompletions.find(
+      (completion) => completion.userId === userId && completion.taskId === task.id && completion.periodKey === pk,
+    );
+    const completions = existing
+      ? state.taskCompletions.filter((completion) => completion.id !== existing.id)
+      : [...state.taskCompletions, { id: id("tc"), userId, taskId: task.id, periodKey: pk, completedAt: new Date().toISOString() }];
+    const evaluated = evaluateDailyPoints({ ...state, taskCompletions: completions }, userId);
+    const queueItem = { id: id("oq"), type: "complete_task" as const, userId, taskId, periodKey: pk, queuedAt: new Date().toISOString() };
+    const queueNow = remoteMode && !navigator.onLine && !existing;
+
+    patchState((current) => ({
+      ...current,
+      taskCompletions: completions,
+      pointsEvents: [...current.pointsEvents, ...evaluated.events],
+      streaks: upsertStreak(current.streaks, evaluated.streak),
+      offlineQueue: queueNow ? [...current.offlineQueue, queueItem] : current.offlineQueue,
+    }));
+
+    if (evaluated.events.some((event) => event.type === "daily_100")) {
+      setConfetti(true);
+      window.setTimeout(() => setConfetti(false), 1800);
+      notify("100% complete. +25 points awarded.");
+    }
+    if (remoteMode && navigator.onLine) {
+      const syncCompletion = existing ? deleteCompletion(userId, taskId, pk) : upsertCompletion(userId, taskId, pk);
+      syncCompletion
+        .then(() => persistPoints(evaluated.events, evaluated.streak))
+        .then(invalidateRemote)
+        .catch(() => {
+          notify("Task saved locally; it will sync when connection returns.");
+          if (!existing) setState((latest) => ({ ...latest, offlineQueue: [...latest.offlineQueue, queueItem] }));
+        });
+    }
   };
 
   const submitTransactions = (txs: Omit<Transaction, "id" | "ts">[], chosenDate?: string) => {

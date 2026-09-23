@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createSeedState } from "./data/seed";
 import { shouldRequestSopAward } from "./data/award";
@@ -239,14 +239,33 @@ function useRemoteState() {
       });
   }, []);
 
+  // The save used to be fired from inside this updater. React is free to run an
+  // updater more than once for a single dispatch, and every run sent another
+  // write. The updater now only records what to save - assigning a ref is
+  // idempotent, so a repeat run simply overwrites it with the same pair - and the
+  // effect below performs the write once, after the state is committed.
+  //
+  // It deliberately reads `previous` from React rather than from the render
+  // closure: setRawState is also called directly for server loads, sign-out and
+  // the offline drain, and diffing those against a stale local value would push
+  // spurious writes back to Supabase.
+  const pendingPersist = useRef<{ previous: SopState; next: SopState } | null>(null);
+
   const setState: React.Dispatch<React.SetStateAction<SopState>> = (update) => {
     setRawState((previous) => {
       if (!previous) return previous;
       const next = typeof update === "function" ? (update as (value: SopState) => SopState)(previous) : update;
-      persistState(previous, next).catch((err) => setError(err instanceof Error ? err.message : "Could not save changes."));
+      pendingPersist.current = { previous, next };
       return next;
     });
   };
+
+  useEffect(() => {
+    const pending = pendingPersist.current;
+    if (!pending) return;
+    pendingPersist.current = null;
+    persistState(pending.previous, pending.next).catch((err) => setError(err instanceof Error ? err.message : "Could not save changes."));
+  });
 
   async function login(email: string, password: string) {
     setLoading(true);
