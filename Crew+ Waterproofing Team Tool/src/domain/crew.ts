@@ -671,6 +671,24 @@ export function canApproveRedemptions(state: CrewState, user: Profile) {
   return user.role === "admin" || state.permissions.hrOwnerUserIds.includes(user.id);
 }
 
+/**
+ * Mirrors the award-points function, which treats earn-kpi as a manager rule: a
+ * crew member clicking "Mark hit" got the result row saved and the points refused
+ * with 403 "This award requires manager/admin approval". KPI attainment feeds the
+ * performance review, so manager sign-off is the right rule - the button just
+ * should not have been offered to everyone.
+ *
+ * isHrOwner over there also requires role "admin", so this is the whole gate.
+ */
+export function canAwardKpiHit(user: Profile) {
+  return user.role === "admin" || user.role === "manager";
+}
+
+/** True once this person's KPI is recorded as hit for the period. */
+export function kpiHitFor(state: CrewState, userId: string, kpiId: string, periodKey: string) {
+  return state.kpiResults.some((item) => item.kpiId === kpiId && item.userId === userId && item.periodKey === periodKey && item.status === "hit");
+}
+
 export function canRunReviews(state: CrewState, user: Profile) {
   return hasRolePermission(state, user, "manageReviews") || user.role === "admin" || (user.role === "manager" && state.permissions.managerCanReviewCrew);
 }

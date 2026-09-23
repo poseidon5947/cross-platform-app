@@ -8,7 +8,13 @@ const cors = {
 };
 
 const selfServeCrewRules = new Set(["earn-daily", "earn-weekly", "earn-monthly", "earn-feedback", "earn-cert-detail", "earn-swot"]);
-const managerCrewRules = new Set(["earn-review", "earn-kpi", "earn-google", "earn-compliment", "earn-safety", "earn-peer", "earn-certs"]);
+// Peer recognition is crew-to-crew by design - the Feedback tab offers every crew
+// member a "Send +5 to them" button. It was sitting in managerCrewRules, so a crew
+// member's recognition of a teammate saved the message and then had its points
+// rejected with 403 "This award requires manager/admin approval". It is not
+// self-serve either: the award goes to someone else, and you cannot name yourself.
+const peerCrewRules = new Set(["earn-peer"]);
+const managerCrewRules = new Set(["earn-review", "earn-kpi", "earn-google", "earn-compliment", "earn-safety", "earn-certs"]);
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -78,8 +84,9 @@ async function awardCrewRule(service: any, caller: any, callerId: string, body: 
   if (!crewMemberId || !ruleKey || !ref) return json({ error: "crewMemberId, ruleKey, and ref are required" }, 400);
 
   if (selfServeCrewRules.has(ruleKey) && crewMemberId !== callerId) return json({ error: "Self-serve awards can only be earned by the caller" }, 403);
+  if (peerCrewRules.has(ruleKey) && crewMemberId === callerId) return json({ error: "Peer recognition cannot be given to yourself" }, 403);
   if (managerCrewRules.has(ruleKey) && !isManager(caller) && !isHrOwner(caller)) return json({ error: "This award requires manager/admin approval" }, 403);
-  if (!selfServeCrewRules.has(ruleKey) && !managerCrewRules.has(ruleKey)) return json({ error: "No Crew+ award policy is configured for this rule" }, 403);
+  if (!selfServeCrewRules.has(ruleKey) && !peerCrewRules.has(ruleKey) && !managerCrewRules.has(ruleKey)) return json({ error: "No Crew+ award policy is configured for this rule" }, 403);
 
   const { data: rule, error } = await service.from("crew_earning_rule").select("id,action,points,habit,active,weekly_cap").eq("id", ruleKey).single();
   if (error || !rule?.active) return json({ error: "Unknown or inactive earning rule" }, 400);

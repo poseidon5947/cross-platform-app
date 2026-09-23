@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
-import { awardKpiHit, submitFeedback, isoWeekKey, quarterKey, quarterMonths, quarterlyLeaderboard, ritualPeriodKey, acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
+import { canAwardKpiHit, kpiHitFor, awardKpiHit, submitFeedback, isoWeekKey, quarterKey, quarterMonths, quarterlyLeaderboard, ritualPeriodKey, acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
 import type { IncidentReportInput, OnboardingInput } from "../types";
 
 describe("Crew+ wallet", () => {
@@ -414,5 +414,26 @@ describe("KPI hits", () => {
     state = awardKpiHit(state, "u3", kpiId, "2026-Q3");
     state = awardKpiHit(state, "u3", kpiId, "2026-Q4");
     expect(state.kpiResults).toHaveLength(2);
+  });
+});
+
+describe("KPI hit permissions and state", () => {
+  it("only offers the award to the roles award-points will accept", () => {
+    // The edge function treats earn-kpi as a manager rule, so a crew member got
+    // the result row saved and the points refused with 403.
+    expect(canAwardKpiHit({ role: "admin" } as any)).toBe(true);
+    expect(canAwardKpiHit({ role: "manager" } as any)).toBe(true);
+    expect(canAwardKpiHit({ role: "crew" } as any)).toBe(false);
+  });
+
+  it("reports a KPI as hit once the result row says so", () => {
+    let state = createSeedState();
+    const kpiId = state.kpis[0].id;
+    state = { ...state, kpiResults: [] };
+    expect(kpiHitFor(state, "u3", kpiId, "2026-Q3")).toBe(false);
+    state = awardKpiHit(state, "u3", kpiId, "2026-Q3");
+    expect(kpiHitFor(state, "u3", kpiId, "2026-Q3")).toBe(true);
+    // and it is scoped to the period, not forever
+    expect(kpiHitFor(state, "u3", kpiId, "2026-Q4")).toBe(false);
   });
 });
