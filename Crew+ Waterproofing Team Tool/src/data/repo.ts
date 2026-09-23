@@ -167,7 +167,7 @@ const reviewToRow = (item: any) => ({
 
 const kpiResultToRow = (item: any) => ({
   id: item.id, kpi_id: item.kpiId, user_id: item.userId, period_key: item.periodKey, status: item.status,
-  value: item.value ?? null, points_event_ref: item.pointsEventRef ?? null,
+  value: item.value ?? null, points_event_ref: uuidOrNull(item.pointsEventRef),
 });
 
 const formSubmissionToRow = (item: any) => ({
@@ -200,6 +200,21 @@ const certificationToRow = (item: any) => ({
   certificate_photo_key: item.certificatePhotoKey ?? null,
 });
 
+/**
+ * crew_recognition.points_event_ref, crew_kpi_result.points_event_ref and
+ * crew_reward_redemption.external_ref are uuid columns referencing points_events.
+ * The app fills them with the id of the points event it built locally, which is a
+ * `pe-...` string, not a uuid - so Postgres rejected the whole statement with
+ * 22P02 before it ever reached the row. Peer recognition, marking a KPI hit and
+ * approving a redemption all failed to save because of it.
+ *
+ * The local id never matched a server row anyway (points_events.id is generated
+ * server side), so there is nothing to preserve: send it only when it really is a
+ * uuid, and null otherwise.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuidOrNull = (value: unknown) => (typeof value === "string" && UUID_RE.test(value) ? value : null);
+
 const feedbackToRow = (item: any) => ({
   id: item.id, user_id: item.userId, message: item.message, ts: item.ts,
   points_event_ref: item.pointsEventRef ?? null,
@@ -207,7 +222,7 @@ const feedbackToRow = (item: any) => ({
 
 const recognitionToRow = (item: any) => ({
   id: item.id, from_user_id: item.fromUserId, to_user_id: item.toUserId, message: item.message, ts: item.ts,
-  points_event_ref: item.pointsEventRef ?? null,
+  points_event_ref: uuidOrNull(item.pointsEventRef),
 });
 
 const onboardingToRow = (item: OnboardingRecord) => ({
@@ -226,7 +241,7 @@ const onboardingToRow = (item: OnboardingRecord) => ({
 
 const redemptionToRow = (item: any) => ({
   id: item.id, user_id: item.userId, reward_id: item.rewardId, points: item.points, status: item.status,
-  requested_at: item.requestedAt, approved_at: item.approvedAt ?? null, approved_by: item.approvedBy ?? null, external_ref: item.externalRef ?? null,
+  requested_at: item.requestedAt, approved_at: item.approvedAt ?? null, approved_by: item.approvedBy ?? null, external_ref: uuidOrNull(item.externalRef),
 });
 
 type SyncMode = "insert" | "update" | "upsert";
