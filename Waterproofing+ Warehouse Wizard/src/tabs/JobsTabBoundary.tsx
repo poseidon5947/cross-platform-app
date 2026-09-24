@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { id } from "../domain/business";
+import { todayKey, id } from "../domain/business";
 import type { AppState, Role, Site } from "../types";
 import { canManage } from "../App";
 
@@ -9,7 +9,9 @@ export default function JobsTabBoundary({ state, role, saveSite, openSheet }: {
   saveSite: (site: Site) => void;
   openSheet: (sheet: { title: string; content: React.ReactNode }) => void;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  // Vancouver time, not UTC: a job ending today used to drop into Past from 5pm
+  // Pacific onward, while the crew were still on it.
+  const today = todayKey();
   const active = state.sites.filter((site) => !site.endDate || site.endDate >= today);
   const past = state.sites.filter((site) => site.endDate && site.endDate < today);
   const canEdit = canManage(role);

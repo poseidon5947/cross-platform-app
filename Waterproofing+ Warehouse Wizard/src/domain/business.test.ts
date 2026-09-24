@@ -383,3 +383,26 @@ describe("monthly inventory log export", () => {
     expect(csv).not.toContain("2026-07");
   });
 });
+
+describe("daily period keys use Vancouver time, not UTC", () => {
+  it("still reads as the same day after 5pm Pacific, when UTC has rolled over", () => {
+    // 2026-09-24 18:30 Pacific (PDT, UTC-7) is already 2026-09-25 in UTC.
+    // A truck log submitted at the end of a shift used to auto-complete its tasks
+    // under the UTC date, so they were filed against tomorrow and the UI - which
+    // asks todayKey() - still showed them outstanding.
+    const evening = new Date("2026-09-25T01:30:00Z");
+    expect(evening.toISOString().slice(0, 10)).toBe("2026-09-25");
+    expect(todayKey(evening)).toBe("2026-09-24");
+  });
+
+  it("agrees with UTC during the working day", () => {
+    const midday = new Date("2026-09-24T19:00:00Z"); // 12:00 Pacific
+    expect(todayKey(midday)).toBe("2026-09-24");
+  });
+
+  it("keys a daily task to the same Vancouver day all evening", () => {
+    const beforeFive = new Date("2026-09-24T23:00:00Z"); // 16:00 Pacific
+    const afterFive = new Date("2026-09-25T02:00:00Z");  // 19:00 Pacific
+    expect(periodKey("daily", beforeFive)).toBe(periodKey("daily", afterFive));
+  });
+});

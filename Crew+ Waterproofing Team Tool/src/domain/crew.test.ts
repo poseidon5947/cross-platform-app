@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
-import { canAwardManagerRule, kpiHitFor, awardKpiHit, submitFeedback, isoWeekKey, quarterKey, quarterMonths, quarterlyLeaderboard, ritualPeriodKey, acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
+import { localDayKey, canAwardManagerRule, kpiHitFor, awardKpiHit, submitFeedback, isoWeekKey, quarterKey, quarterMonths, quarterlyLeaderboard, ritualPeriodKey, acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
 import type { IncidentReportInput, OnboardingInput } from "../types";
 
 describe("Crew+ wallet", () => {
@@ -322,13 +322,13 @@ function incidentInput(): IncidentReportInput {
 
 describe("period keys drive the recurring awards", () => {
   it("derives the ISO week the same way `date +%G-W%V` does", () => {
-    expect(isoWeekKey(new Date("2026-09-23T12:00:00"))).toBe("2026-W39");
-    expect(isoWeekKey(new Date("2026-07-27T12:00:00"))).toBe("2026-W31");
+    expect(isoWeekKey(new Date("2026-09-23T19:00:00Z"))).toBe("2026-W39");
+    expect(isoWeekKey(new Date("2026-07-27T19:00:00Z"))).toBe("2026-W31");
   });
 
   it("rolls the quarter over on October 1 - the bug that was filed under Q3 forever", () => {
-    expect(quarterKey(new Date("2026-09-30T12:00:00"))).toBe("2026-Q3");
-    expect(quarterKey(new Date("2026-10-01T12:00:00"))).toBe("2026-Q4");
+    expect(quarterKey(new Date("2026-09-30T19:00:00Z"))).toBe("2026-Q3");
+    expect(quarterKey(new Date("2026-10-01T19:00:00Z"))).toBe("2026-Q4");
   });
 
   it("covers all three months of a quarter in the leaderboard", () => {
@@ -346,8 +346,8 @@ describe("period keys drive the recurring awards", () => {
   it("lets a ritual be earned again in the next period", () => {
     let state = createSeedState();
     const valueId = state.values[0].id;
-    const thisWeek = ritualPeriodKey("weekly", new Date("2026-09-23T12:00:00"));
-    const nextWeek = ritualPeriodKey("weekly", new Date("2026-09-30T12:00:00"));
+    const thisWeek = ritualPeriodKey("weekly", new Date("2026-09-23T19:00:00Z"));
+    const nextWeek = ritualPeriodKey("weekly", new Date("2026-09-30T19:00:00Z"));
     expect(thisWeek).not.toBe(nextWeek);
     const before = state.pointsEvents.length;
     state = completeRitual(state, "u3", valueId, "weekly", thisWeek);
@@ -358,7 +358,7 @@ describe("period keys drive the recurring awards", () => {
   });
 
   it("gives each cadence its own period key", () => {
-    const day = new Date("2026-09-23T12:00:00");
+    const day = new Date("2026-09-23T19:00:00Z");
     expect(ritualPeriodKey("daily", day)).toBe("2026-09-23");
     expect(ritualPeriodKey("weekly", day)).toBe("2026-W39");
     expect(ritualPeriodKey("monthly", day)).toBe("2026-09");
@@ -435,5 +435,33 @@ describe("KPI hit permissions and state", () => {
     expect(kpiHitFor(state, "u3", kpiId, "2026-Q3")).toBe(true);
     // and it is scoped to the period, not forever
     expect(kpiHitFor(state, "u3", kpiId, "2026-Q4")).toBe(false);
+  });
+});
+
+describe("once-per-day awards use the local day", () => {
+  it("does not reset the feedback award when UTC rolls over mid-afternoon", () => {
+    // Both of these are the same Vancouver day (24 Sept, 4pm and 7pm PDT) but
+    // different UTC days, so slicing the UTC timestamp handed out the points twice.
+    const afternoon = "2026-09-24T23:00:00Z";
+    const evening = "2026-09-25T02:00:00Z";
+    let state = createSeedState();
+    const before = state.pointsEvents.length;
+    state = submitFeedback(state, "u3", "The gravel bins need labels.", afternoon);
+    state = submitFeedback(state, "u3", "The gravel bins need labels.", evening);
+    expect(state.pointsEvents.length).toBe(before + 1);
+    expect(state.feedbackEntries).toHaveLength(1);
+  });
+
+  it("still opens again on a genuinely new day", () => {
+    let state = createSeedState();
+    const before = state.pointsEvents.length;
+    state = submitFeedback(state, "u3", "The gravel bins need labels.", "2026-09-24T20:00:00Z");
+    state = submitFeedback(state, "u3", "The gravel bins need labels.", "2026-09-25T20:00:00Z");
+    expect(state.pointsEvents.length).toBe(before + 2);
+  });
+
+  it("derives the local day without drifting to UTC", () => {
+    expect(localDayKey(new Date("2026-09-25T02:00:00Z"))).toBe("2026-09-24");
+    expect(localDayKey(new Date("2026-09-24T19:00:00Z"))).toBe("2026-09-24");
   });
 });

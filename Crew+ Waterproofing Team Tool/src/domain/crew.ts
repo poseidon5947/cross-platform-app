@@ -52,7 +52,8 @@ export function shouldAward(events: PointsEvent[], ref: string, type: string) {
  */
 export function isoWeekKey(date = new Date()) {
   // Shift to the Thursday of this week, whose calendar year is the ISO week-year.
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const p = zonedParts(date);
+  const d = new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day)));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   const week = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
@@ -60,15 +61,40 @@ export function isoWeekKey(date = new Date()) {
 }
 
 export function monthKey(date = new Date()) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  const p = zonedParts(date);
+  return `${p.year}-${p.month}`;
 }
 
 export function quarterKey(date = new Date()) {
-  return `${date.getFullYear()}-Q${Math.floor(date.getMonth() / 3) + 1}`;
+  const p = zonedParts(date);
+  return `${p.year}-Q${Math.floor((Number(p.month) - 1) / 3) + 1}`;
+}
+
+/**
+ * The calendar day where the crew actually are. These refs used to slice the day
+ * out of a UTC timestamp, and UTC rolls over at 5pm Pacific - so a "once per day"
+ * award reset mid-afternoon and could be claimed twice before midnight.
+ *
+ * Pinned to Vancouver rather than read off the device, matching how Warehouse
+ * Wizard keys its periods: the company works one timezone, and a phone left on
+ * the wrong one should not move somebody into a different points period.
+ */
+const VANCOUVER_TZ = "America/Vancouver";
+
+function zonedParts(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: VANCOUVER_TZ, year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(date);
+  return Object.fromEntries(parts.map((part) => [part.type, part.value])) as Record<string, string>;
+}
+
+export function localDayKey(date = new Date()) {
+  const p = zonedParts(date);
+  return `${p.year}-${p.month}-${p.day}`;
 }
 
 export function ritualPeriodKey(cadence: Cadence, date = new Date()) {
-  if (cadence === "daily") return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  if (cadence === "daily") return localDayKey(date);
   if (cadence === "weekly") return isoWeekKey(date);
   return monthKey(date);
 }
@@ -286,7 +312,7 @@ export function awardCertDetail(state: CrewState, userId: string, certId: string
 }
 
 export function submitFeedback(state: CrewState, userId: string, message: string, now = new Date().toISOString()) {
-  const ref = `feedback:${userId}:${now.slice(0, 10)}:${message.slice(0, 12)}`;
+  const ref = `feedback:${userId}:${localDayKey(new Date(now))}:${message.slice(0, 12)}`;
   if (!message.trim() || !shouldAward(state.pointsEvents, ref, "crew_feedback")) return state;
   // TODO confirm with client: feedback was included in the defaulted "+5 etc." group.
   const event: PointsEvent = { id: uid("pe"), userId, type: "crew_feedback", points: rulePoints(state, "earn-feedback", 5), reason: "Company feedback submitted", ref, ts: now, source: "crew" };
@@ -496,7 +522,7 @@ export function confirmCustomerReview(state: CrewState, userId: string, kind: "g
   const type = kind === "google_5_star" ? "crew_google_review" : "crew_compliment";
   // TODO confirm with client: written compliments were included in the defaulted "+5 etc." group.
   const points = kind === "google_5_star" ? rulePoints(state, "earn-google", 200) : rulePoints(state, "earn-compliment", 5);
-  const ref = `${type}:${userId}:${customerName}:${now.slice(0, 10)}`;
+  const ref = `${type}:${userId}:${customerName}:${localDayKey(new Date(now))}`;
   if (!shouldAward(state.pointsEvents, ref, type)) return state;
   const event: PointsEvent = { id: uid("pe"), userId, type, points, reason: kind === "google_5_star" ? "5-star Google review naming crew member" : "Written customer compliment", ref, ts: now, source: "crew" };
   return { ...state, pointsEvents: [event, ...state.pointsEvents] };

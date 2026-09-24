@@ -1,4 +1,5 @@
 import { supabase } from "../integrations/supabase";
+import { todayKey } from "../domain/business";
 import type { AppState, DailyLog, MaintenanceRequest, Material, OfflineCommand, PointsEvent, Service, Site, Streak, TaskCompletion, ToolItem, Transaction, Truck, TruckLog, TruckTask, User } from "../types";
 
 function requireClient() {
@@ -436,7 +437,12 @@ export async function saveTruckLog(log: Omit<TruckLog, "id" | "ts">, autoTaskIds
     .single();
   if (error) throw error;
   if (autoTaskIds.length) {
-    const periodKey = new Date().toISOString().slice(0, 10);
+    // Everything else keys a daily period off todayKey(), which is Vancouver time.
+    // This was the UTC date, and UTC rolls over at 5pm Pacific - which is exactly
+    // when a truck log gets submitted - so the tasks it auto-completes were filed
+    // under tomorrow, the UI still showed them outstanding, and the 100%-complete
+    // points never fired.
+    const periodKey = todayKey();
     const { error: completionError } = await requireClient().from("task_completions").upsert(autoTaskIds.map((taskId) => ({
       user_id: log.driverId,
       task_id: taskId,
