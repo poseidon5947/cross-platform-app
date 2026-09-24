@@ -72,11 +72,31 @@ export async function loadRemoteState(currentUserId: string): Promise<Partial<Cr
   return { currentUserId, ...singletons, users: profiles, rolePermissions, jobDescriptions, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, incidentReports, onboarding, compensation, feedbackEntries };
 }
 
+/**
+ * supabase-js reports a non-2xx from a function as "Edge Function returned a
+ * non-2xx status code" and leaves the actual reason in the response body, which
+ * we were throwing away - so someone whose award was refused saw that sentence
+ * and nothing else. award-points explains itself properly; read what it said.
+ */
+export async function __functionErrorMessage(error: unknown, fallback: string) {
+  const context = (error as { context?: Response })?.context;
+  if (context && typeof context.json === "function") {
+    try {
+      const body = await context.clone().json();
+      if (body?.error) return String(body.error);
+    } catch {
+      // Not JSON, or already consumed - fall through to the generic message.
+    }
+  }
+  const message = error instanceof Error ? error.message : "";
+  return /non-2xx/i.test(message) || !message ? fallback : message;
+}
+
 export async function awardPoints(payload: { userId: string; ruleKey: string; ref: string; weekKey?: string }) {
   const { data, error } = await requireClient().functions.invoke("award-points", {
     body: { kind: payload.ruleKey === "redeem" ? "redeem" : "crew_rule", crewMemberId: payload.userId, ruleKey: payload.ruleKey, ref: payload.ref, weekKey: payload.weekKey },
   });
-  if (error) throw error;
+  if (error) throw new Error(await __functionErrorMessage(error, "Those points could not be awarded. Nothing else was lost."));
   return data as { eventId: string; awardedAt: string; alreadyAwarded: boolean };
 }
 
