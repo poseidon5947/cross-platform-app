@@ -32,6 +32,7 @@ import {
   replayCommand,
   respondMaintenanceRequest,
   saveTruckLog as saveRemoteTruckLog,
+  signOut,
   upsertCompletion,
   updateTool,
   upsertMaterial,
@@ -625,7 +626,7 @@ export function App() {
             <button className="theme-quick-btn" onClick={openThemeSheet} title="Appearance settings">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v6m0 6v6M1 12h6m6 0h6M3.93 3.93l4.24 4.24m5.66 5.66l4.24 4.24M3.93 20.07l4.24-4.24m5.66-5.66l4.24-4.24"/></svg>
             </button>
-            <button className="whoami" onClick={() => DEMO_MODE ? setSheet({ title: "Choose demo user", content: <UserSheet state={state} switchUser={switchDemoUser} /> }) : supabase?.auth.signOut()}>
+            <button className="whoami" onClick={() => DEMO_MODE ? setSheet({ title: "Choose demo user", content: <UserSheet state={state} switchUser={switchDemoUser} /> }) : signOut().catch((err: Error) => notify(`Sign out failed: ${err.message}`))}>
               <span className="av" style={{ background: currentUser.color }}>{initials(currentUser.name)}</span>
               <span>{currentUser.name} · {currentUser.role}</span>
             </button>

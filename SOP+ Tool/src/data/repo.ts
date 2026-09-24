@@ -12,8 +12,12 @@ export async function signInWithPassword(email: string, password: string) {
   return data.user;
 }
 
+// Scope "local" ends this app's session only. The default "global" revokes the
+// person's sessions in Warehouse Wizard and Crew+ too, leaving them with a JWT
+// that still works against PostgREST for up to an hour while edge functions
+// answer 401 (see the same note in Crew+ and Warehouse Wizard).
 export async function signOut() {
-  const { error } = await requireClient().auth.signOut();
+  const { error } = await requireClient().auth.signOut({ scope: "local" });
   if (error) throw error;
 }
 

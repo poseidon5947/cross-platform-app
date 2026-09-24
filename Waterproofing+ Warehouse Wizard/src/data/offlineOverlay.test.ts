@@ -14,6 +14,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { createSeedState } from "./seed";
 import { applyQueuedCommands, drainOfflineQueue } from "./offline";
 import { validateMaterialsCsv } from "./csvImport";
+import { describeFunctionError } from "./repo";
 import { loadSnapshot, saveSnapshot } from "../App";
 import type { OfflineCommand } from "../types";
 
@@ -130,6 +131,24 @@ describe("CSV import without a Category column", () => {
     expect(report.materials[0].cost).toBe(9.99);
     expect(report.materials[0].qty).toBe(known.qty);
     expect(report.skipped).toEqual([{ row: 3, reason: "New material needs a Category column" }]);
+  });
+});
+
+describe("a refused award-points call", () => {
+  // The queue kept "Edge Function returned a non-2xx status code" as lastError
+  // for a command the server had rejected with a specific reason, so nobody
+  // could tell why it was stuck. The Response is on the error as `context`.
+  const httpError = (status: number, body: unknown) => Object.assign(new Error("Edge Function returned a non-2xx status code"), { name: "FunctionsHttpError", context: new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }) });
+
+  it("reports the server's message and status", async () => {
+    const described = await describeFunctionError(httpError(403, { error: "Points go to the person who completed the log" }));
+    expect(described.message).toBe("award-points 403: Points go to the person who completed the log");
+  });
+
+  it("falls back to the generic message when there is no readable body", async () => {
+    expect((await describeFunctionError(httpError(502, "upstream"))).message).toBe("Edge Function returned a non-2xx status code");
+    expect((await describeFunctionError(new Error("Failed to fetch"))).message).toBe("Failed to fetch");
+    expect((await describeFunctionError("boom")).message).toBe("boom");
   });
 });
 

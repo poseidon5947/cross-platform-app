@@ -12,8 +12,14 @@ export async function signInWithPassword(email: string, password: string) {
   return data.user;
 }
 
+// Scope "local" ends this app's session only. The default is "global", which
+// revokes every session the person holds - including Warehouse Wizard and SOP+
+// on their own origins. Those apps then carry a JWT that PostgREST still accepts
+// for up to an hour while GoTrue-backed edge functions reject it: live
+// verification saw a daily log save and its points come back "401 Unauthorized",
+// pinning the command in the offline queue, after a sign-out from this app.
 export async function signOut() {
-  const { error } = await requireClient().auth.signOut();
+  const { error } = await requireClient().auth.signOut({ scope: "local" });
   if (error) throw error;
 }
 

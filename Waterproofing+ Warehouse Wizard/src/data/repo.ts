@@ -7,6 +7,17 @@ function requireClient() {
   return supabase;
 }
 
+// Scope "local" ends this app's session only. The default "global" revokes the
+// person's Crew+ and SOP+ sessions as well - each app keeps its own session on
+// its own origin - and a sibling app then runs on a JWT that PostgREST accepts
+// for up to an hour while edge functions, which ask GoTrue whether the session
+// still exists, answer 401. That is how a replayed daily log saved its row and
+// had its points refused.
+export async function signOut() {
+  const { error } = await requireClient().auth.signOut({ scope: "local" });
+  if (error) throw error;
+}
+
 const materialFromRow = (row: any): Material => ({
   id: row.id,
   name: row.name,
@@ -391,6 +402,49 @@ export async function upsertTruck(truck: Truck) {
   if (error) throw error;
 }
 
+/**
+ * Turn a functions.invoke failure into an error that says what the server said.
+ * A FunctionsHttpError carries the Response as `context`, and award-points always
+ * answers with `{ error }` and a status - but the error's own message is the fixed
+ * "Edge Function returned a non-2xx status code". That is what reached the toast
+ * and the queue's lastError, so a command the server refused sat in "pending
+ * sync" with no way to tell a 403 from a 404 from a 500. The status is kept and
+ * the body is trimmed: it is the server's own message, not a stack or a token.
+ */
+/**
+ * An edge function answering 401 means GoTrue refused the token, not that the
+ * network failed - the function's own getUser() checks the session still exists,
+ * which a plain PostgREST call never does. So the app can sit in a half-working
+ * state: reads and inserts keep succeeding on the cached JWT while every award
+ * fails, for as long as an hour, until the next refresh finally drops to login.
+ * That is the state that took two verification passes to pin down.
+ *
+ * The session is re-checked against the server before acting, so a one-off 401
+ * cannot sign anyone out by accident; only a genuinely dead session does.
+ */
+export async function sessionRejected(error: unknown): Promise<boolean> {
+  const status = (error as { context?: { status?: number } } | null)?.context?.status;
+  if (status !== 401) return false;
+  const client = supabase;
+  if (!client) return false;
+  const { data, error: userError } = await client.auth.getUser();
+  return Boolean(userError) || !data?.user;
+}
+
+export async function describeFunctionError(error: unknown): Promise<Error> {
+  const context = (error as { context?: { status?: number; clone?: () => { json: () => Promise<unknown> } } } | null)?.context;
+  if (context && typeof context.clone === "function") {
+    try {
+      const body = (await context.clone().json()) as { error?: unknown } | null;
+      const message = typeof body?.error === "string" ? body.error.trim().slice(0, 200) : "";
+      if (message) return new Error(`award-points ${context.status ?? ""}: ${message}`.replace(/\s+:/, ":"));
+    } catch {
+      // Not JSON: fall through to the generic message.
+    }
+  }
+  return error instanceof Error ? error : new Error(String(error));
+}
+
 export async function persistPoints(events: PointsEvent[], _streak?: Streak) {
   const client = requireClient();
   for (const event of events) {
@@ -404,7 +458,15 @@ export async function persistPoints(events: PointsEvent[], _streak?: Streak) {
         reason: event.reason,
       },
     });
-    if (error) throw error;
+    if (error) {
+      // A dead session is worth ending cleanly rather than letting every award
+      // fail silently behind a token that still passes PostgREST.
+      if (await sessionRejected(error)) {
+        await signOut().catch(() => undefined);
+        throw new Error("Your session ended. Sign in again to save this.");
+      }
+      throw await describeFunctionError(error);
+    }
   }
 }
 
