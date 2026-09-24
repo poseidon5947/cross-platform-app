@@ -46,15 +46,36 @@ function Admin({ state, role, notify, remoteMode, saveMaterial, currentTheme, on
   const priceChanges = priceChangeMaterials(state.materials);
   const [report, setReport] = useState<string>(() => priceChanges.length ? `${priceChanges.length} price change${priceChanges.length === 1 ? "" : "s"} active` : "");
   if (!canManage(role)) return <section className="card">Manager or Admin access required.</section>;
+  // "0 imported; 2 skipped" and nothing else left an admin with no idea what was
+  // wrong with their file - the reasons were in the response all along and were
+  // being dropped. Live verification hit exactly this: both rows were missing a
+  // Category column and the screen never said so.
+  const describe = (imported: number, skipped: Array<{ row: number; reason: string }>) => {
+    const head = `${imported} imported; ${skipped.length} skipped`;
+    if (!skipped.length) return head;
+    const reasons = [...new Set(skipped.map((item) => item.reason))];
+    const rowsFor = (reason: string) => skipped.filter((item) => item.reason === reason).map((item) => item.row);
+    const detail = reasons.slice(0, 3).map((reason) => {
+      const rows = rowsFor(reason);
+      const shown = rows.slice(0, 6).join(", ");
+      return `${reason} (row${rows.length === 1 ? "" : "s"} ${shown}${rows.length > 6 ? ` and ${rows.length - 6} more` : ""})`;
+    }).join("; ");
+    return `${head} — ${detail}${reasons.length > 3 ? `; and ${reasons.length - 3} other reason(s)` : ""}`;
+  };
   const upload = async (file?: File) => {
     if (!file) return;
-    if (remoteMode) {
-      const result = await invokeMaterialsImport(file);
-      setReport(`${result.imported} imported; ${result.skipped.length} skipped`);
-    } else {
-      const result = validateMaterialsCsv(await file.text(), state.materials);
-      result.materials.forEach((material) => saveMaterial(material, false));
-      setReport(`${result.imported} imported; ${result.skipped.length} skipped`);
+    try {
+      if (remoteMode) {
+        const result = await invokeMaterialsImport(file);
+        setReport(describe(result.imported, result.skipped ?? []));
+      } else {
+        const result = validateMaterialsCsv(await file.text(), state.materials);
+        result.materials.forEach((material) => saveMaterial(material, false));
+        setReport(describe(result.imported, result.skipped ?? []));
+      }
+    } catch (error) {
+      // An import that fails outright used to leave the previous report on screen.
+      setReport(error instanceof Error ? `Import failed: ${error.message}` : "Import failed.");
     }
   };
 

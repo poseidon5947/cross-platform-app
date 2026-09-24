@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { themes, applyTheme, loadTheme, saveTheme } from "./themes";
 import type { Theme } from "./themes";
@@ -163,7 +163,16 @@ export function App() {
   const queryClient = useQueryClient();
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
-  const [state, setStateInner] = useState(loadDemoState);
+  // The queue is read here rather than in an effect, so it is in state from the
+  // first render. Live verification caught two faults in the effect version: the
+  // save effect fired on mount with an empty queue and cleared the store before
+  // anything had restored it, and the restore hung off remoteState, which never
+  // arrives while the device is offline - exactly when the queue is needed.
+  const [state, setStateInner] = useState(() => {
+    const initial = loadDemoState();
+    const queued = loadOfflineQueue();
+    return queued.length ? { ...initial, offlineQueue: queued } : initial;
+  });
   const [tab, setTab] = useState<Tab>("home");
   const [focusTarget, setFocusTarget] = useState<string | null>(null);
   const goToFocus = (nextTab: Tab, focus: string) => { setTab(nextTab); setFocusTarget(focus); };
@@ -222,12 +231,17 @@ export function App() {
   useEffect(() => {
     // Keep anything still waiting to sync: remoteState always carries an empty
     // queue, so replacing state wholesale threw away work that had not been sent.
-    if (remoteState) setStateInner((current) => ({ ...remoteState, offlineQueue: current?.offlineQueue?.length ? current.offlineQueue : loadOfflineQueue() }));
+    if (remoteState) setStateInner((current) => ({ ...remoteState, offlineQueue: current?.offlineQueue ?? [] }));
   }, [remoteState]);
 
-  // Write the queue down whenever it changes, so a reload or a killed tab does
-  // not lose it.
-  useEffect(() => { saveOfflineQueue(state.offlineQueue); }, [state.offlineQueue]);
+  // Write the queue down whenever it changes, so a reload or a killed tab does not
+  // lose it. Skipping the first run matters: an empty queue clears the store, and
+  // on mount this would otherwise erase the very thing the initialiser just read.
+  const queueHydrated = useRef(false);
+  useEffect(() => {
+    if (!queueHydrated.current) { queueHydrated.current = true; return; }
+    saveOfflineQueue(state.offlineQueue);
+  }, [state.offlineQueue]);
 
   const setState = (next: AppState | ((current: AppState) => AppState)) => {
     setStateInner((current) => {
