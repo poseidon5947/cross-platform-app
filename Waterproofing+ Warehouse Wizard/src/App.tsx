@@ -69,7 +69,7 @@ import {
   stepForMaterialUnit,
 } from "./domain/business";
 import { isSupabaseConfigured, supabase } from "./integrations/supabase";
-import type { AppState, Category, DailyLog, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, PointsEvent, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User } from "./types";
+import type { AppState, Category, DailyLog, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, PointsEvent, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User, OfflineCommand } from "./types";
 
 const STORAGE_KEY = "warehouse-wizard-state-v4";
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true" || !isSupabaseConfigured();
@@ -117,6 +117,38 @@ function sanitizeStoredState(state: AppState): AppState {
 
 function persistDemo(state: AppState) {
   if (DEMO_MODE) localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+/**
+ * Work logged with no signal lives in state.offlineQueue until it can be sent.
+ * Nothing used to write it down: loadRemoteState returns `offlineQueue: []`, so a
+ * reload - or simply a background refetch replacing state - dropped whatever was
+ * waiting, while the toast had promised "it will sync when connection returns".
+ * On a phone in a basement that is the normal case, not an edge one.
+ *
+ * The queue is per-device and never read back by anyone else, so localStorage is
+ * the right home for it. Every access is guarded: storage throws in a private
+ * window and can come back empty anywhere.
+ */
+const QUEUE_KEY = "warehouse-wizard-offline-queue-v1";
+
+export function loadOfflineQueue(): OfflineCommand[] {
+  try {
+    const raw = localStorage.getItem(QUEUE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveOfflineQueue(queue: OfflineCommand[]) {
+  try {
+    if (queue.length) localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+    else localStorage.removeItem(QUEUE_KEY);
+  } catch {
+    // A full or blocked store must not take the app down mid-submit.
+  }
 }
 
 export function canManage(role: Role | string) {
@@ -188,8 +220,14 @@ export function App() {
   }, [remoteMode, sessionUserId]);
 
   useEffect(() => {
-    if (remoteState) setStateInner(remoteState);
+    // Keep anything still waiting to sync: remoteState always carries an empty
+    // queue, so replacing state wholesale threw away work that had not been sent.
+    if (remoteState) setStateInner((current) => ({ ...remoteState, offlineQueue: current?.offlineQueue?.length ? current.offlineQueue : loadOfflineQueue() }));
   }, [remoteState]);
+
+  // Write the queue down whenever it changes, so a reload or a killed tab does
+  // not lose it.
+  useEffect(() => { saveOfflineQueue(state.offlineQueue); }, [state.offlineQueue]);
 
   const setState = (next: AppState | ((current: AppState) => AppState)) => {
     setStateInner((current) => {
