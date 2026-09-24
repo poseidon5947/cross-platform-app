@@ -20,3 +20,8 @@ dist/
 # OS/editor noise
 .DS_Store
 Thumbs.db
+
+# Never commit credentials pasted into the working tree
+supabase access token
+*access token*
+*.token
