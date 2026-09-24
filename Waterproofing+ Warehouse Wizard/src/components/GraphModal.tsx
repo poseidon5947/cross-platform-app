@@ -324,7 +324,7 @@ function CrewPointsGraph({ state }: { state: AppState }) {
   );
 }
 
-function Losses30dGraph({ state }: { state: AppState }) {
+function Losses30dGraph({ state, showMoney = true }: { state: AppState; showMoney?: boolean }) {
   const cutoff = Date.now() - 30 * 86400000;
   const losses = state.transactions.filter(t => t.type === 'loss' && new Date(t.ts).getTime() > cutoff);
   const total  = losses.reduce((s, t) => s + t.qty * (state.materials.find(m => m.id === t.materialId)?.cost ?? 0), 0);
@@ -344,7 +344,7 @@ function Losses30dGraph({ state }: { state: AppState }) {
   return (
     <div className="gm-content">
       <div className="gm-stat-row">
-        <div className="gm-stat"><div className="gm-stat-val" style={{ color: '#c53030' }}>{money(total)}</div><div className="gm-stat-lbl">Loss value (30d)</div></div>
+        {showMoney && <div className="gm-stat"><div className="gm-stat-val" style={{ color: '#c53030' }}>{money(total)}</div><div className="gm-stat-lbl">Loss value (30d)</div></div>}
         <div className="gm-stat"><div className="gm-stat-val">{losses.length}</div><div className="gm-stat-lbl">Loss events</div></div>
         <div className="gm-stat"><div className="gm-stat-val">{byMaterial.length}</div><div className="gm-stat-lbl">SKUs affected</div></div>
       </div>
@@ -455,7 +455,7 @@ export function GraphModal({ type, state, onClose, showMoney = true }: GraphModa
           {type === 'tools_status'    && <ToolsStatusGraph    state={state} />}
           {type === 'crew_points'     && <CrewPointsGraph     state={state} />}
           {type === 'reorder_alert'   && <ReorderAlertGraph   state={state} showMoney={showMoney} />}
-          {type === 'losses_30d'      && <Losses30dGraph      state={state} />}
+          {type === 'losses_30d'      && <Losses30dGraph      state={state} showMoney={showMoney} />}
         </div>
       </div>
     </div>
