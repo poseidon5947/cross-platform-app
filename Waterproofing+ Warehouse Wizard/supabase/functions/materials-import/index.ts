@@ -79,16 +79,30 @@ serve(async (req) => {
     const onHandAliases = ["on hand", "on hand (current quantity)", "qty", "column j"];
     const hasOnHandColumn = normalized.some((header) => onHandAliases.includes(header));
     const skipped: Array<{ row: number; reason: string }> = [];
-    const payload = body.flatMap((values, index) => {
-      const record = Object.fromEntries(normalized.map((header, col) => [header, values[col] ?? ""]));
-      const name = pick(record, ["name", "inventory", "material", "item"]);
-      const category = categories[normalize(pick(record, ["category"]) || pick(record, ["service"]))];
+    const records = body.map((values) => Object.fromEntries(normalized.map((header, col) => [header, values[col] ?? ""])));
+    const nameOf = (record: Record<string, string>) => pick(record, ["name", "inventory", "material", "item"]);
+    // Looked up before the rows are judged, so a sheet with no Category column -
+    // the shape a price update usually arrives in - can still update materials
+    // the warehouse already knows. Live verification sent exactly such a file and
+    // every row came back "Unknown category". Only a genuinely new material needs
+    // the column, because there is nothing else to take the category from.
+    const allNames = [...new Set(records.map(nameOf).filter(Boolean))];
+    const { data: existingRows, error: existingError } = allNames.length
+      ? await supabase.from("materials").select("name,category,cost,previous_cost,price_changed_at,strict_tracking").in("name", allNames)
+      : { data: [], error: null };
+    if (existingError) throw existingError;
+    const existingByName = new Map((existingRows ?? []).map((item) => [item.name, item]));
+    const payload = records.flatMap((record, index) => {
+      const name = nameOf(record);
+      const existing = existingByName.get(name);
+      const categoryInput = pick(record, ["category"]) || pick(record, ["service"]);
+      const category = categories[normalize(categoryInput)] ?? (categoryInput ? undefined : existing?.category);
       const unitInput = pick(record, ["unit", "unit (locked)", "locked unit"]) || "Unit";
       const unit = ["Unit", "Roll", "Drum", "Box", "Sausage"].find((value) => value.toLowerCase() === unitInput.trim().toLowerCase());
       const step = unit === "Drum" ? 0.25 : 1;
       const onHandRaw = pick(record, onHandAliases);
       if (!name) skipped.push({ row: index + 2, reason: "Missing material name" });
-      else if (!category) skipped.push({ row: index + 2, reason: "Unknown category" });
+      else if (!category) skipped.push({ row: index + 2, reason: categoryInput ? `Unknown category '${categoryInput}'` : "New material needs a Category column" });
       else if (!unit) skipped.push({ row: index + 2, reason: `Invalid locked unit '${unitInput}'. Use Unit, Roll, Drum, Box, or Sausage.` });
       else return [{
         name,
@@ -105,12 +119,6 @@ serve(async (req) => {
       }];
       return [];
     });
-    const names = payload.map((item) => item.name);
-    const { data: existingRows, error: existingError } = names.length
-      ? await supabase.from("materials").select("name,cost,previous_cost,price_changed_at,strict_tracking").in("name", names)
-      : { data: [], error: null };
-    if (existingError) throw existingError;
-    const existingByName = new Map((existingRows ?? []).map((item) => [item.name, item]));
     const now = new Date().toISOString();
     // An import must never move stock on hand. It used to read qty and write the
     // same value back in the upsert, which looks safe but is a read-then-write: a

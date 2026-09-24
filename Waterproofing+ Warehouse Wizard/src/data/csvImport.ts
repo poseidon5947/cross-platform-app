@@ -94,13 +94,15 @@ export function validateMaterialsCsv(text: string, existing: Material[] = []): I
   body.forEach((values, index) => {
     const record = Object.fromEntries(normalizedHeaders.map((header, col) => [header, values[col] ?? ""]));
     const name = pick(record, ["name", "inventory", "material", "item"]);
-    const categoryLabel = pick(record, ["category"]);
-    const category = categoryFrom(categoryLabel || pick(record, ["service"]));
+    const categoryLabel = pick(record, ["category"]) || pick(record, ["service"]);
+    // A sheet with no Category column can still update a material we already
+    // know; only a new material has nowhere else to take its category from.
+    const category = categoryFrom(categoryLabel) ?? (categoryLabel ? undefined : existingByName.get(normalize(name))?.category);
     const unitRaw = pick(record, ["unit", "unit (locked)", "locked unit"]) || "Unit";
     const unit = normalizeMaterialUnit(unitRaw);
 
     if (!name) skipped.push({ row: index + 2, reason: "Missing material name" });
-    else if (!category) skipped.push({ row: index + 2, reason: `Unknown category '${categoryLabel}'` });
+    else if (!category) skipped.push({ row: index + 2, reason: categoryLabel ? `Unknown category '${categoryLabel}'` : "New material needs a Category column" });
     else if (!unit) skipped.push({ row: index + 2, reason: `Invalid locked unit '${unitRaw}'. Use Unit, Roll, Drum, Box, or Sausage.` });
     else {
       const existingMaterial = existingByName.get(normalize(name));

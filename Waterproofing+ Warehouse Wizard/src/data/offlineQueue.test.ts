@@ -64,7 +64,7 @@ describe("a replayed command reuses its row ids", () => {
     const sent: string[][] = [];
     const server = {
       logMaterials: async (c: any) => { sent.push(c.rowIds); throw new Error("still offline"); },
-      completeTask: async () => {}, saveTruckLog: async () => {},
+      completeTask: async () => {}, saveTruckLog: async () => {}, saveDailyLog: async () => {},
     };
     // fails, stays queued, and is retried with the identical ids
     let remaining = await drainOfflineQueue([command], server);
@@ -76,7 +76,7 @@ describe("a replayed command reuses its row ids", () => {
   it("drops a command once the server takes it", async () => {
     const command = { id: "oq-1", type: "log_materials", transactions: [{}], rowIds: ["x"], queuedAt: "" } as any;
     const remaining = await drainOfflineQueue([command], {
-      logMaterials: async () => {}, completeTask: async () => {}, saveTruckLog: async () => {},
+      logMaterials: async () => {}, completeTask: async () => {}, saveTruckLog: async () => {}, saveDailyLog: async () => {},
     });
     expect(remaining).toEqual([]);
   });
@@ -87,6 +87,7 @@ describe("a replayed command reuses its row ids", () => {
     const server = {
       logMaterials: async () => {}, completeTask: async () => {},
       saveTruckLog: async (c: any) => { seen.push(c.rowId); throw new Error("offline"); },
+      saveDailyLog: async () => {},
     };
     const once = await drainOfflineQueue([command], server);
     await drainOfflineQueue(once, server);

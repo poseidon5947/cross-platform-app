@@ -391,9 +391,10 @@ export function submitDailyLog(
   submittedByUserId: string,
   input: Omit<DailyLog, "id" | "createdAt">,
   now = new Date().toISOString(),
+  logId = id("dlog"),
 ): AppState {
   if (!input.workCompleted.trim() || !input.toDoNextTime.trim() || !input.siteId || !input.completedByUserId) return state;
-  const log: DailyLog = { ...input, id: id("dlog"), createdAt: now };
+  const log: DailyLog = { ...input, id: logId, createdAt: now };
   const withLog = { ...state, dailyLogs: [log, ...state.dailyLogs] };
   return creditOrPool(withLog, input.completedByUserId, DAILY_LOG_ENTRY_POINTS, "Daily log entry submitted", `dailylog:${log.id}`, now);
 }

@@ -8,7 +8,14 @@ const cors = {
 };
 
 const selfServeCrewRules = new Set(["earn-daily", "earn-weekly", "earn-monthly", "earn-feedback", "earn-cert-detail", "earn-swot"]);
-const managerCrewRules = new Set(["earn-review", "earn-kpi", "earn-google", "earn-compliment", "earn-safety", "earn-peer", "earn-certs"]);
+// Peer recognition is crew-to-crew by design - the Feedback tab offers every crew
+// member a "Send +5 to them" button. It was sitting in managerCrewRules, so a crew
+// member's recognition of a teammate saved the message and then had its points
+// rejected with 403 "This award requires manager/admin approval". It is not
+// self-serve either: the award goes to someone else, and you cannot name yourself.
+const peerCrewRules = new Set(["earn-peer"]);
+const managerCrewRules = new Set(["earn-review", "earn-kpi", "earn-google", "earn-compliment", "earn-safety", "earn-certs"]);
+const DAILY_LOG_ENTRY_POINTS = 5;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -37,6 +44,7 @@ serve(async (req) => {
     if (kind === "daily_100_reversal") return await awardDailyReversal(service, caller, body);
     if (kind === "streak_reversal") return await awardStreakReversal(service, caller, body);
     if (kind === "manual_adjust") return await awardManualAdjust(service, caller, body);
+    if (kind === "daily_log_entry") return await awardDailyLogEntry(service, caller, userData.user.id, body);
     return json({ error: `Unsupported award kind: ${kind}` }, 400);
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Could not award points" }, 500);
@@ -78,8 +86,9 @@ async function awardCrewRule(service: any, caller: any, callerId: string, body: 
   if (!crewMemberId || !ruleKey || !ref) return json({ error: "crewMemberId, ruleKey, and ref are required" }, 400);
 
   if (selfServeCrewRules.has(ruleKey) && crewMemberId !== callerId) return json({ error: "Self-serve awards can only be earned by the caller" }, 403);
+  if (peerCrewRules.has(ruleKey) && crewMemberId === callerId) return json({ error: "Peer recognition cannot be given to yourself" }, 403);
   if (managerCrewRules.has(ruleKey) && !isManager(caller) && !isHrOwner(caller)) return json({ error: "This award requires manager/admin approval" }, 403);
-  if (!selfServeCrewRules.has(ruleKey) && !managerCrewRules.has(ruleKey)) return json({ error: "No Crew+ award policy is configured for this rule" }, 403);
+  if (!selfServeCrewRules.has(ruleKey) && !peerCrewRules.has(ruleKey) && !managerCrewRules.has(ruleKey)) return json({ error: "No Crew+ award policy is configured for this rule" }, 403);
 
   const { data: rule, error } = await service.from("crew_earning_rule").select("id,action,points,habit,active,weekly_cap").eq("id", ruleKey).single();
   if (error || !rule?.active) return json({ error: "Unknown or inactive earning rule" }, 400);
@@ -170,6 +179,32 @@ async function awardManualAdjust(service: any, caller: any, body: Record<string,
   const reason = stringValue(body.reason || "Manual points adjustment");
   if (!userId || !ref || !Number.isFinite(points) || points === 0) return json({ error: "user, ref, and non-zero points are required" }, 400);
   return insertIdempotent(service, { userId, type: "manual_adjust", points, reason, ref, contract: "suite.points.v1" });
+}
+
+// Warehouse Wizard credits +5 for a submitted daily log (type daily_log_entry,
+// added to points_event_type by migration 202609040003). The client has been
+// sending it here all along and getting "Unsupported award kind" back: the row
+// saved, the toast said the sync failed, and the points never existed on the
+// server. Offline, the same rejection pinned the replayed command in the queue
+// for good. The award is verified against the daily_logs row itself: it must
+// exist, the caller must be the person who submitted it (or a manager), and the
+// points go to whoever the log says completed the work.
+async function awardDailyLogEntry(service: any, caller: any, callerId: string, body: Record<string, unknown>) {
+  const userId = stringValue(body.crewMemberId || body.userId);
+  const ref = stringValue(body.ref);
+  const logId = ref.replace(/^dailylog:/, "");
+  if (!userId || !logId) return json({ error: "crewMemberId and ref are required" }, 400);
+
+  const existing = await existingResponse(service, "daily_log_entry", ref);
+  if (existing) return existing;
+
+  const { data: log, error } = await service.from("daily_logs").select("id,completed_by_user_id,submitted_by_user_id").eq("id", logId).maybeSingle();
+  if (error) return json({ error: error.message }, 500);
+  if (!log) return json({ error: "Daily log not found" }, 404);
+  if (log.submitted_by_user_id !== callerId && !isManager(caller)) return json({ error: "Only the person who submitted the log can claim its points" }, 403);
+  if (log.completed_by_user_id !== userId) return json({ error: "Points go to the person who completed the log" }, 403);
+
+  return insertIdempotent(service, { userId, type: "daily_log_entry", points: DAILY_LOG_ENTRY_POINTS, reason: "Daily log entry submitted", ref, contract: "suite.points.v1" });
 }
 
 async function insertIdempotent(service: any, event: { userId: string; type: string; points: number; reason: string; ref: string; contract: string }) {

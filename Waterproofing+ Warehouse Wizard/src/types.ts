@@ -239,7 +239,12 @@ export interface AppState {
   crewPoolPoints: number;
 }
 
-export type OfflineCommand =
+// `lastError` is the reason the most recent replay failed, so a command that
+// is stuck in the queue says why instead of just sitting there.
+export type OfflineCommand = { lastError?: string } & (
   | { id: string; type: "log_materials"; transactions: Omit<Transaction, "id" | "ts">[]; rowIds?: string[]; queuedAt: string }
   | { id: string; type: "complete_task"; userId: string; taskId: string; periodKey: string; queuedAt: string }
-  | { id: string; type: "truck_log"; log: Omit<TruckLog, "id" | "ts">; rowId?: string; autoTaskIds: string[]; pointsEvents?: PointsEvent[]; streak?: Streak; queuedAt: string };
+  | { id: string; type: "truck_log"; log: Omit<TruckLog, "id" | "ts">; rowId?: string; autoTaskIds: string[]; pointsEvents?: PointsEvent[]; streak?: Streak; queuedAt: string }
+  // `log.id` is minted as a UUID when queued, so a replay upserts the same row.
+  | { id: string; type: "daily_log"; log: DailyLog; poolDelta: number; event?: PointsEvent; queuedAt: string }
+);

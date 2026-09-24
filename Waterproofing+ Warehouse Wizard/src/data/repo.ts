@@ -198,8 +198,13 @@ const dailyLogFromRow = (row: any): DailyLog => ({
   createdAt: row.created_at,
 });
 
+// A daily log written with no signal is queued with a UUID id and replayed until
+// the server takes it. Upserting on that id, ignoring duplicates, means a retry
+// after a half-finished attempt does not fail on the primary key and does not
+// leave a second copy either.
 export async function insertDailyLog(log: DailyLog) {
-  const { error } = await requireClient().from("daily_logs").insert({
+  const client = requireClient().from("daily_logs");
+  const row = {
     id: isUuid(log.id) ? log.id : undefined,
     site_id: log.siteId,
     service_id: log.serviceId,
@@ -210,7 +215,10 @@ export async function insertDailyLog(log: DailyLog) {
     to_do_next_time: log.toDoNextTime,
     completed_by_user_id: log.completedByUserId,
     submitted_by_user_id: log.submittedByUserId,
-  });
+  };
+  const { error } = row.id
+    ? await client.upsert(row, { onConflict: "id", ignoreDuplicates: true })
+    : await client.insert(row);
   if (error) throw error;
 }
 
@@ -496,6 +504,11 @@ export async function replayCommand(command: OfflineCommand) {
     await upsertCompletion(command.userId, command.taskId, command.periodKey);
   }
   if (command.type === "truck_log") await saveTruckLog(command.log, command.autoTaskIds, command.pointsEvents ?? [], command.streak, command.rowId);
+  if (command.type === "daily_log") {
+    await insertDailyLog(command.log);
+    if (command.poolDelta > 0) await addToCrewPool(command.poolDelta);
+    else if (command.event) await persistPoints([command.event]);
+  }
 }
 
 export async function invokeMaterialsImport(file: File) {

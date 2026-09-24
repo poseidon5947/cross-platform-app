@@ -14,7 +14,7 @@ import { ToastHost, useToast } from "./components/Toast";
 import { IntroVideo } from "./components/IntroVideo";
 import { categoryLabels, createSeedState } from "./data/seed";
 import { validateMaterialsCsv } from "./data/csvImport";
-import { drainOfflineQueue } from "./data/offline";
+import { applyQueuedCommands, drainOfflineQueue } from "./data/offline";
 import {
   addToCrewPool,
   deleteTask,
@@ -151,6 +151,34 @@ export function saveOfflineQueue(queue: OfflineCommand[]) {
   }
 }
 
+/**
+ * The last state the server handed us, kept per device so a reload with no
+ * signal still has something to draw. Without it, a reload while offline showed
+ * "Could not load data": the service worker only caches this origin, and the
+ * data comes from Supabase. The crew could not even see the queue they were
+ * carrying, let alone add to it. Stored without the queue - that has its own key.
+ */
+const SNAPSHOT_KEY = "warehouse-wizard-last-sync-v1";
+
+export function loadSnapshot(userId: string): AppState | null {
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed || parsed.userId !== userId || !parsed.state?.materials) return null;
+    return sanitizeStoredState({ ...parsed.state, offlineQueue: [] });
+  } catch {
+    return null;
+  }
+}
+
+export function saveSnapshot(userId: string, state: AppState) {
+  try {
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ userId, savedAt: new Date().toISOString(), state: { ...state, offlineQueue: [] } }));
+  } catch {
+    // Over quota or blocked: the live app is unaffected, only the fallback is.
+  }
+}
+
 export function canManage(role: Role | string) {
   return role === "admin" || role === "manager";
 }
@@ -228,11 +256,38 @@ export function App() {
     loadProfile(sessionUserId).then(setProfile).catch(() => setProfile(null));
   }, [remoteMode, sessionUserId]);
 
+  // True while the screen is drawn from the last synced copy because the server
+  // could not be reached. Cleared the moment live data arrives.
+  const [usingSnapshot, setUsingSnapshot] = useState(false);
+
   useEffect(() => {
     // Keep anything still waiting to sync: remoteState always carries an empty
     // queue, so replacing state wholesale threw away work that had not been sent.
-    if (remoteState) setStateInner((current) => ({ ...remoteState, offlineQueue: current?.offlineQueue ?? [] }));
-  }, [remoteState]);
+    // The queue is also laid back over the server copy, otherwise a refetch made
+    // a ticked task go blank and a deducted count jump back while still pending.
+    if (!remoteState) return;
+    if (sessionUserId) saveSnapshot(sessionUserId, remoteState);
+    setUsingSnapshot(false);
+    setStateInner((current) => {
+      const queue = current?.offlineQueue ?? [];
+      return { ...applyQueuedCommands(remoteState, queue), offlineQueue: queue };
+    });
+  }, [remoteState, sessionUserId]);
+
+  useEffect(() => {
+    // The fetch failed and nothing is cached in memory: fall back to the last
+    // synced copy for this person, with their queue on top, rather than a dead
+    // "Could not load data" screen. react-query refetches on reconnect, and the
+    // effect above replaces this the moment it succeeds.
+    if (!remoteMode || !error || remoteState || !sessionUserId) return;
+    const snapshot = loadSnapshot(sessionUserId);
+    if (!snapshot) return;
+    setStateInner((current) => {
+      const queue = current?.offlineQueue ?? [];
+      return { ...applyQueuedCommands({ ...snapshot, currentUserId: sessionUserId }, queue), offlineQueue: queue };
+    });
+    setUsingSnapshot(true);
+  }, [remoteMode, error, remoteState, sessionUserId]);
 
   // Write the queue down whenever it changes, so a reload or a killed tab does not
   // lose it. Skipping the first run matters: an empty queue clears the store, and
@@ -270,6 +325,7 @@ export function App() {
         logMaterials: replayCommand,
         completeTask: replayCommand,
         saveTruckLog: replayCommand,
+        saveDailyLog: replayCommand,
       });
       setState((current) => ({ ...current, offlineQueue: remaining }));
       if (remaining.length === 0) {
@@ -280,11 +336,14 @@ export function App() {
     window.addEventListener("online", flush);
     flush();
     return () => window.removeEventListener("online", flush);
-  }, [remoteMode, state.offlineQueue.length]);
+    // remoteState is a dependency on purpose: fresh data means the server is
+    // reachable again, and that is the moment to retry - the "online" event does
+    // not fire when the radio never dropped and only the server was out of reach.
+  }, [remoteMode, state.offlineQueue.length, remoteState]);
 
   if (remoteMode && !sessionUserId) return <LoginScreen />;
   if (remoteMode && isLoading) return <ShellMessage title="Loading Warehouse Wizard" detail="Pulling live Supabase data." />;
-  if (remoteMode && error) return <ShellMessage title="Could not load data" detail={String((error as Error).message)} />;
+  if (remoteMode && error && !usingSnapshot) return <ShellMessage title="Could not load data" detail={String((error as Error).message)} />;
 
   const invalidateRemote = () => {
     if (remoteMode) queryClient.invalidateQueries({ queryKey: ["app-state"] });
@@ -364,9 +423,14 @@ export function App() {
       offlineQueue: queueNow ? [...current.offlineQueue, queueItem] : current.offlineQueue,
     }), navigator.onLine || !remoteMode ? "Log submitted" : "Saved offline. It will sync when connection returns.");
     if (remoteMode && navigator.onLine) {
-      insertTransactions(txs)
+      // Sent with the same row ids the queued copy carries, so if this attempt
+      // did land before failing, the replay is a no-op rather than a second deduction.
+      insertTransactions(txs, queueItem.rowIds)
         .then(invalidateRemote)
-        .catch(() => setState((latest) => ({ ...latest, offlineQueue: [...latest.offlineQueue, queueItem] })));
+        .catch(() => {
+          notify("Saved offline. It will sync when connection returns.");
+          setState((latest) => ({ ...latest, offlineQueue: [...latest.offlineQueue, queueItem] }));
+        });
     }
   };
 
@@ -452,7 +516,9 @@ export function App() {
     // late, the variables it used to assign were still undefined when the remote
     // insert was decided, and the log was never sent. The toast fired anyway, so
     // the entry looked saved and was gone on reload.
-    const applied = submitDailyLogDomain(state, state.currentUserId, input);
+    // The id is a UUID minted here so the row can be queued and replayed against
+    // the same primary key however many times it takes to reach the server.
+    const applied = submitDailyLogDomain(state, state.currentUserId, input, new Date().toISOString(), crypto.randomUUID());
     if (applied === state) {
       notify("Daily log needs a job site, work completed, and what to do next time.");
       return;
@@ -460,6 +526,11 @@ export function App() {
     const createdLog = applied.dailyLogs[0];
     const poolDelta = applied.crewPoolPoints - state.crewPoolPoints;
     const createdEvent = poolDelta === 0 ? applied.pointsEvents[0] : undefined;
+    // The materials were queued a moment ago in the same click; the sentences
+    // went straight to the server and were lost with no signal. Same treatment
+    // for both now: queue when offline, and queue on failure.
+    const queueItem = { id: id("oq"), type: "daily_log" as const, log: createdLog, poolDelta, event: createdEvent, queuedAt: createdLog.createdAt };
+    const queueNow = remoteMode && !navigator.onLine;
     // Merged onto the latest state instead of replacing it, so the transactions
     // written moments earlier in the same click are not discarded.
     patchState((current) => ({
@@ -467,12 +538,20 @@ export function App() {
       dailyLogs: [createdLog, ...current.dailyLogs],
       crewPoolPoints: current.crewPoolPoints + poolDelta,
       pointsEvents: createdEvent ? [createdEvent, ...current.pointsEvents] : current.pointsEvents,
-    }), "Daily log submitted");
-    if (remoteMode) {
-      insertDailyLog(createdLog)
-        .then(() => (poolDelta > 0 ? addToCrewPool(poolDelta) : createdEvent ? persistPoints([createdEvent]) : Promise.resolve()))
-        .then(invalidateRemote)
-        .catch((err) => notify(`Daily log sync failed: ${err.message}`));
+      offlineQueue: queueNow ? [...current.offlineQueue, queueItem] : current.offlineQueue,
+    }), queueNow ? "Daily log saved offline. It will sync when connection returns." : "Daily log submitted");
+    if (remoteMode && !queueNow) {
+      // Only a failed insert is queued. Once the row is in, a points hiccup must
+      // not replay the whole command and credit the pool a second time.
+      insertDailyLog(createdLog).then(
+        () => (poolDelta > 0 ? addToCrewPool(poolDelta) : createdEvent ? persistPoints([createdEvent]) : Promise.resolve())
+          .then(invalidateRemote)
+          .catch((err) => notify(`Daily log points sync failed: ${err.message}`)),
+        () => {
+          notify("Daily log saved offline. It will sync when connection returns.");
+          setState((latest) => ({ ...latest, offlineQueue: [...latest.offlineQueue, queueItem] }));
+        },
+      );
     }
     setSheet(null);
   };
@@ -522,7 +601,7 @@ export function App() {
         </div>
         <SuiteSwitcher current="warehouse" />
         <div className="htitle">{title}</div>
-        <div className="hsub">{pendingCount ? `${pendingCount} pending sync · ${sub}` : sub}</div>
+        <div className="hsub">{[pendingCount ? `${pendingCount} pending sync` : "", usingSnapshot ? "Offline · showing last synced data" : "", sub].filter(Boolean).join(" · ")}</div>
       </header>
 
       <main>

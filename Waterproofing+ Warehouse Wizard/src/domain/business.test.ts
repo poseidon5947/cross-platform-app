@@ -278,6 +278,7 @@ describe("offline queue", () => {
       logMaterials: async () => { calls.push("log"); },
       completeTask: async () => { calls.push("task"); },
       saveTruckLog: async () => { calls.push("truck"); },
+      saveDailyLog: async () => { calls.push("daily"); },
     });
     expect(calls).toEqual(["log", "task"]);
     expect(remaining).toEqual([]);
@@ -292,6 +293,7 @@ describe("offline queue", () => {
       logMaterials: async () => {},
       completeTask: async () => { throw new Error("still offline"); },
       saveTruckLog: async () => {},
+      saveDailyLog: async () => {},
     });
     expect(remaining.map((command) => command.id)).toEqual(["b"]);
   });
