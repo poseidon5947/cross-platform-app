@@ -94,3 +94,37 @@ describe("a replayed command reuses its row ids", () => {
     expect(seen).toEqual(["abc", "abc"]);
   });
 });
+
+/**
+ * A command the server permanently refuses used to sit in "pending sync" with no
+ * explanation and no way out. drainOfflineQueue records why it failed so the
+ * screen can say so — this pins that the reason survives every retry.
+ */
+describe("a command the server keeps refusing", () => {
+  const failing = { id: "oq-stuck", type: "daily_log", log: { id: "dl-1" }, poolDelta: 0, queuedAt: "2026-09-24T10:23:00Z" } as any;
+  const server = (message: string) => ({
+    logMaterials: async () => {}, completeTask: async () => {}, saveTruckLog: async () => {},
+    saveDailyLog: async () => { throw new Error(message); },
+  });
+
+  it("records why it failed rather than dropping it", async () => {
+    const [left] = await drainOfflineQueue([failing], server("Unsupported award kind: daily_log_entry"));
+    expect(left.id).toBe("oq-stuck");
+    expect((left as any).lastError).toBe("Unsupported award kind: daily_log_entry");
+  });
+
+  it("keeps the newest reason across repeated attempts", async () => {
+    let queue = await drainOfflineQueue([failing], server("first reason"));
+    queue = await drainOfflineQueue(queue, server("second reason"));
+    expect((queue[0] as any).lastError).toBe("second reason");
+    expect(queue).toHaveLength(1);
+  });
+
+  it("drains normally once the server accepts it", async () => {
+    const queue = await drainOfflineQueue([failing], server("still broken"));
+    const after = await drainOfflineQueue(queue, {
+      logMaterials: async () => {}, completeTask: async () => {}, saveTruckLog: async () => {}, saveDailyLog: async () => {},
+    });
+    expect(after).toEqual([]);
+  });
+});

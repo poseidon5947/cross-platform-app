@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { validateMaterialsCsv } from "../data/csvImport";
 import { invokeMaterialsImport, invokeQuickBooksConnect, invokeQuickBooksSync } from "../data/repo";
 import { money, priceChangeMaterials, reorderEstimate } from "../domain/business";
@@ -36,6 +37,7 @@ function buildPoText(state: AppState) {
 
 function Admin({ state, role, notify, remoteMode, saveMaterial, currentTheme, onThemeChange, openThemeEditor, setState, openSheet, focusTarget, onFocusHandled }: { state: AppState; role: Role; notify: (message: string) => void; remoteMode: boolean; saveMaterial: (material: Material, includeQty?: boolean) => void; currentTheme: Theme; onThemeChange: (theme: Theme) => void; openThemeEditor: () => void; setState: (state: AppState | ((current: AppState) => AppState)) => void; openSheet: (sheet: { title: string; content: React.ReactNode }) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
   const [section, setSection] = useState<AdminSection>(() => (focusTarget === "csv" ? "csv" : "crew"));
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!focusTarget) return;
@@ -68,6 +70,11 @@ function Admin({ state, role, notify, remoteMode, saveMaterial, currentTheme, on
       if (remoteMode) {
         const result = await invokeMaterialsImport(file);
         setReport(describe(result.imported, result.skipped ?? []));
+        // The edge function wrote straight to the database; nothing here told the
+        // app to look again, so the inventory list kept the old costs and names
+        // until the next reload. Live verification saw "1 imported" and an
+        // unchanged $9.50 side by side.
+        void queryClient.invalidateQueries({ queryKey: ["app-state"] });
       } else {
         const result = validateMaterialsCsv(await file.text(), state.materials);
         result.materials.forEach((material) => saveMaterial(material, false));

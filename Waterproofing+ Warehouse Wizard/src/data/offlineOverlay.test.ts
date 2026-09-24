@@ -132,3 +132,44 @@ describe("CSV import without a Category column", () => {
     expect(report.skipped).toEqual([{ row: 3, reason: "New material needs a Category column" }]);
   });
 });
+
+describe("CSV import with only some columns", () => {
+  // The live re-test sent Item/Unit/Cost/On hand for Backer Rod and got back a
+  // reorder point of 0 and a blanked "Vendor: Cascade": every column the sheet
+  // did not have was written as empty. Absent columns must leave the material's
+  // current values alone; a blank cell in a present column is "not given", not 0.
+  it("keeps reorder point, pack, bin, pallet count and unit that the sheet does not mention", () => {
+    const state = createSeedState();
+    const known = { ...state.materials[0], reorderPoint: 3, pack: "Vendor: Cascade", bin: "B-7", unitsPerPallet: 48, unit: "Roll" as const };
+    const csv = ["Item,Cost", `${known.name},9.99`].join("\n");
+    const report = validateMaterialsCsv(csv, [known]);
+    expect(report.skipped).toEqual([]);
+    const [updated] = report.materials;
+    expect(updated.cost).toBe(9.99);
+    expect(updated.reorderPoint).toBe(3);
+    expect(updated.pack).toBe("Vendor: Cascade");
+    expect(updated.bin).toBe("B-7");
+    expect(updated.unitsPerPallet).toBe(48);
+    expect(updated.unit).toBe("Roll");
+  });
+
+  it("treats a blank cell as not given rather than zero", () => {
+    const state = createSeedState();
+    const known = { ...state.materials[0], reorderPoint: 3, cost: 12.5 };
+    const csv = ["Item,Cost,Reorder", `${known.name},,`].join("\n");
+    const [updated] = validateMaterialsCsv(csv, [known]).materials;
+    expect(updated.cost).toBe(12.5);
+    expect(updated.reorderPoint).toBe(3);
+  });
+
+  it("still gives a new material its defaults", () => {
+    const csv = ["Item,Category,Cost", "ZZ Probe,Caulking & Sealants,1.23"].join("\n");
+    const report = validateMaterialsCsv(csv, []);
+    expect(report.skipped).toEqual([]);
+    const [created] = report.materials;
+    expect(created.reorderPoint).toBe(3);
+    expect(created.unit).toBe("Unit");
+    expect(created.pack).toBe("");
+    expect(created.unitsPerPallet).toBe(0);
+  });
+});

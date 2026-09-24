@@ -51,8 +51,12 @@ function pick(row: Record<string, string>, names: string[]) {
   return "";
 }
 
+// A blank cell is "not given", not zero. Number("") is 0 and 0 is finite, so
+// the old version never reached its fallback: an empty Reorder cell became a
+// reorder point of 0 and an empty Cost cell became $0.00.
 function num(value: string, fallback = 0) {
-  const parsed = Number((value || "").replace(/[$,]/g, ""));
+  if (!value || !value.trim()) return fallback;
+  const parsed = Number(value.replace(/[$,]/g, ""));
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
@@ -81,6 +85,19 @@ serve(async (req) => {
     const skipped: Array<{ row: number; reason: string }> = [];
     const records = body.map((values) => Object.fromEntries(normalized.map((header, col) => [header, values[col] ?? ""])));
     const nameOf = (record: Record<string, string>) => pick(record, ["name", "inventory", "material", "item"]);
+    // Which columns the sheet actually has. A column that is not in the file is
+    // not written for an existing material - the live re-test imported a price
+    // sheet with Item/Unit/Cost/On hand and it set Backer Rod's reorder point to
+    // 0 and blanked "Vendor: Cascade", because the missing columns were being
+    // written as empty. New materials still get sensible defaults below.
+    const has = (aliases: string[]) => aliases.some((alias) => normalized.includes(normalize(alias)));
+    const unitAliases = ["unit", "unit (locked)", "locked unit"];
+    const packAliases = ["pack", "units per", "vendor", "secondary supplier"];
+    const palletAliases = ["units per pallet", "units_per_pallet"];
+    const costAliases = ["cost", "unit cost ($)", "unit cost"];
+    const reorderAliases = ["reorder", "reorder point", "reorder at (3 remaining in inventory)"];
+    const binAliases = ["bin", "warehouse location", "location"];
+    const canonicalUnit = (input: string) => ["Unit", "Roll", "Drum", "Box", "Sausage"].find((value) => value.toLowerCase() === input.trim().toLowerCase());
     // Looked up before the rows are judged, so a sheet with no Category column -
     // the shape a price update usually arrives in - can still update materials
     // the warehouse already knows. Live verification sent exactly such a file and
@@ -88,7 +105,7 @@ serve(async (req) => {
     // the column, because there is nothing else to take the category from.
     const allNames = [...new Set(records.map(nameOf).filter(Boolean))];
     const { data: existingRows, error: existingError } = allNames.length
-      ? await supabase.from("materials").select("name,category,cost,previous_cost,price_changed_at,strict_tracking").in("name", allNames)
+      ? await supabase.from("materials").select("name,category,unit,cost,reorder_point,previous_cost,price_changed_at,strict_tracking").in("name", allNames)
       : { data: [], error: null };
     if (existingError) throw existingError;
     const existingByName = new Map((existingRows ?? []).map((item) => [item.name, item]));
@@ -97,8 +114,10 @@ serve(async (req) => {
       const existing = existingByName.get(name);
       const categoryInput = pick(record, ["category"]) || pick(record, ["service"]);
       const category = categories[normalize(categoryInput)] ?? (categoryInput ? undefined : existing?.category);
-      const unitInput = pick(record, ["unit", "unit (locked)", "locked unit"]) || "Unit";
-      const unit = ["Unit", "Roll", "Drum", "Box", "Sausage"].find((value) => value.toLowerCase() === unitInput.trim().toLowerCase());
+      // No Unit column, or a blank cell: an existing material keeps its locked
+      // unit; only a new one defaults to Unit.
+      const unitInput = pick(record, unitAliases);
+      const unit = unitInput ? canonicalUnit(unitInput) : (existing?.unit as string | undefined) ?? "Unit";
       const step = unit === "Drum" ? 0.25 : 1;
       const onHandRaw = pick(record, onHandAliases);
       if (!name) skipped.push({ row: index + 2, reason: "Missing material name" });
@@ -109,16 +128,20 @@ serve(async (req) => {
         category,
         unit,
         step,
-        pack: pick(record, ["pack", "units per", "vendor", "secondary supplier"]),
-        units_per_pallet: num(pick(record, ["units per pallet", "units_per_pallet"]), 0),
-        cost: num(pick(record, ["cost", "unit cost ($)", "unit cost"]), 0),
+        // `undefined` means "column not in the sheet": dropped for updates,
+        // defaulted for inserts.
+        pack: has(packAliases) ? pick(record, packAliases) : undefined,
+        units_per_pallet: has(palletAliases) ? num(pick(record, palletAliases), 0) : undefined,
+        cost: has(costAliases) ? num(pick(record, costAliases), existing ? Number(existing.cost) : 0) : undefined,
         imported_on_hand: onHandRaw,
         strict_tracking: hasOnHandColumn ? Boolean(onHandRaw.trim()) : true,
-        reorder_point: num(pick(record, ["reorder", "reorder point", "reorder at (3 remaining in inventory)"]), 3),
-        bin: pick(record, ["bin", "warehouse location", "location"]),
+        reorder_point: has(reorderAliases) ? num(pick(record, reorderAliases), existing ? Number(existing.reorder_point) : 3) : undefined,
+        bin: has(binAliases) ? pick(record, binAliases) : undefined,
       }];
       return [];
     });
+    const newDefaults = { pack: "", units_per_pallet: 0, cost: 0, reorder_point: 3, bin: "" };
+    const present = (item: Record<string, unknown>) => Object.fromEntries(Object.entries(item).filter(([, value]) => value !== undefined));
     const now = new Date().toISOString();
     // An import must never move stock on hand. It used to read qty and write the
     // same value back in the upsert, which looks safe but is a read-then-write: a
@@ -131,7 +154,7 @@ serve(async (req) => {
     // column is never written and there is nothing to race. Only genuinely new
     // materials get an opening quantity, and only from the sheet.
     const decorate = (item: Record<string, unknown>, existing: Record<string, unknown> | undefined) => {
-      const changed = existing && Number(existing.cost) !== item.cost;
+      const changed = existing && item.cost !== undefined && Number(existing.cost) !== item.cost;
       return {
         ...item,
         strict_tracking: hasOnHandColumn ? item.strict_tracking : existing?.strict_tracking ?? true,
@@ -144,8 +167,8 @@ serve(async (req) => {
     const updates: Record<string, unknown>[] = [];
     for (const { imported_on_hand, ...item } of payload) {
       const existing = existingByName.get(item.name);
-      if (existing) updates.push(decorate(item, existing));
-      else newRows.push({ ...decorate(item, undefined), qty: num(imported_on_hand, 0) });
+      if (existing) updates.push(present(decorate(item, existing)));
+      else newRows.push({ ...newDefaults, ...present(decorate(item, undefined)), qty: num(imported_on_hand, 0) });
     }
 
     if (newRows.length) {

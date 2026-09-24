@@ -87,6 +87,12 @@ export function validateMaterialsCsv(text: string, existing: Material[] = []): I
   const onHandAliases = ["on hand", "on hand (current quantity)", "qty", "column j"];
   const hasOnHandColumn = normalizedHeaders.some((header) => onHandAliases.includes(header));
   const hasVendorColumn = normalizedHeaders.includes("vendor");
+  // A column that is not in the sheet must not overwrite what an existing
+  // material already has (same rule as the materials-import edge function).
+  const has = (aliases: string[]) => aliases.some((alias) => normalizedHeaders.includes(normalize(alias)));
+  const unitAliases = ["unit", "unit (locked)", "locked unit"];
+  const packAliases = ["pack", "units per", "vendor", "secondary supplier"];
+  const palletAliases = ["units per pallet", "units_per_pallet"];
   const materials: Material[] = [];
   const skipped: ImportReport["skipped"] = [];
   const existingByName = new Map(existing.map((material) => [normalize(material.name), material]));
@@ -98,14 +104,15 @@ export function validateMaterialsCsv(text: string, existing: Material[] = []): I
     // A sheet with no Category column can still update a material we already
     // know; only a new material has nowhere else to take its category from.
     const category = categoryFrom(categoryLabel) ?? (categoryLabel ? undefined : existingByName.get(normalize(name))?.category);
-    const unitRaw = pick(record, ["unit", "unit (locked)", "locked unit"]) || "Unit";
+    const existingMaterial = existingByName.get(normalize(name));
+    const unitInput = pick(record, unitAliases);
+    const unitRaw = unitInput || existingMaterial?.unit || "Unit";
     const unit = normalizeMaterialUnit(unitRaw);
 
     if (!name) skipped.push({ row: index + 2, reason: "Missing material name" });
     else if (!category) skipped.push({ row: index + 2, reason: categoryLabel ? `Unknown category '${categoryLabel}'` : "New material needs a Category column" });
     else if (!unit) skipped.push({ row: index + 2, reason: `Invalid locked unit '${unitRaw}'. Use Unit, Roll, Drum, Box, or Sausage.` });
     else {
-      const existingMaterial = existingByName.get(normalize(name));
       const onHandRaw = pick(record, onHandAliases);
       materials.push(applyCostChangeFlag(existingMaterial, {
         id: existingMaterial?.id ?? (pick(record, ["inventory id", "sku", "id"]) || id("m")),
@@ -113,8 +120,8 @@ export function validateMaterialsCsv(text: string, existing: Material[] = []): I
         category,
         unit,
         step: stepForMaterialUnit(unit),
-        pack: pick(record, ["pack", "units per", "vendor", "secondary supplier"]),
-        unitsPerPallet: num(pick(record, ["units per pallet", "units_per_pallet"]), 0),
+        pack: has(packAliases) ? pick(record, packAliases) : existingMaterial?.pack ?? "",
+        unitsPerPallet: has(palletAliases) ? num(pick(record, palletAliases), 0) : existingMaterial?.unitsPerPallet ?? 0,
         cost: num(pick(record, ["cost", "unit cost ($)", "unit cost"]), existingMaterial?.cost ?? 0),
         strictTracking: hasOnHandColumn ? Boolean(onHandRaw.trim()) : existingMaterial?.strictTracking ?? true,
         qty: existingMaterial?.qty ?? num(pick(record, ["on hand", "on hand (current quantity)", "qty"]), 0),

@@ -235,11 +235,29 @@ export function App() {
   const openThemeSheet = () => setShowAppearance(true);
 
   const remoteMode = !DEMO_MODE;
-  const { data: remoteState, isLoading, error } = useQuery({
+  // True while the screen is drawn from the last synced copy because the server
+  // could not be reached. Cleared the moment live data arrives.
+  const [usingSnapshot, setUsingSnapshot] = useState(false);
+  const hasSnapshot = useMemo(() => Boolean(sessionUserId && loadSnapshot(sessionUserId)), [sessionUserId]);
+  const { data: remoteState, isLoading, error, fetchStatus } = useQuery({
     queryKey: ["app-state", sessionUserId],
     queryFn: () => loadRemoteState(sessionUserId!),
     enabled: remoteMode && Boolean(sessionUserId),
+    // With a synced copy on this device, one failed attempt is enough to draw
+    // from it - the default three retries at 1/2/4 s (and the cycles layered on
+    // top of them) left a crew member staring at "Loading" for 26-35 s before the
+    // fallback appeared. A first-ever load has nothing to fall back to, so it
+    // keeps the retries.
+    retry: hasSnapshot ? false : 3,
+    // While drawing from the snapshot, keep asking: react-query only refetches
+    // on its own when the tab regains focus or the radio comes back, and neither
+    // happens when the phone never lost signal and only the server was out of reach.
+    refetchInterval: usingSnapshot ? 15_000 : false,
   });
+  // A dead radio does not error: react-query pauses the fetch until "online".
+  // That must count as unreachable too, or the fallback below never engages and
+  // the screen would draw the seeded demo state under the person's real queue.
+  const unreachable = Boolean(error) || fetchStatus === "paused";
 
   useEffect(() => {
     if (!remoteMode || !supabase) return;
@@ -255,10 +273,6 @@ export function App() {
     if (!remoteMode || !sessionUserId) return;
     loadProfile(sessionUserId).then(setProfile).catch(() => setProfile(null));
   }, [remoteMode, sessionUserId]);
-
-  // True while the screen is drawn from the last synced copy because the server
-  // could not be reached. Cleared the moment live data arrives.
-  const [usingSnapshot, setUsingSnapshot] = useState(false);
 
   useEffect(() => {
     // Keep anything still waiting to sync: remoteState always carries an empty
@@ -279,7 +293,7 @@ export function App() {
     // synced copy for this person, with their queue on top, rather than a dead
     // "Could not load data" screen. react-query refetches on reconnect, and the
     // effect above replaces this the moment it succeeds.
-    if (!remoteMode || !error || remoteState || !sessionUserId) return;
+    if (!remoteMode || !unreachable || remoteState || !sessionUserId) return;
     const snapshot = loadSnapshot(sessionUserId);
     if (!snapshot) return;
     setStateInner((current) => {
@@ -287,7 +301,7 @@ export function App() {
       return { ...applyQueuedCommands({ ...snapshot, currentUserId: sessionUserId }, queue), offlineQueue: queue };
     });
     setUsingSnapshot(true);
-  }, [remoteMode, error, remoteState, sessionUserId]);
+  }, [remoteMode, unreachable, remoteState, sessionUserId]);
 
   // Write the queue down whenever it changes, so a reload or a killed tab does not
   // lose it. Skipping the first run matters: an empty queue clears the store, and
@@ -312,6 +326,20 @@ export function App() {
     ? profile ?? state.users.find((user) => user.id === sessionUserId) ?? state.users[0]
     : state.users.find((user) => user.id === state.currentUserId) ?? state.users[0];
   const pendingCount = state.offlineQueue.length;
+  // A command the server keeps refusing used to sit in "pending sync" forever with
+  // no way to see why or clear it - it carries lastError now, so say so. The
+  // ZZTEST5 daily log did exactly this: queued minutes before the award function
+  // that handles it was deployed, then stuck behind a permanent rejection.
+  const stuckWork = state.offlineQueue.filter((command) => command.lastError);
+  const describeCommand = (command: OfflineCommand) =>
+    command.type === "log_materials" ? `Materials logged ${new Date(command.queuedAt).toLocaleDateString("en-CA")}`
+    : command.type === "daily_log" ? `Daily log ${new Date(command.queuedAt).toLocaleDateString("en-CA")}`
+    : command.type === "truck_log" ? `Truck log ${new Date(command.queuedAt).toLocaleDateString("en-CA")}`
+    : `Task marked done ${new Date(command.queuedAt).toLocaleDateString("en-CA")}`;
+  const discardStuck = (commandId: string) => {
+    setState((current) => ({ ...current, offlineQueue: current.offlineQueue.filter((item) => item.id !== commandId) }));
+    notify("Removed from the sync queue. It was not saved to the server.");
+  };
   const [title, sub] = tabTitles[tab];
 
   useEffect(() => {
@@ -342,8 +370,12 @@ export function App() {
   }, [remoteMode, state.offlineQueue.length, remoteState]);
 
   if (remoteMode && !sessionUserId) return <LoginScreen />;
-  if (remoteMode && isLoading) return <ShellMessage title="Loading Warehouse Wizard" detail="Pulling live Supabase data." />;
-  if (remoteMode && error && !usingSnapshot) return <ShellMessage title="Could not load data" detail={String((error as Error).message)} />;
+  // Once the snapshot is on screen, a later attempt going back to "pending" must
+  // not pull the "Loading" shell over it.
+  if (remoteMode && isLoading && !usingSnapshot) return <ShellMessage title="Loading Warehouse Wizard" detail="Pulling live Supabase data." />;
+  if (remoteMode && unreachable && !remoteState && !usingSnapshot) {
+    return <ShellMessage title="Could not load data" detail={error ? String((error as Error).message) : "No connection, and nothing has been synced on this device yet."} />;
+  }
 
   const invalidateRemote = () => {
     if (remoteMode) queryClient.invalidateQueries({ queryKey: ["app-state"] });
@@ -605,6 +637,14 @@ export function App() {
       </header>
 
       <main>
+        {stuckWork.length > 0 && <section className="attention-strip" aria-label="Work that could not be sent">
+          <div className="attention-title"><span aria-hidden="true">!</span><b>{stuckWork.length === 1 ? "One item could not be sent" : `${stuckWork.length} items could not be sent`}</b></div>
+          {stuckWork.map((command) => <div className="line-item" key={command.id}>
+            <div><b>{describeCommand(command)}</b><div className="tiny muted">{command.lastError}</div></div>
+            <button className="link" onClick={() => discardStuck(command.id)}>Discard</button>
+          </div>)}
+          <div className="tiny muted" style={{ padding: "8px 11px" }}>These keep retrying. Discarding one removes it from this phone without saving it to the server.</div>
+        </section>}
         {tab === "home" && <Home state={state} role={currentUser.role} userId={currentUser.id} setTab={setTab} goToFocus={goToFocus} openGraph={setGraphModal} />}
         <React.Suspense fallback={<TabSkeleton />}>
           {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}

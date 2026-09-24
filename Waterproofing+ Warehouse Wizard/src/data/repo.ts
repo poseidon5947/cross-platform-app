@@ -223,7 +223,7 @@ export async function insertDailyLog(log: DailyLog) {
 }
 
 async function readCrewPoolPoints() {
-  const { data, error } = await requireClient().from("crew_point_pool").select("points").eq("id", "default").maybeSingle();
+  const { data, error } = await requireClient().from("crew_point_pool").select("points").eq("id", "default").maybeSingle().retry(false);
   if (error) throw error;
   return Number(data?.points ?? 0);
 }
@@ -234,8 +234,16 @@ export async function addToCrewPool(points: number) {
   if (error) throw error;
 }
 
+// The initial load is read with the client's own retries off. postgrest-js
+// retries a GET that fails on the network three times at 1/2/4 s, so with no
+// signal every attempt here took 7 s before react-query even saw the failure,
+// and react-query's retries then multiplied that into 35 s of "Loading" before
+// the last-synced copy could be shown. react-query decides whether to retry
+// this load, and it only does so when there is nothing on the device to fall
+// back to. Other requests keep the library's retries: they are one-off writes
+// and reads where riding out a blip is the right thing.
 async function read<T>(table: string, mapper: (row: any) => T, order = "created_at") {
-  const { data, error } = await requireClient().from(table).select("*").order(order, { ascending: table === "materials" });
+  const { data, error } = await requireClient().from(table).select("*").order(order, { ascending: table === "materials" }).retry(false);
   if (error) throw error;
   return (data ?? []).map(mapper);
 }
