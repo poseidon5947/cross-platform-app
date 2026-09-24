@@ -240,6 +240,6 @@ export interface AppState {
 }
 
 export type OfflineCommand =
-  | { id: string; type: "log_materials"; transactions: Omit<Transaction, "id" | "ts">[]; queuedAt: string }
+  | { id: string; type: "log_materials"; transactions: Omit<Transaction, "id" | "ts">[]; rowIds?: string[]; queuedAt: string }
   | { id: string; type: "complete_task"; userId: string; taskId: string; periodKey: string; queuedAt: string }
-  | { id: string; type: "truck_log"; log: Omit<TruckLog, "id" | "ts">; autoTaskIds: string[]; pointsEvents?: PointsEvent[]; streak?: Streak; queuedAt: string };
+  | { id: string; type: "truck_log"; log: Omit<TruckLog, "id" | "ts">; rowId?: string; autoTaskIds: string[]; pointsEvents?: PointsEvent[]; streak?: Streak; queuedAt: string };

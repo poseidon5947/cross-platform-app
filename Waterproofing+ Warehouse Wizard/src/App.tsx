@@ -339,7 +339,9 @@ export function App() {
     // duplicate deducts the same material twice. Everything with an effect now
     // happens here, exactly once, and the updater only derives state.
     const dated = txs.map((tx) => ({ ...tx, id: id("tx"), ts: combineDateWithNow(chosenDate) }));
-    const queueItem = { id: id("oq"), type: "log_materials" as const, transactions: txs, queuedAt: new Date().toISOString() };
+    // Minted here, not at replay time, so the same row ids are used however many
+    // times this command is retried.
+    const queueItem = { id: id("oq"), type: "log_materials" as const, transactions: txs, rowIds: txs.map(() => crypto.randomUUID()), queuedAt: new Date().toISOString() };
     const queueNow = remoteMode && !navigator.onLine;
     patchState((current) => ({
       ...current,
@@ -401,7 +403,7 @@ export function App() {
     patchState((current) => {
       const fullLog = { ...log, id: id("tl"), ts: combineDateWithNow(chosenDate) };
       const applied = applyTruckLog(current, fullLog);
-      const queueItem = { id: id("oq"), type: "truck_log" as const, log, autoTaskIds: applied.autoTaskIds, pointsEvents: applied.pointsEventsCreated, streak: applied.streaks.find((row) => row.userId === log.driverId), queuedAt: new Date().toISOString() };
+      const queueItem = { id: id("oq"), type: "truck_log" as const, log, rowId: crypto.randomUUID(), autoTaskIds: applied.autoTaskIds, pointsEvents: applied.pointsEventsCreated, streak: applied.streaks.find((row) => row.userId === log.driverId), queuedAt: new Date().toISOString() };
       if (remoteMode && navigator.onLine) saveRemoteTruckLog(log, applied.autoTaskIds, applied.pointsEventsCreated, applied.streaks.find((row) => row.userId === log.driverId)).then(invalidateRemote).catch(() => setState((latest) => ({ ...latest, offlineQueue: [...latest.offlineQueue, queueItem] })));
       return { ...current, trucks: applied.trucks, truckLogs: applied.truckLogs, taskCompletions: applied.taskCompletions, pointsEvents: applied.pointsEvents, streaks: applied.streaks, offlineQueue: remoteMode && !navigator.onLine ? [...current.offlineQueue, queueItem] : current.offlineQueue };
     }, "Truck log saved");

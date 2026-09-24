@@ -107,25 +107,49 @@ serve(async (req) => {
     });
     const names = payload.map((item) => item.name);
     const { data: existingRows, error: existingError } = names.length
-      ? await supabase.from("materials").select("name,cost,previous_cost,price_changed_at,qty,strict_tracking").in("name", names)
+      ? await supabase.from("materials").select("name,cost,previous_cost,price_changed_at,strict_tracking").in("name", names)
       : { data: [], error: null };
     if (existingError) throw existingError;
     const existingByName = new Map((existingRows ?? []).map((item) => [item.name, item]));
     const now = new Date().toISOString();
-    const rowsToSave = payload.map(({ imported_on_hand, ...item }) => {
-      const existing = existingByName.get(item.name);
+    // An import must never move stock on hand. It used to read qty and write the
+    // same value back in the upsert, which looks safe but is a read-then-write: a
+    // crew member logging materials in the gap between the select above and the
+    // write below had their deduction silently reverted, because the import put
+    // the pre-deduction number back. transactions_apply_stock fires on its own, so
+    // that gap is real whenever anyone is working while an import runs.
+    //
+    // Existing materials are updated without qty in the payload at all, so the
+    // column is never written and there is nothing to race. Only genuinely new
+    // materials get an opening quantity, and only from the sheet.
+    const decorate = (item: Record<string, unknown>, existing: Record<string, unknown> | undefined) => {
       const changed = existing && Number(existing.cost) !== item.cost;
       return {
         ...item,
-        qty: existing ? Number(existing.qty) : num(imported_on_hand, 0),
         strict_tracking: hasOnHandColumn ? item.strict_tracking : existing?.strict_tracking ?? true,
-        previous_cost: changed ? Number(existing.cost) : existing?.previous_cost ?? null,
+        previous_cost: changed ? Number(existing!.cost) : existing?.previous_cost ?? null,
         price_changed_at: changed ? now : existing?.price_changed_at ?? null,
       };
-    });
-    const { error } = await supabase.from("materials").upsert(rowsToSave, { onConflict: "name" });
-    if (error) throw error;
-    return Response.json({ imported: rowsToSave.length, skipped }, { headers: cors });
+    };
+
+    const newRows: Record<string, unknown>[] = [];
+    const updates: Record<string, unknown>[] = [];
+    for (const { imported_on_hand, ...item } of payload) {
+      const existing = existingByName.get(item.name);
+      if (existing) updates.push(decorate(item, existing));
+      else newRows.push({ ...decorate(item, undefined), qty: num(imported_on_hand, 0) });
+    }
+
+    if (newRows.length) {
+      const { error: insertError } = await supabase.from("materials").insert(newRows);
+      if (insertError) throw insertError;
+    }
+    for (const row of updates) {
+      const { name, ...fields } = row;
+      const { error: updateError } = await supabase.from("materials").update(fields).eq("name", name);
+      if (updateError) throw updateError;
+    }
+    return Response.json({ imported: newRows.length + updates.length, created: newRows.length, updated: updates.length, skipped }, { headers: cors });
   } catch (err) {
     if (err instanceof Response) return err;
     return Response.json({ error: String(err?.message ?? err) }, { status: 500, headers: cors });

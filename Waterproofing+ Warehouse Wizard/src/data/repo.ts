@@ -285,8 +285,19 @@ export async function loadProfile(userId: string) {
   return profileFromRow(data);
 }
 
-export async function insertTransactions(transactions: Omit<Transaction, "id" | "ts">[]) {
-  const { error } = await requireClient().from("transactions").insert(transactions.map(txToRow));
+/**
+ * `rowIds` makes a replay safe. Stock moves through the transactions_apply_stock
+ * trigger, so inserting the same log twice deducts the same material twice. The
+ * offline queue survives a restart now, which means a command can come back after
+ * the server already accepted it - the app having died in between - so a queued
+ * log carries ids generated when it was queued, and a second attempt collides on
+ * the primary key and does nothing instead of moving stock again.
+ */
+export async function insertTransactions(transactions: Omit<Transaction, "id" | "ts">[], rowIds?: string[]) {
+  const rows = transactions.map((tx, index) => (rowIds?.[index] ? { ...txToRow(tx), id: rowIds[index] } : txToRow(tx)));
+  const { error } = rowIds?.length
+    ? await requireClient().from("transactions").upsert(rows, { onConflict: "id", ignoreDuplicates: true })
+    : await requireClient().from("transactions").insert(rows);
   if (error) throw error;
 }
 
@@ -415,10 +426,14 @@ export async function deleteCompletion(userId: string, taskId: string, periodKey
   if (error) throw error;
 }
 
-export async function saveTruckLog(log: Omit<TruckLog, "id" | "ts">, autoTaskIds: string[] = [], pointsEvents: PointsEvent[] = [], streak?: Streak) {
+// `rowId` does for a truck log what it does for a material log: the offline queue
+// outlives a restart, so a replay of a log the server already stored would
+// otherwise file the mileage and fuel cost a second time.
+export async function saveTruckLog(log: Omit<TruckLog, "id" | "ts">, autoTaskIds: string[] = [], pointsEvents: PointsEvent[] = [], streak?: Streak, rowId?: string) {
   const { data, error } = await requireClient()
     .from("truck_logs")
-    .insert({
+    .upsert({
+      ...(rowId ? { id: rowId } : {}),
       truck_id: log.truckId,
       km: log.km,
       driver_id: log.driverId,
@@ -432,7 +447,7 @@ export async function saveTruckLog(log: Omit<TruckLog, "id" | "ts">, autoTaskIds
       exterior_wash: log.exteriorWash ?? false,
       repairs: log.repairs ?? null,
       notes: log.notes ?? null,
-    })
+    }, { onConflict: "id" })
     .select("*")
     .single();
   if (error) throw error;
@@ -476,11 +491,11 @@ export async function deleteTask(taskId: string) {
 }
 
 export async function replayCommand(command: OfflineCommand) {
-  if (command.type === "log_materials") await insertTransactions(command.transactions);
+  if (command.type === "log_materials") await insertTransactions(command.transactions, command.rowIds);
   if (command.type === "complete_task") {
     await upsertCompletion(command.userId, command.taskId, command.periodKey);
   }
-  if (command.type === "truck_log") await saveTruckLog(command.log, command.autoTaskIds, command.pointsEvents ?? [], command.streak);
+  if (command.type === "truck_log") await saveTruckLog(command.log, command.autoTaskIds, command.pointsEvents ?? [], command.streak, command.rowId);
 }
 
 export async function invokeMaterialsImport(file: File) {
