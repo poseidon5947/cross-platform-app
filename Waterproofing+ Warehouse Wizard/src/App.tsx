@@ -23,6 +23,7 @@ import {
   insertMaintenanceRequest,
   insertTransactions,
   updateResolvedTransaction,
+  dismissTransactionReview,
   invokeMaterialsImport,
   invokeQuickBooksConnect,
   invokeQuickBooksSync,
@@ -485,6 +486,24 @@ export function App() {
     if (remoteMode && resolved) updateResolvedTransaction(resolved).then(invalidateRemote).catch((err) => notify(`Resolve sync failed: ${err.message}`));
   };
 
+  /**
+   * Clear a needs-review row that was never a material to begin with.
+   *
+   * The Sept 4 import made needs-review transactions out of free-text work
+   * descriptions. Resolve wants a real item and a quantity, so those rows had
+   * no way out of the list at all. The row is kept, only hidden from review.
+   */
+  const dismissTransaction = (transactionId: string) => {
+    patchState((current) => ({
+      ...current,
+      transactions: current.transactions.map((item) =>
+        item.id === transactionId ? { ...item, reviewDismissedAt: new Date().toISOString() } : item),
+    }), "Marked as not a material");
+    if (remoteMode) {
+      dismissTransactionReview(transactionId, currentUser.id).then(invalidateRemote).catch((err: Error) => notify(err.message));
+    }
+  };
+
   const saveMaterial = (material: Material, includeQty = true) => {
     const materialToSave = applyCostChangeFlag(state.materials.find((item) => item.id === material.id), material);
     patchState((current) => ({
@@ -653,7 +672,7 @@ export function App() {
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
           {tab === "jobs" && <LazyJobsTab state={state} role={currentUser.role} saveSite={saveSite} openSheet={setSheet} />}
           {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} setState={setState} openSheet={setSheet} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
-          {tab === "cfo" && <LazyCfoTab state={state} resolveTransaction={resolveTransaction} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
+          {tab === "cfo" && <LazyCfoTab state={state} resolveTransaction={resolveTransaction} dismissTransaction={dismissTransaction} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
         </React.Suspense>
       </main>
 
@@ -738,7 +757,7 @@ function Home({ state, role, userId, setTab, goToFocus, openGraph }: { state: Ap
   const priceChanges = priceChangeMaterials(state.materials);
   const maintenance = state.maintenanceRequests.filter((request) => request.status === "open").length;
   const incompleteTasks = Math.max(0, progress.total - progress.done);
-  const needsReviewCount = state.transactions.filter((tx) => tx.needsReview).length;
+  const needsReviewCount = state.transactions.filter((tx) => tx.needsReview && !tx.reviewDismissedAt).length;
   const attention = [{ count: maintenance, label: "Open maintenance requests", tab: "trucks" as Tab, focus: "maintenance" }, { count: incompleteTasks, label: "Truck tasks remaining today", tab: "trucks" as Tab, focus: "tasks" }, { count: lows.length, label: "Items below reorder threshold", tab: "inventory" as Tab, focus: "low-stock" }, ...(canManage(role) ? [{ count: needsReviewCount, label: "Daily log items need review", tab: "cfo" as Tab, focus: "needs-review" }] : [])].filter((item) => item.count > 0);
   return <>
     {attention.length > 0 && <section className="attention-strip" aria-label="Needs attention"><div className="attention-title"><span aria-hidden="true">!</span><b>Needs attention</b></div><div className="attention-rows">{attention.map((item) => <button key={item.label} onClick={() => item.focus ? goToFocus(item.tab, item.focus) : setTab(item.tab)}><span>{item.label}</span><b>{item.count}</b><span aria-hidden="true">→</span></button>)}</div></section>}

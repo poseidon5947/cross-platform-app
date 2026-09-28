@@ -1,6 +1,6 @@
 import { supabase } from "../integrations/supabase";
 import { todayKey } from "../domain/business";
-import type { AppState, DailyLog, MaintenanceRequest, Material, OfflineCommand, PointsEvent, Service, Site, Streak, TaskCompletion, ToolItem, Transaction, Truck, TruckLog, TruckTask, User } from "../types";
+import type { AppState, DailyLog, DailyLogMedia, MaintenanceRequest, Material, OfflineCommand, PointsEvent, Service, Site, Streak, TaskCompletion, ToolItem, Transaction, Truck, TruckLog, TruckTask, User } from "../types";
 
 function requireClient() {
   if (!supabase) throw new Error("Supabase is not configured.");
@@ -68,6 +68,7 @@ const txFromRow = (row: any): Transaction => ({
   rawItemText: row.raw_item_text ?? undefined,
   rawQtyText: row.raw_qty_text ?? undefined,
   rawUnitText: row.raw_unit_text ?? undefined,
+  reviewDismissedAt: row.review_dismissed_at ?? undefined,
 });
 
 const txToRow = (tx: Omit<Transaction, "id" | "ts">) => ({
@@ -201,6 +202,7 @@ const dailyLogFromRow = (row: any): DailyLog => ({
   serviceId: row.service_id,
   date: row.date,
   materialsInstalled: row.materials_installed ?? undefined,
+  weather: row.weather ?? undefined,
   workCompleted: row.work_completed,
   challenges: row.challenges ?? undefined,
   toDoNextTime: row.to_do_next_time,
@@ -213,6 +215,21 @@ const dailyLogFromRow = (row: any): DailyLog => ({
 // the server takes it. Upserting on that id, ignoring duplicates, means a retry
 // after a half-finished attempt does not fail on the primary key and does not
 // leave a second copy either.
+/**
+ * True when the database simply does not have this column or table yet.
+ *
+ * The app deploys the moment a commit lands, but a migration is run by hand
+ * afterwards, so there is always a window where the code knows about a column
+ * the database has not got. Writing weather into that window must not throw
+ * away the whole daily log.
+ */
+export function schemaMissing(error: unknown) {
+  const code = (error as { code?: string } | null)?.code;
+  const message = (error as { message?: string } | null)?.message ?? "";
+  return code === "42703" || code === "42P01" || code === "PGRST204" || code === "PGRST205"
+    || /column .* does not exist|could not find the .* column|schema cache/i.test(message);
+}
+
 export async function insertDailyLog(log: DailyLog) {
   const client = requireClient().from("daily_logs");
   const row = {
@@ -221,16 +238,47 @@ export async function insertDailyLog(log: DailyLog) {
     service_id: log.serviceId,
     date: log.date,
     materials_installed: log.materialsInstalled ?? null,
+    weather: log.weather ?? null,
     work_completed: log.workCompleted,
     challenges: log.challenges ?? null,
     to_do_next_time: log.toDoNextTime,
     completed_by_user_id: log.completedByUserId,
     submitted_by_user_id: log.submittedByUserId,
   };
-  const { error } = row.id
-    ? await client.upsert(row, { onConflict: "id", ignoreDuplicates: true })
-    : await client.insert(row);
-  if (error) throw error;
+  const write = (body: Record<string, unknown>) =>
+    row.id ? client.upsert(body, { onConflict: "id", ignoreDuplicates: true }) : client.insert(body);
+
+  const { error } = await write(row);
+  if (!error) return;
+  if (!schemaMissing(error)) throw error;
+
+  // Weather column not added yet - save the log without it rather than lose
+  // the crew's whole entry. The note itself is optional by design.
+  console.warn("[warehouse] daily_logs.weather is not in the database yet - saving without it.");
+  const { weather: _weather, ...withoutWeather } = row;
+  const { error: retryError } = await write(withoutWeather);
+  if (retryError) throw retryError;
+}
+
+/**
+ * Clear a needs-review row that was never a material.
+ *
+ * The Sept 4 import turned free-text work descriptions into needs-review
+ * transactions, and Resolve - which demands a real item and a quantity - was
+ * the only action on the screen, so those rows could not be cleared at all.
+ * The row is kept, not deleted, so the crew's original wording survives.
+ */
+export async function dismissTransactionReview(transactionId: string, userId: string) {
+  const { error } = await requireClient().from("transactions").update({
+    review_dismissed_at: new Date().toISOString(),
+    review_dismissed_by: isUuid(userId) ? userId : null,
+  }).eq("id", transactionId);
+  if (error) {
+    if (schemaMissing(error)) {
+      throw new Error("This needs the database update for dismissing review items. Send Matthew a note and it will work.");
+    }
+    throw error;
+  }
 }
 
 async function readCrewPoolPoints() {
@@ -371,6 +419,66 @@ export async function upsertSite(site: Site) {
 export async function updateTool(tool: ToolItem) {
   const { error } = await requireClient().from("tools").upsert(toolToRow(tool));
   if (error) throw error;
+}
+
+const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
+
+const dailyLogMediaFromRow = (row: any): DailyLogMedia => ({
+  id: row.id,
+  dailyLogId: row.daily_log_id,
+  storageKey: row.storage_key,
+  kind: row.kind === "video" ? "video" : "photo",
+  uploadedBy: row.uploaded_by ?? undefined,
+  createdAt: row.created_at,
+});
+
+/**
+ * Photos and clips for the daily logs, or an empty list if the table is not
+ * there yet. Same deploy-order guard as the rest of this file: the app ships
+ * before the migration is run by hand.
+ */
+export async function readDailyLogMedia(): Promise<DailyLogMedia[]> {
+  const { data, error } = await requireClient()
+    .from("daily_log_media").select("*").order("created_at", { ascending: true }).retry(false);
+  if (error) {
+    if (schemaMissing(error)) {
+      console.warn("[warehouse] daily_log_media is not in the database yet - its migration still needs running.");
+      return [];
+    }
+    throw error;
+  }
+  return (data ?? []).map(dailyLogMediaFromRow);
+};
+
+export async function uploadDailyLogMedia(dailyLogId: string, file: File, userId: string): Promise<DailyLogMedia> {
+  if (file.size > MAX_MEDIA_BYTES) {
+    throw new Error(`${file.name} is ${(file.size / 1024 / 1024).toFixed(0)}MB. The limit is 50MB - take a shorter clip or a photo instead.`);
+  }
+  const kind: "photo" | "video" = file.type.startsWith("video/") ? "video" : "photo";
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+  const storageKey = `daily-logs/${dailyLogId}/${crypto.randomUUID()}-${safeName}`;
+  const { error: uploadError } = await requireClient().storage.from("daily-log-media").upload(storageKey, file, {
+    cacheControl: "31536000",
+    upsert: false,
+    contentType: file.type || undefined,
+  });
+  if (uploadError) throw uploadError;
+
+  const row = { daily_log_id: dailyLogId, storage_key: storageKey, kind, uploaded_by: isUuid(userId) ? userId : null };
+  const { data, error } = await requireClient().from("daily_log_media").insert(row).select("*").single();
+  if (error) {
+    if (schemaMissing(error)) {
+      throw new Error("Photos need the database update before they can be attached. The log itself saved fine.");
+    }
+    throw error;
+  }
+  return dailyLogMediaFromRow(data);
+}
+
+export async function dailyLogMediaSignedUrl(storageKey: string) {
+  const { data, error } = await requireClient().storage.from("daily-log-media").createSignedUrl(storageKey, 60 * 60);
+  if (error) throw error;
+  return data.signedUrl;
 }
 
 export async function uploadReceiptPhoto(truckId: string, file: File) {

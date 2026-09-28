@@ -13,7 +13,7 @@ function printTransactionLog(state: AppState, list: Transaction[], title: string
 }
 
 function printDailyLogs(state: AppState, list: DailyLog[], month: string) {
-  const html = `<!doctype html><html><head><title>Daily Logs</title><style>body{font-family:Arial;padding:28px;color:#132135}.top{border-bottom:3px solid #0b6ea8;padding-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px}th,td{border-bottom:1px solid #e2e8f1;padding:8px;text-align:left;vertical-align:top}</style></head><body><div class="top"><h1>Daily Logs</h1><p>Waterproofing+ · ${month || "All dates"} · printed ${formatDate(new Date())}</p></div><table><thead><tr><th>Date</th><th>Job</th><th>Service</th><th>Completed by</th><th>Materials installed</th><th>Work completed</th><th>Challenges</th><th>To do next time</th></tr></thead><tbody>${list.map((log) => `<tr><td>${formatDate(log.date)}</td><td>${siteName(state, log.siteId)}</td><td>${serviceName(state, log.serviceId)}</td><td>${userName(state, log.completedByUserId)}</td><td>${log.materialsInstalled ?? ""}</td><td>${log.workCompleted}</td><td>${log.challenges ?? ""}</td><td>${log.toDoNextTime}</td></tr>`).join("")}</tbody></table><script>window.onload=function(){setTimeout(function(){window.print()},250)}</script></body></html>`;
+  const html = `<!doctype html><html><head><title>Daily Logs</title><style>body{font-family:Arial;padding:28px;color:#132135}.top{border-bottom:3px solid #0b6ea8;padding-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px}th,td{border-bottom:1px solid #e2e8f1;padding:8px;text-align:left;vertical-align:top}</style></head><body><div class="top"><h1>Daily Logs</h1><p>Waterproofing+ · ${month || "All dates"} · printed ${formatDate(new Date())}</p></div><table><thead><tr><th>Date</th><th>Job</th><th>Service</th><th>Completed by</th><th>Materials installed</th><th>Work completed</th><th>Weather</th><th>Challenges</th><th>To do next time</th></tr></thead><tbody>${list.map((log) => `<tr><td>${formatDate(log.date)}</td><td>${siteName(state, log.siteId)}</td><td>${serviceName(state, log.serviceId)}</td><td>${userName(state, log.completedByUserId)}</td><td>${log.materialsInstalled ?? ""}</td><td>${log.workCompleted}</td><td>${log.weather ?? ""}</td><td>${log.challenges ?? ""}</td><td>${log.toDoNextTime}</td></tr>`).join("")}</tbody></table><script>window.onload=function(){setTimeout(function(){window.print()},250)}</script></body></html>`;
   const w = window.open("", "_blank");
   if (w) {
     w.document.write(html);
@@ -25,7 +25,7 @@ function MonthPicker({ month, setMonth }: { month: string; setMonth: (value: str
   return <div className="field-stack"><label className="fld">Month</label><input className="in" type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></div>;
 }
 
-function NeedsReviewRow({ tx, state, resolveTransaction }: { tx: Transaction; state: AppState; resolveTransaction: (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit) => void }) {
+function NeedsReviewRow({ tx, state, resolveTransaction, dismissTransaction }: { tx: Transaction; state: AppState; resolveTransaction: (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit) => void; dismissTransaction: (transactionId: string) => void }) {
   const [materialId, setMaterialId] = useState("");
   const [qty, setQty] = useState(tx.rawQtyText ?? "");
   const [unit, setUnit] = useState<MaterialUnit | "">("");
@@ -46,6 +46,7 @@ function NeedsReviewRow({ tx, state, resolveTransaction }: { tx: Transaction; st
       </select>
     </div>
     <button className="btn primary block" disabled={!materialId || !qty || Number(qty) <= 0} onClick={() => resolveTransaction(tx.id, materialId, Number(qty), unit || undefined)}>Resolve</button>
+    <button className="btn line block" onClick={() => dismissTransaction(tx.id)}>Not a material &mdash; remove from this list</button>
   </div>;
 }
 
@@ -70,7 +71,7 @@ function printReport(state: AppState) {
   }
 }
 
-export default function CfoTabBoundary({ state, resolveTransaction, focusTarget, onFocusHandled }: { state: AppState; resolveTransaction: (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
+export default function CfoTabBoundary({ state, resolveTransaction, dismissTransaction, focusTarget, onFocusHandled }: { state: AppState; resolveTransaction: (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit) => void; dismissTransaction: (transactionId: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
   const [section, setSection] = useState<"inventory" | "tremco" | "log">("inventory");
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const inMonth = (dateStr: string) => !month || dateStr.slice(0, 7) === month;
@@ -87,7 +88,7 @@ export default function CfoTabBoundary({ state, resolveTransaction, focusTarget,
   const monthLogs = state.dailyLogs.filter((log) => inMonth(log.date));
   const tremcoOnHand = state.materials.filter((material) => material.isTremco);
 
-  const needsReview = state.transactions.filter((tx) => tx.needsReview);
+  const needsReview = state.transactions.filter((tx) => tx.needsReview && !tx.reviewDismissedAt);
   const csv = useMemo(() => transactionsCsv(state), [state]);
   const [exportMonth, setExportMonth] = useState(new Date().toISOString().slice(0, 7));
   const monthlyCsv = useMemo(() => monthlyInventoryLogCsv(state, exportMonth), [state, exportMonth]);
@@ -118,7 +119,7 @@ export default function CfoTabBoundary({ state, resolveTransaction, focusTarget,
 
     <section className="card wide" id="wz-section-needs-review">
       <div className="sec-h"><div><h3>Needs review</h3><p className="tiny muted">Imported or messy log entries where the item, quantity, or unit wasn't clear. Fix by the 10th of every month.</p></div><Pill tone={needsReview.length ? "warn" : "good"}>{needsReview.length}</Pill></div>
-      {needsReview.length ? needsReview.map((tx) => <NeedsReviewRow key={tx.id} tx={tx} state={state} resolveTransaction={resolveTransaction} />) : <p className="tiny muted">Nothing needs review.</p>}
+      {needsReview.length ? needsReview.map((tx) => <NeedsReviewRow key={tx.id} tx={tx} state={state} resolveTransaction={resolveTransaction} dismissTransaction={dismissTransaction} />) : <p className="tiny muted">Nothing needs review.</p>}
     </section>
 
     <section className="card" id="wz-section-exports">

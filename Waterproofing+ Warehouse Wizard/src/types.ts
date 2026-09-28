@@ -99,6 +99,7 @@ export interface DailyLog {
   serviceId: ServiceId;
   date: string;
   materialsInstalled?: string;
+  weather?: string;
   workCompleted: string;
   challenges?: string;
   toDoNextTime: string;
@@ -139,6 +140,17 @@ export interface Transaction {
   rawItemText?: string;
   rawQtyText?: string;
   rawUnitText?: string;
+  reviewDismissedAt?: string;
+}
+
+/** A photo or clip attached to a daily log. */
+export interface DailyLogMedia {
+  id: string;
+  dailyLogId: string;
+  storageKey: string;
+  kind: "photo" | "video";
+  uploadedBy?: string;
+  createdAt: string;
 }
 
 export interface ToolItem {
