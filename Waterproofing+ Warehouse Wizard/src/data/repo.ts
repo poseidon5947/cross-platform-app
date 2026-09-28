@@ -269,11 +269,12 @@ export async function insertDailyLog(log: DailyLog) {
  * The row is kept, not deleted, so the crew's original wording survives.
  */
 export async function dismissTransactionReview(transactionId: string, userId: string) {
-  const { error } = await requireClient().from("transactions").update({
-    review_dismissed_at: new Date().toISOString(),
-    review_dismissed_by: isUuid(userId) ? userId : null,
-  }).eq("id", transactionId);
-  if (error) {
+  try {
+    await updateOneTransaction(transactionId, {
+      review_dismissed_at: new Date().toISOString(),
+      review_dismissed_by: isUuid(userId) ? userId : null,
+    }, "Removing this from the review list");
+  } catch (error) {
     if (schemaMissing(error)) {
       throw new Error("This needs the database update for dismissing review items. Send Matthew a note and it will work.");
     }
@@ -377,14 +378,30 @@ export async function insertTransactions(transactions: Omit<Transaction, "id" | 
   if (error) throw error;
 }
 
+/**
+ * An update that changes no rows is not success.
+ *
+ * transactions had RLS on with no UPDATE policy, so Postgres matched nothing
+ * and PostgREST reported that as a 2xx: Resolve said "Item resolved" and wrote
+ * nothing, for three weeks. Asking for the row back turns that silence into a
+ * message, so the next policy gap is visible the first time instead of after
+ * 140 rows pile up.
+ */
+async function updateOneTransaction(id: string, patch: Record<string, unknown>, action: string) {
+  const { data, error } = await requireClient().from("transactions").update(patch).eq("id", id).select("id");
+  if (error) throw error;
+  if (!data?.length) {
+    throw new Error(`${action} did not save. Your account may not have permission to change inventory records - ask an admin.`);
+  }
+}
+
 export async function updateResolvedTransaction(tx: Transaction) {
-  const { error } = await requireClient().from("transactions").update({
+  await updateOneTransaction(tx.id, {
     material_id: tx.materialId,
     qty: tx.qty,
     needs_review: false,
     raw_unit_text: tx.rawUnitText ?? null,
-  }).eq("id", tx.id);
-  if (error) throw error;
+  }, "Resolving this item");
 }
 
 export async function upsertMaterial(material: Material, includeQty = true) {

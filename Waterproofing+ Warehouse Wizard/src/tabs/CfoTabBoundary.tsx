@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ALLOWED_MATERIAL_UNITS, formatDate, money, monthlyInventoryLogCsv, stockStatus } from "../domain/business";
-import type { AppState, DailyLog, MaterialUnit, Transaction } from "../types";
-import { Pill, serviceName, siteName, userName } from "../App";
+import type { AppState, DailyLog, MaterialUnit, Role, Transaction } from "../types";
+import { canManage, Pill, serviceName, siteName, userName } from "../App";
 
 function printTransactionLog(state: AppState, list: Transaction[], title: string, month: string) {
   const html = `<!doctype html><html><head><title>${title}</title><style>body{font-family:Arial;padding:28px;color:#132135}.top{display:flex;justify-content:space-between;border-bottom:3px solid #0b6ea8;padding-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px}th,td{border-bottom:1px solid #e2e8f1;padding:8px;text-align:left}</style></head><body><div class="top"><div><h1>${title}</h1><p>Waterproofing+ · ${month || "All dates"} · printed ${formatDate(new Date())}</p></div></div><table><thead><tr><th>Date</th><th>Item</th><th>Action</th><th>Qty</th><th>Unit cost</th><th>Value</th><th>Job</th><th>Crew</th></tr></thead><tbody>${list.map((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); const label = tx.needsReview ? `${tx.rawItemText ?? "Unresolved item"} (needs review)` : material?.name ?? ""; const qtyLabel = tx.needsReview ? (tx.rawQtyText ?? "") : tx.qty; return `<tr><td>${formatDate(tx.ts)}</td><td>${label}</td><td>${tx.type}</td><td>${qtyLabel} ${material?.unit ?? tx.rawUnitText ?? ""}</td><td>${material ? money(material.cost) : ""}</td><td>${material ? money(material.cost * tx.qty) : ""}</td><td>${siteName(state, tx.siteId)}</td><td>${userName(state, tx.userId)}</td></tr>`; }).join("")}</tbody></table><script>window.onload=function(){setTimeout(function(){window.print()},250)}</script></body></html>`;
@@ -71,7 +71,7 @@ function printReport(state: AppState) {
   }
 }
 
-export default function CfoTabBoundary({ state, resolveTransaction, dismissTransaction, focusTarget, onFocusHandled }: { state: AppState; resolveTransaction: (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit) => void; dismissTransaction: (transactionId: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
+export default function CfoTabBoundary({ state, role, resolveTransaction, dismissTransaction, focusTarget, onFocusHandled }: { state: AppState; role: Role; resolveTransaction: (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit) => void; dismissTransaction: (transactionId: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
   const [section, setSection] = useState<"inventory" | "tremco" | "log">("inventory");
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const inMonth = (dateStr: string) => !month || dateStr.slice(0, 7) === month;
@@ -117,10 +117,10 @@ export default function CfoTabBoundary({ state, resolveTransaction, dismissTrans
       {monthLogs.length > 0 && <button className="btn line block" onClick={() => printDailyLogs(state, monthLogs, month)}>Export Daily Log</button>}
     </>}
 
-    <section className="card wide" id="wz-section-needs-review">
+    {canManage(role) && <section className="card wide" id="wz-section-needs-review">
       <div className="sec-h"><div><h3>Needs review</h3><p className="tiny muted">Imported or messy log entries where the item, quantity, or unit wasn't clear. Fix by the 10th of every month.</p></div><Pill tone={needsReview.length ? "warn" : "good"}>{needsReview.length}</Pill></div>
       {needsReview.length ? needsReview.map((tx) => <NeedsReviewRow key={tx.id} tx={tx} state={state} resolveTransaction={resolveTransaction} dismissTransaction={dismissTransaction} />) : <p className="tiny muted">Nothing needs review.</p>}
-    </section>
+    </section>}
 
     <section className="card" id="wz-section-exports">
       <h3>Exports</h3>

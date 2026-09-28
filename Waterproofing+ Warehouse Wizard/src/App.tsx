@@ -699,7 +699,7 @@ export function App() {
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
           {tab === "jobs" && <LazyJobsTab state={state} role={currentUser.role} saveSite={saveSite} openSheet={setSheet} />}
           {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} setState={setState} openSheet={setSheet} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
-          {tab === "cfo" && <LazyCfoTab state={state} resolveTransaction={resolveTransaction} dismissTransaction={dismissTransaction} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
+          {tab === "cfo" && <LazyCfoTab state={state} role={currentUser.role} resolveTransaction={resolveTransaction} dismissTransaction={dismissTransaction} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
         </React.Suspense>
       </main>
 
