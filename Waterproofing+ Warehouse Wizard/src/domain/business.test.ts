@@ -7,6 +7,7 @@ import {
   applyTruckLog,
   combineDateWithNow,
   formatDate,
+  formatDateTime,
   loginEmailFor,
   creditOrPool,
   dailyProgress,
@@ -25,6 +26,23 @@ import {
   todayKey,
   weekKey,
 } from "./business";
+
+describe("formatDateTime", () => {
+  it("adds the clock time to the date", () => {
+    // 20:30 UTC is 1:30pm in Vancouver on the same day.
+    expect(formatDateTime("2026-09-29T20:30:00Z")).toBe("09/29/2026 1:30 PM");
+  });
+
+  it("uses Vancouver time, so a late delivery is not filed tomorrow", () => {
+    // 00:30 UTC on the 30th is still 5:30pm on the 29th in Vancouver.
+    expect(formatDateTime("2026-09-30T00:30:00Z")).toBe("09/29/2026 5:30 PM");
+  });
+
+  it("gives nothing back for nothing", () => {
+    expect(formatDateTime(undefined)).toBe("");
+    expect(formatDateTime("not a date")).toBe("");
+  });
+});
 
 describe("loginEmailFor", () => {
   it("turns a username from the sheet into the account address", () => {

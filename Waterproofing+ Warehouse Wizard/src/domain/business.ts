@@ -172,6 +172,20 @@ export function formatDate(value: string | Date | null | undefined) {
   return `${p.month}/${p.day}/${p.year}`;
 }
 
+/**
+ * Date and clock time, Vancouver, for the things the office needs timed -
+ * chiefly when a delivery was booked in. Same instant rules as formatDate.
+ */
+export function formatDateTime(value: string | Date | null | undefined) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const time = new Intl.DateTimeFormat("en-US", {
+    timeZone: VANCOUVER_TZ, hour: "numeric", minute: "2-digit", hour12: true,
+  }).format(date);
+  return `${formatDate(date)} ${time}`;
+}
+
 export function monthKey(date = new Date(), timeZone = VANCOUVER_TZ) {
   const p = zonedParts(date, timeZone);
   return `${p.year}-M${p.month}`;
