@@ -31,6 +31,23 @@ export function id(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/**
+ * The crew sign in with the username from the credentials sheet.
+ *
+ * Supabase Auth only knows email addresses, so a bare username gets the
+ * company domain appended. A full address still works for anyone who types
+ * one. Trimming matters more than it looks: these are pasted out of a
+ * spreadsheet, and one trailing space reads back as "Invalid login
+ * credentials" with nothing on screen to explain it.
+ */
+export const COMPANY_EMAIL_DOMAIN = "vanislecoatings.com";
+
+export function loginEmailFor(input: string, domain = COMPANY_EMAIL_DOMAIN) {
+  const trimmed = input.trim().toLowerCase();
+  if (!trimmed) return "";
+  return trimmed.includes("@") ? trimmed : `${trimmed}@${domain}`;
+}
+
 export function money(value: number) {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(value || 0);
 }

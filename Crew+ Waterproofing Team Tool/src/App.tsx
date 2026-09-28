@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createSeedState } from "./data/seed";
 import { getCurrentSession, loadRemoteState, signInWithPassword, signOut, syncCrewState } from "./data/repo";
-import { bonusTrajectory, canApproveRedemptions, canRunReviews, certAlertLevelFromType, employeeReviewSubmission, isNewHireRestricted, leaderboard, newHireReviewsDue, walletBalance } from "./domain/crew";
+import { bonusTrajectory, loginEmailFor, canApproveRedemptions, canRunReviews, certAlertLevelFromType, employeeReviewSubmission, isNewHireRestricted, leaderboard, newHireReviewsDue, walletBalance } from "./domain/crew";
 import type { CrewState, Profile, ReviewRating } from "./types";
 import { isSupabaseConfigured } from "./integrations/supabase";
 import { SuiteSwitcher } from "./components/SuiteSwitcher";
@@ -269,10 +269,10 @@ function Home({ state, user, setTab, openGraph }: { state: CrewState; user: Prof
 }
 
 function LoginScreen({ error, onLogin }: { error: string; onLogin: (email: string, password: string) => Promise<void> }) {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  return <div className="login"><section className="panel card"><div className="brand login-brand"><div className="drop logo crew-mark">+</div><div><h1>Crew+</h1><p>Van Isle Water Proofing+</p></div></div><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>{error && <p className="error">{error}</p>}<button className="primary block" disabled={!email || !password || busy} onClick={() => { setBusy(true); onLogin(email, password).finally(() => setBusy(false)); }}>{busy ? "Signing in..." : "Sign in"}</button></section></div>;
+  return <div className="login"><section className="panel card"><div className="brand login-brand"><div className="drop logo crew-mark">+</div><div><h1>Crew+</h1><p>Van Isle Water Proofing+</p></div></div><label>Username<input type="text" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="e.g. jrogers" value={username} onChange={(event) => setUsername(event.target.value)} /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>{error && <p className="error">{error}</p>}<button className="primary block" disabled={!username || !password || busy} onClick={() => { setBusy(true); onLogin(loginEmailFor(username), password).finally(() => setBusy(false)); }}>{busy ? "Signing in..." : "Sign in"}</button></section></div>;
 }
 
 function Splash({ text }: { text: string }) {

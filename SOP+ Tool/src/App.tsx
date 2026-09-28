@@ -4,7 +4,7 @@ import { createSeedState } from "./data/seed";
 import { shouldRequestSopAward } from "./data/award";
 import { drainRemoteMediaQueue } from "./data/offline";
 import { awardSopPoints, getCurrentSession, loadRemoteState, persistState, recordPointsAward, signInWithPassword, signOut, uploadMediaFile } from "./data/repo";
-import { addStep, approveSop, attachMedia, attachUploadedMedia, canApprove, canCreateSop, canEditSop, canManage, createSop, deleteStep, drainOfflineMediaQueue, moveStep, requestChanges, sopPointsForUser, submitForReview, updateStep } from "./domain/sop";
+import { addStep, loginEmailFor, approveSop, attachMedia, attachUploadedMedia, canApprove, canCreateSop, canEditSop, canManage, createSop, deleteStep, drainOfflineMediaQueue, moveStep, requestChanges, sopPointsForUser, submitForReview, updateStep } from "./domain/sop";
 import type { MediaType, Role, SopDraft, SopItem, SopState, SopStatus } from "./types";
 import { isSupabaseConfigured } from "./integrations/supabase";
 import { SuiteSwitcher } from "./components/SuiteSwitcher";
@@ -382,10 +382,10 @@ function Sheet({ title, close, children }: { title: string; close: () => void; c
 }
 
 function LoginScreen({ error, onLogin }: { error: string; onLogin: (email: string, password: string) => Promise<void> }) {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  return <div className="login"><section className="panel card"><div className="brand login-brand"><div className="drop logo">+</div><div><h1>SOP+</h1><p>Van Isle Water Proofing+</p></div></div><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>{error && <p className="error">{error}</p>}<button className="primary block" disabled={!email || !password || busy} onClick={() => { setBusy(true); onLogin(email, password).finally(() => setBusy(false)); }}>{busy ? "Signing in..." : "Sign in"}</button></section></div>;
+  return <div className="login"><section className="panel card"><div className="brand login-brand"><div className="drop logo">+</div><div><h1>SOP+</h1><p>Van Isle Water Proofing+</p></div></div><label>Username<input type="text" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="e.g. jrogers" value={username} onChange={(event) => setUsername(event.target.value)} /></label><label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>{error && <p className="error">{error}</p>}<button className="primary block" disabled={!username || !password || busy} onClick={() => { setBusy(true); onLogin(loginEmailFor(username), password).finally(() => setBusy(false)); }}>{busy ? "Signing in..." : "Sign in"}</button></section></div>;
 }
 
 function Splash({ text }: { text: string }) {

@@ -71,6 +71,7 @@ import {
   priceChangeMaterials,
   stepForMaterialUnit,
   formatDate,
+  loginEmailFor,
 } from "./domain/business";
 import { isSupabaseConfigured, supabase } from "./integrations/supabase";
 import type { AppState, Category, DailyLog, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, PointsEvent, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User, OfflineCommand } from "./types";
@@ -759,16 +760,27 @@ export function App() {
 function TabSkeleton() { return <section className="card tab-skeleton" aria-label="Loading section"><i /><i /><i /></section>; }
 
 function LoginScreen() {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
+    const email = loginEmailFor(username);
+    if (!email || !password) {
+      setError("Enter your username and password.");
+      return;
+    }
     const { error: signInError } = await supabase!.auth.signInWithPassword({ email, password });
-    if (signInError) setError(signInError.message);
+    // "Invalid login credentials" is all the server says, and it covers a
+    // wrong username, a wrong password and a stray pasted space equally.
+    if (signInError) {
+      setError(/invalid login credentials/i.test(signInError.message)
+        ? "That username and password did not match. Check the sheet, and watch for an extra space if you pasted it."
+        : signInError.message);
+    }
   };
-  return <div className="app auth"><header className="top"><div className="brandrow"><div className="brand"><span className="logo"><svg viewBox="0 0 24 24" fill="none"><defs><linearGradient id="dl2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#00d4ff"/><stop offset="100%" stopColor="#0099cc"/></linearGradient></defs><path d="M12 2.5c3.5 4.2 6 7.4 6 10.6a6 6 0 1 1-12 0c0-3.2 2.5-6.4 6-10.6Z" fill="url(#dl2)" /><path d="M9.5 13.5a2.5 2.5 0 0 0 2.5 2.5" stroke="#060d1a" strokeWidth="1.8" strokeLinecap="round" /></svg></span>Van Isle Water Proofing+<small>Warehouse & Crew Ops</small></div></div><div className="htitle">Sign in</div><div className="hsub">Use your company account.</div></header><main><form className="card" onSubmit={submit}><label className="fld">Email</label><input className="in" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /><label className="fld">Password</label><input className="in" type="password" value={password} onChange={(event) => setPassword(event.target.value)} /><button className="btn primary block">Sign in</button>{error && <p className="tiny error">{error}</p>}</form></main></div>;
+  return <div className="app auth"><header className="top"><div className="brandrow"><div className="brand"><span className="logo"><svg viewBox="0 0 24 24" fill="none"><defs><linearGradient id="dl2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#00d4ff"/><stop offset="100%" stopColor="#0099cc"/></linearGradient></defs><path d="M12 2.5c3.5 4.2 6 7.4 6 10.6a6 6 0 1 1-12 0c0-3.2 2.5-6.4 6-10.6Z" fill="url(#dl2)" /><path d="M9.5 13.5a2.5 2.5 0 0 0 2.5 2.5" stroke="#060d1a" strokeWidth="1.8" strokeLinecap="round" /></svg></span>Van Isle Water Proofing+<small>Warehouse & Crew Ops</small></div></div><div className="htitle">Sign in</div><div className="hsub">Use the username from your credentials sheet.</div></header><main><form className="card" onSubmit={submit}><label className="fld">Username</label><input className="in" type="text" inputMode="text" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="e.g. jrogers" value={username} onChange={(event) => setUsername(event.target.value)} /><label className="fld">Password</label><input className="in" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /><button className="btn primary block">Sign in</button>{error && <p className="tiny error">{error}</p>}</form></main></div>;
 }
 
 function ShellMessage({ title, detail }: { title: string; detail: string }) {

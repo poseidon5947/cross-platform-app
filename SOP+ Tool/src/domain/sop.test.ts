@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
-import { addStep, approveSop, attachMedia, drainOfflineMediaQueue, requestChanges, submitForReview } from "./sop";
+import { addStep, approveSop, attachMedia, drainOfflineMediaQueue, requestChanges, submitForReview, loginEmailFor } from "./sop";
 
 describe("SOP lifecycle", () => {
   it("moves assigned SOPs through build, review, changes, and approval", () => {
@@ -41,5 +41,23 @@ describe("SOP lifecycle", () => {
     state = drainOfflineMediaQueue(state);
     expect(state.media[0].syncStatus).toBe("synced");
     expect(state.offlineMediaQueue[0].status).toBe("synced");
+  });
+});
+
+describe("loginEmailFor", () => {
+  it("turns the sheet's username into the account address", () => {
+    expect(loginEmailFor("jrogers")).toBe("jrogers@vanislecoatings.com");
+  });
+
+  it("survives a pasted space and a capitalising phone keyboard", () => {
+    expect(loginEmailFor("  JRogers ")).toBe("jrogers@vanislecoatings.com");
+  });
+
+  it("leaves a full address alone", () => {
+    expect(loginEmailFor("ops@vanislecoatings.com")).toBe("ops@vanislecoatings.com");
+  });
+
+  it("gives nothing back for nothing", () => {
+    expect(loginEmailFor("   ")).toBe("");
   });
 });

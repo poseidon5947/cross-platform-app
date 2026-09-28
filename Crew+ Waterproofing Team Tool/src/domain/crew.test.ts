@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
-import { localDayKey, canAwardManagerRule, kpiHitFor, awardKpiHit, submitFeedback, isoWeekKey, quarterKey, quarterMonths, quarterlyLeaderboard, ritualPeriodKey, acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount } from "./crew";
+import { localDayKey, canAwardManagerRule, kpiHitFor, awardKpiHit, submitFeedback, isoWeekKey, quarterKey, quarterMonths, quarterlyLeaderboard, ritualPeriodKey, acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount, loginEmailFor } from "./crew";
 import type { IncidentReportInput, OnboardingInput } from "../types";
 
 describe("Crew+ wallet", () => {
@@ -463,5 +463,23 @@ describe("once-per-day awards use the local day", () => {
   it("derives the local day without drifting to UTC", () => {
     expect(localDayKey(new Date("2026-09-25T02:00:00Z"))).toBe("2026-09-24");
     expect(localDayKey(new Date("2026-09-24T19:00:00Z"))).toBe("2026-09-24");
+  });
+});
+
+describe("loginEmailFor", () => {
+  it("turns the sheet's username into the account address", () => {
+    expect(loginEmailFor("jrogers")).toBe("jrogers@vanislecoatings.com");
+  });
+
+  it("survives a pasted space and a capitalising phone keyboard", () => {
+    expect(loginEmailFor("  JRogers ")).toBe("jrogers@vanislecoatings.com");
+  });
+
+  it("leaves a full address alone", () => {
+    expect(loginEmailFor("ops@vanislecoatings.com")).toBe("ops@vanislecoatings.com");
+  });
+
+  it("gives nothing back for nothing", () => {
+    expect(loginEmailFor("   ")).toBe("");
   });
 });

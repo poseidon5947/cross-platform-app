@@ -7,6 +7,7 @@ import {
   applyTruckLog,
   combineDateWithNow,
   formatDate,
+  loginEmailFor,
   creditOrPool,
   dailyProgress,
   evaluateDailyPoints,
@@ -24,6 +25,30 @@ import {
   todayKey,
   weekKey,
 } from "./business";
+
+describe("loginEmailFor", () => {
+  it("turns a username from the sheet into the account address", () => {
+    expect(loginEmailFor("jrogers")).toBe("jrogers@vanislecoatings.com");
+  });
+
+  it("strips a pasted space, which otherwise reads as a wrong password", () => {
+    expect(loginEmailFor("  jrogers ")).toBe("jrogers@vanislecoatings.com");
+  });
+
+  it("lowercases what a phone keyboard capitalised", () => {
+    expect(loginEmailFor("JRogers")).toBe("jrogers@vanislecoatings.com");
+  });
+
+  it("leaves a full address alone", () => {
+    expect(loginEmailFor("ops@vanislecoatings.com")).toBe("ops@vanislecoatings.com");
+    expect(loginEmailFor("someone@gmail.com")).toBe("someone@gmail.com");
+  });
+
+  it("gives nothing back for nothing", () => {
+    expect(loginEmailFor("")).toBe("");
+    expect(loginEmailFor("   ")).toBe("");
+  });
+});
 
 describe("formatDate", () => {
   it("shows a calendar date as month/day/year", () => {

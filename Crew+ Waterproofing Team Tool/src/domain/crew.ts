@@ -1,3 +1,17 @@
+/**
+ * The crew sign in with the username from the credentials sheet, not an email.
+ * Supabase Auth only knows addresses, so a bare username gets the company
+ * domain appended. Trimming matters: these are pasted out of a spreadsheet and
+ * one trailing space reads back as "Invalid login credentials".
+ */
+export const COMPANY_EMAIL_DOMAIN = "vanislecoatings.com";
+
+export function loginEmailFor(input: string, domain = COMPANY_EMAIL_DOMAIN) {
+  const trimmed = input.trim().toLowerCase();
+  if (!trimmed) return "";
+  return trimmed.includes("@") ? trimmed : `${trimmed}@${domain}`;
+}
+
 import type { Cadence, Certification, CertificationType, CompensationRecord, CrewState, FeedbackEntry, IncidentReportInput, OnboardingInput, PointsEvent, Profile, QuarterlyReviewDetail, RedemptionStatus, Review, ReviewRating, ReviewType, RolePermissionKey, TimeOffKind } from "../types";
 
 export const JOB_RESPONSIBILITY_ITEMS = [
