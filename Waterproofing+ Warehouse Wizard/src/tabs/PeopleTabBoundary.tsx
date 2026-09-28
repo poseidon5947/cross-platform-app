@@ -1,5 +1,5 @@
 import { createSeedState } from "../data/seed";
-import { dailyProgress } from "../domain/business";
+import { dailyProgress, formatDate } from "../domain/business";
 import { isSupabaseConfigured } from "../integrations/supabase";
 import type { AppState, Role } from "../types";
 import { canAdmin, initials, Kpi } from "../App";
@@ -31,7 +31,7 @@ function CrewMemberSheet({ user, state }: { user: { id: string; name: string; ro
         <Kpi label="Events" value={events.length} sub="recent 20" />
       </div>
       {streak && streak.count > 0 && (
-        <div className="streak-badge">🔥 {streak.count}-day streak — last award {streak.awardedOn ? new Date(streak.awardedOn).toLocaleDateString('en-CA') : 'none'}</div>
+        <div className="streak-badge">🔥 {streak.count}-day streak — last award {streak.awardedOn ? formatDate(streak.awardedOn) : 'none'}</div>
       )}
       <div className="sec-h" style={{ marginTop: 16 }}><h2>Points history</h2></div>
       <section className="card">
@@ -40,7 +40,7 @@ function CrewMemberSheet({ user, state }: { user: { id: string; name: string; ro
           <div className="line-item" key={e.id}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 600 }}>{e.reason}</div>
-              <div className="tiny muted">{new Date(e.ts).toLocaleDateString('en-CA')}</div>
+              <div className="tiny muted">{formatDate(e.ts)}</div>
             </div>
             <span className={`pill ${e.points >= 0 ? 'good' : 'bad'}`}>{e.points > 0 ? '+' : ''}{e.points}</span>
           </div>

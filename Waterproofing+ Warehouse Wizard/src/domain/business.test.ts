@@ -6,6 +6,7 @@ import {
   applyTransactions,
   applyTruckLog,
   combineDateWithNow,
+  formatDate,
   creditOrPool,
   dailyProgress,
   evaluateDailyPoints,
@@ -23,6 +24,32 @@ import {
   todayKey,
   weekKey,
 } from "./business";
+
+describe("formatDate", () => {
+  it("shows a calendar date as month/day/year", () => {
+    expect(formatDate("2026-09-28")).toBe("09/28/2026");
+  });
+
+  it("does not shift a calendar date by a timezone", () => {
+    // "2026-09-28" has no instant in it. Passing it through Date would make it
+    // UTC midnight, which is the 27th in Vancouver - the bug that filed truck
+    // logs against the wrong day. It must read the same in every zone.
+    expect(formatDate("2026-01-01")).toBe("01/01/2026");
+    expect(formatDate("2026-12-31")).toBe("12/31/2026");
+  });
+
+  it("formats a timestamp in Vancouver time, not UTC", () => {
+    // 00:30 UTC on the 29th is still the evening of the 28th in Vancouver.
+    expect(formatDate("2026-09-29T00:30:00Z")).toBe("09/28/2026");
+  });
+
+  it("returns an empty string for nothing and for junk", () => {
+    expect(formatDate(undefined)).toBe("");
+    expect(formatDate(null)).toBe("");
+    expect(formatDate("")).toBe("");
+    expect(formatDate("not a date")).toBe("");
+  });
+});
 
 describe("stock math", () => {
   it("maps transaction types to signed stock movement", () => {

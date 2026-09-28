@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { categoryLabels } from "../data/seed";
 import { receiptSignedUrl, uploadReceiptPhoto } from "../data/repo";
 import { isSupabaseConfigured } from "../integrations/supabase";
-import { ALLOWED_MATERIAL_UNITS, batteryState, canResolveMaintenanceRequests, dailyProgress, id, isKmEntryTask, isTaskDone, money, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
+import { ALLOWED_MATERIAL_UNITS, batteryState, canResolveMaintenanceRequests, dailyProgress, formatDate, id, isKmEntryTask, isTaskDone, money, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
 import type { AppState, Category, DailyLog, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, TaskSection, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User } from "../types";
 import { BulkToolSheet, canManage, Kpi, Pill, ProgressRing, serviceName, siteName, userName } from "../App";
 import type { Tab as AppTab } from "../App";
@@ -84,7 +84,7 @@ function NumberField({ label, value, setValue, step = 1 }: { label: string; valu
 }
 
 function printInventoryLog(state: AppState, list: Material[], label: string) {
-  const html = `<!doctype html><html><head><title>Inventory Log</title><style>body{font-family:Arial;padding:28px;color:#132135}.top{display:flex;justify-content:space-between;border-bottom:3px solid #0b6ea8;padding-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px}th,td{border-bottom:1px solid #e2e8f1;padding:8px;text-align:left}</style></head><body><div class="top"><div><h1>Inventory Log</h1><p>Waterproofing+ · ${label} · ${new Date().toLocaleDateString("en-CA")}</p></div></div><table><thead><tr><th>Material</th><th>Category</th><th>Bin</th><th>On hand</th><th>Unit</th><th>Reorder at</th><th>Status</th></tr></thead><tbody>${list.map((material) => `<tr><td>${material.name}</td><td>${categoryLabels[material.category]}</td><td>${material.bin}</td><td>${material.qty}</td><td>${material.unit}</td><td>${material.reorderPoint}</td><td>${stockStatus(material).label}</td></tr>`).join("")}</tbody></table><script>window.onload=function(){setTimeout(function(){window.print()},250)}</script></body></html>`;
+  const html = `<!doctype html><html><head><title>Inventory Log</title><style>body{font-family:Arial;padding:28px;color:#132135}.top{display:flex;justify-content:space-between;border-bottom:3px solid #0b6ea8;padding-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px}th,td{border-bottom:1px solid #e2e8f1;padding:8px;text-align:left}</style></head><body><div class="top"><div><h1>Inventory Log</h1><p>Waterproofing+ · ${label} · ${formatDate(new Date())}</p></div></div><table><thead><tr><th>Material</th><th>Category</th><th>Bin</th><th>On hand</th><th>Unit</th><th>Reorder at</th><th>Status</th></tr></thead><tbody>${list.map((material) => `<tr><td>${material.name}</td><td>${categoryLabels[material.category]}</td><td>${material.bin}</td><td>${material.qty}</td><td>${material.unit}</td><td>${material.reorderPoint}</td><td>${stockStatus(material).label}</td></tr>`).join("")}</tbody></table><script>window.onload=function(){setTimeout(function(){window.print()},250)}</script></body></html>`;
   const w = window.open("", "_blank");
   if (w) {
     w.document.write(html);
@@ -113,7 +113,7 @@ function Tremco({ state, role, openSheet, saveMaterial, setExactCount, setTab }:
 }
 
 function printDailyLogs(state: AppState, list: DailyLog[]) {
-  const html = `<!doctype html><html><head><title>Daily Logs</title><style>body{font-family:Arial;padding:28px;color:#132135}.top{border-bottom:3px solid #0b6ea8;padding-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px}th,td{border-bottom:1px solid #e2e8f1;padding:8px;text-align:left;vertical-align:top}</style></head><body><div class="top"><h1>Daily Logs</h1><p>Waterproofing+ · ${new Date().toLocaleDateString("en-CA")}</p></div><table><thead><tr><th>Date</th><th>Job</th><th>Service</th><th>Completed by</th><th>Materials installed</th><th>Work completed</th><th>Challenges</th><th>To do next time</th></tr></thead><tbody>${list.map((log) => `<tr><td>${log.date}</td><td>${siteName(state, log.siteId)}</td><td>${serviceName(state, log.serviceId)}</td><td>${userName(state, log.completedByUserId)}</td><td>${log.materialsInstalled ?? ""}</td><td>${log.workCompleted}</td><td>${log.challenges ?? ""}</td><td>${log.toDoNextTime}</td></tr>`).join("")}</tbody></table><script>window.onload=function(){setTimeout(function(){window.print()},250)}</script></body></html>`;
+  const html = `<!doctype html><html><head><title>Daily Logs</title><style>body{font-family:Arial;padding:28px;color:#132135}.top{border-bottom:3px solid #0b6ea8;padding-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px}th,td{border-bottom:1px solid #e2e8f1;padding:8px;text-align:left;vertical-align:top}</style></head><body><div class="top"><h1>Daily Logs</h1><p>Waterproofing+ · ${formatDate(new Date())}</p></div><table><thead><tr><th>Date</th><th>Job</th><th>Service</th><th>Completed by</th><th>Materials installed</th><th>Work completed</th><th>Challenges</th><th>To do next time</th></tr></thead><tbody>${list.map((log) => `<tr><td>${formatDate(log.date)}</td><td>${siteName(state, log.siteId)}</td><td>${serviceName(state, log.serviceId)}</td><td>${userName(state, log.completedByUserId)}</td><td>${log.materialsInstalled ?? ""}</td><td>${log.workCompleted}</td><td>${log.challenges ?? ""}</td><td>${log.toDoNextTime}</td></tr>`).join("")}</tbody></table><script>window.onload=function(){setTimeout(function(){window.print()},250)}</script></body></html>`;
   const w = window.open("", "_blank");
   if (w) {
     w.document.write(html);
@@ -163,7 +163,7 @@ function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog,
     setSiteId(site.id);
     setNewSite("");
   };
-  const historySection = <section className="card" id="wz-daily-log-history"><div className="sec-h"><h3>{canManage(role) ? "All daily logs" : "Your recent daily logs"}</h3>{recentLogs.length > 0 && <button className="link" onClick={() => printDailyLogs(state, recentLogs)}>Export</button>}</div>{canManage(role) && <><label className="fld">{logMonth ? "Month" : "Month (showing all)"}</label><input className="in" type="month" value={logMonth} onChange={(event) => setLogMonth(event.target.value)} /></>}{recentLogs.length ? recentLogs.map((log) => <div className="line-item" key={log.id}><div className="mid"><b>{siteName(state, log.siteId)}</b><div className="tiny muted">{log.date} · {serviceName(state, log.serviceId)} · {userName(state, log.completedByUserId)}</div><div className="tiny muted">{log.workCompleted}</div></div></div>) : <p className="tiny muted">{logMonth ? "Nothing logged for this month." : "No daily logs yet."}</p>}</section>;
+  const historySection = <section className="card" id="wz-daily-log-history"><div className="sec-h"><h3>{canManage(role) ? "All daily logs" : "Your recent daily logs"}</h3>{recentLogs.length > 0 && <button className="link" onClick={() => printDailyLogs(state, recentLogs)}>Export</button>}</div>{canManage(role) && <><label className="fld">{logMonth ? "Month" : "Month (showing all)"}</label><input className="in" type="month" value={logMonth} onChange={(event) => setLogMonth(event.target.value)} /></>}{recentLogs.length ? recentLogs.map((log) => <div className="line-item" key={log.id}><div className="mid"><b>{siteName(state, log.siteId)}</b><div className="tiny muted">{formatDate(log.date)} · {serviceName(state, log.serviceId)} · {userName(state, log.completedByUserId)}</div><div className="tiny muted">{log.workCompleted}</div></div></div>) : <p className="tiny muted">{logMonth ? "Nothing logged for this month." : "No daily logs yet."}</p>}</section>;
   const entryForm = <>
     <section className="card"><label className="fld">Date</label><input className="in" type="date" value={logDate} max={todayKey()} onChange={(event) => setLogDate(event.target.value)} /><label className="fld">Job site</label><select className="in" value={siteId ?? ""} onChange={(event) => setSiteId(event.target.value)}>{!siteId && <option value="">Choose a job site</option>}{sortedSites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select><div className="row-action"><input className="in" value={newSite} onChange={(event) => setNewSite(event.target.value)} placeholder="+ Add job site" /><button className="btn line sm" onClick={addSite}>Add</button></div>{selectedSite?.driveFolderUrl && <a className="tiny" href={selectedSite.driveFolderUrl} target="_blank" rel="noreferrer">Job details / site plans →</a>}<label className="fld">Service</label><div className="selrow">{state.services.map((service) => <button key={service.id} className={`sopt ${serviceId === service.id ? "on" : ""}`} onClick={() => setServiceId(service.id)}>{service.name}</button>)}</div></section>
     <section className="card"><h3>Daily log</h3><label className="fld">Materials installed</label><textarea className="in" value={materialsInstalled} onChange={(event) => setMaterialsInstalled(event.target.value)} placeholder="Square feet / linear feet, optional" /><label className="fld">Work completed*</label><textarea className="in" value={workCompleted} onChange={(event) => setWorkCompleted(event.target.value)} /><label className="fld">Challenges</label><textarea className="in" value={challenges} onChange={(event) => setChallenges(event.target.value)} placeholder="Optional" /><label className="fld">To do next time*</label><textarea className="in" value={toDoNextTime} onChange={(event) => setToDoNextTime(event.target.value)} /><label className="fld">Completed by</label><select className="in" value={completedByUserId} onChange={(event) => setCompletedByUserId(event.target.value)}>{activeUsers.map((item) => <option key={item.id} value={item.id}>{item.name}{item.orgRole ? ` — ${item.orgRole}` : ""}</option>)}</select></section>
@@ -268,7 +268,7 @@ function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTr
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{truck.name}</div>
                   <div className="tiny muted">{truck.km ? `${truck.km.toLocaleString()} km` : "No mileage yet"} · last service {formatServiceDate(truck.lastServiced)}</div>
                 </div>
-                {lastLog && <div className="tiny muted">{new Date(lastLog.ts).toLocaleDateString('en-CA')}</div>}
+                {lastLog && <div className="tiny muted">{formatDate(lastLog.ts)}</div>}
               </div>
             );
           })}
@@ -321,7 +321,7 @@ function ServicesTasksSection({ state, role, toggleTask, openSheet, saveTask, re
 function formatServiceDate(value?: string) {
   if (!value) return "not recorded";
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "not recorded" : parsed.toLocaleDateString("en-CA");
+  return Number.isNaN(parsed.getTime()) ? "not recorded" : formatDate(parsed);
 }
 
 // Receipts live in a private bucket, so they open through a short-lived signed
@@ -350,7 +350,7 @@ function TruckReceipts({ state, truckId }: { state: AppState; truckId: string })
   return <div className="receipt-history">
     <label className="fld">Gas station receipts</label>
     {logs.map((log) => <div className="receipt-history-row" key={log.id}>
-      <span className="tiny muted">{new Date(log.ts).toLocaleDateString("en-CA")}{log.gasStation ? ` · ${log.gasStation}` : ""}{log.totalCost ? ` · ${money(log.totalCost)}` : ""}</span>
+      <span className="tiny muted">{formatDate(log.ts)}{log.gasStation ? ` · ${log.gasStation}` : ""}{log.totalCost ? ` · ${money(log.totalCost)}` : ""}</span>
       <ReceiptLink storageKey={log.receiptPhotoName as string} />
     </div>)}
   </div>;
@@ -432,8 +432,8 @@ function MaintenanceRequestRow({ request, state, canResolve, respondMaintenance 
     <div className="mid">
       <b>{request.targetType === "truck" ? "🚛" : "🛠️"} {request.targetLabel}</b>
       <div className="tiny muted">{request.description}</div>
-      <div className="tiny muted">Requested by {requester} - {new Date(request.requestedAt).toLocaleDateString("en-CA")}</div>
-      {request.deadlineAt && request.status === "open" && <div className="tiny muted">Needed by {new Date(request.deadlineAt).toLocaleDateString("en-CA")}</div>}
+      <div className="tiny muted">Requested by {requester} - {formatDate(request.requestedAt)}</div>
+      {request.deadlineAt && request.status === "open" && <div className="tiny muted">Needed by {formatDate(request.deadlineAt)}</div>}
       {request.status === "resolved" && <div className="tiny muted">Resolved{request.responseNote ? `: ${request.responseNote}` : ""}</div>}
     </div>
     {request.status === "open" && canResolve && <div className="field-stack">

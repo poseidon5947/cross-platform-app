@@ -134,6 +134,27 @@ export function todayKey(date = new Date(), timeZone = VANCOUVER_TZ) {
   return `${p.year}-${p.month}-${p.day}`;
 }
 
+/**
+ * Dates the crew read, month/day/year.
+ *
+ * A plain "2026-09-28" is a calendar date with no instant in it, so it is
+ * split by hand: `new Date("2026-09-28")` is UTC midnight, which renders as
+ * the 27th anywhere west of Greenwich - the same class of bug as the truck
+ * log that filed itself against tomorrow. Real timestamps are formatted in
+ * Vancouver time, like every other period in this app.
+ */
+export function formatDate(value: string | Date | null | undefined) {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const plain = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (plain) return `${plain[2]}/${plain[3]}/${plain[1]}`;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const p = zonedParts(date, VANCOUVER_TZ);
+  return `${p.month}/${p.day}/${p.year}`;
+}
+
 export function monthKey(date = new Date(), timeZone = VANCOUVER_TZ) {
   const p = zonedParts(date, timeZone);
   return `${p.year}-M${p.month}`;

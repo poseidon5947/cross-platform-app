@@ -68,6 +68,7 @@ import {
   ALLOWED_MATERIAL_UNITS,
   priceChangeMaterials,
   stepForMaterialUnit,
+  formatDate,
 } from "./domain/business";
 import { isSupabaseConfigured, supabase } from "./integrations/supabase";
 import type { AppState, Category, DailyLog, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, PointsEvent, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User, OfflineCommand } from "./types";
@@ -333,10 +334,10 @@ export function App() {
   // that handles it was deployed, then stuck behind a permanent rejection.
   const stuckWork = state.offlineQueue.filter((command) => command.lastError);
   const describeCommand = (command: OfflineCommand) =>
-    command.type === "log_materials" ? `Materials logged ${new Date(command.queuedAt).toLocaleDateString("en-CA")}`
-    : command.type === "daily_log" ? `Daily log ${new Date(command.queuedAt).toLocaleDateString("en-CA")}`
-    : command.type === "truck_log" ? `Truck log ${new Date(command.queuedAt).toLocaleDateString("en-CA")}`
-    : `Task marked done ${new Date(command.queuedAt).toLocaleDateString("en-CA")}`;
+    command.type === "log_materials" ? `Materials logged ${formatDate(command.queuedAt)}`
+    : command.type === "daily_log" ? `Daily log ${formatDate(command.queuedAt)}`
+    : command.type === "truck_log" ? `Truck log ${formatDate(command.queuedAt)}`
+    : `Task marked done ${formatDate(command.queuedAt)}`;
   const discardStuck = (commandId: string) => {
     setState((current) => ({ ...current, offlineQueue: current.offlineQueue.filter((item) => item.id !== commandId) }));
     notify("Removed from the sync queue. It was not saved to the server.");
@@ -789,7 +790,7 @@ export function ProgressRing({ pct }: { pct: number }) {
 
 function Activity({ state, tx }: { state: AppState; tx: Transaction }) {
   const material = state.materials.find((item) => item.id === tx.materialId);
-  return <div className="act"><div className="ai">{tx.type.slice(0, 2).toUpperCase()}</div><div className="atxt">{tx.needsReview ? <><b>{tx.type}</b> {tx.rawQtyText ?? ""} {tx.rawUnitText ?? ""} {tx.rawItemText} <span className="pill warn">Needs review</span></> : <><b>{tx.type}</b> {tx.qty} {material?.unit} {material?.name}</>}<div className="tiny muted">{userName(state, tx.userId)} · {siteName(state, tx.siteId)}</div></div><div className="atime">{new Date(tx.ts).toLocaleDateString("en-CA")}</div></div>;
+  return <div className="act"><div className="ai">{tx.type.slice(0, 2).toUpperCase()}</div><div className="atxt">{tx.needsReview ? <><b>{tx.type}</b> {tx.rawQtyText ?? ""} {tx.rawUnitText ?? ""} {tx.rawItemText} <span className="pill warn">Needs review</span></> : <><b>{tx.type}</b> {tx.qty} {material?.unit} {material?.name}</>}<div className="tiny muted">{userName(state, tx.userId)} · {siteName(state, tx.siteId)}</div></div><div className="atime">{formatDate(tx.ts)}</div></div>;
 }
 
 function BottomSheet({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
