@@ -34,6 +34,7 @@ const materialFromRow = (row: any): Material => ({
   reorderPoint: Number(row.reorder_point ?? 0),
   bin: row.bin ?? "",
   isTremco: row.is_tremco ?? false,
+  serviceIds: Array.isArray(row.service_ids) && row.service_ids.length ? row.service_ids : undefined,
 });
 
 const materialToRow = (material: Material, includeQty = true) => ({
@@ -52,6 +53,7 @@ const materialToRow = (material: Material, includeQty = true) => ({
   reorder_point: material.reorderPoint,
   bin: material.bin,
   is_tremco: material.isTremco ?? false,
+  service_ids: material.serviceIds?.length ? material.serviceIds : null,
 });
 
 const txFromRow = (row: any): Transaction => ({
@@ -405,8 +407,20 @@ export async function updateResolvedTransaction(tx: Transaction) {
 }
 
 export async function upsertMaterial(material: Material, includeQty = true) {
-  const { error } = await requireClient().from("materials").upsert(materialToRow(material, includeQty), { onConflict: "name" });
-  if (error) throw error;
+  const row = materialToRow(material, includeQty);
+  const write = (body: Record<string, unknown>) =>
+    requireClient().from("materials").upsert(body, { onConflict: "name" });
+
+  const { error } = await write(row);
+  if (!error) return;
+  if (!schemaMissing(error)) throw error;
+
+  // service_ids not added yet - save everything else rather than refuse the
+  // whole edit. Same deploy-order gap as daily_logs.weather.
+  console.warn("[warehouse] materials.service_ids is not in the database yet - saving without it.");
+  const { service_ids: _serviceIds, ...withoutServices } = row;
+  const { error: retryError } = await write(withoutServices);
+  if (retryError) throw retryError;
 }
 
 export async function upsertMaterialsMetadata(materials: Material[]) {

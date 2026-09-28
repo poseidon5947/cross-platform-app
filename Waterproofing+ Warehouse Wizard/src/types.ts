@@ -51,6 +51,8 @@ export interface Material {
   reorderPoint: number;
   bin: string;
   isTremco?: boolean;
+  /** Services this material is used on. Empty or absent means every service. */
+  serviceIds?: ServiceId[];
 }
 
 export interface ImportReport {

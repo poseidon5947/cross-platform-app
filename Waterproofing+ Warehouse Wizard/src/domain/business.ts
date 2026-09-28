@@ -48,6 +48,21 @@ export function loginEmailFor(input: string, domain = COMPANY_EMAIL_DOMAIN) {
   return trimmed.includes("@") ? trimmed : `${trimmed}@${domain}`;
 }
 
+/**
+ * The materials a crew member should see for the service they picked.
+ *
+ * Two fallbacks, both there so a half-filled mapping never hides real stock:
+ * if nothing is mapped to this service yet the whole list comes back, and a
+ * material with no service at all stays visible for every service. Once every
+ * material carries its service, neither applies and the list is exactly the
+ * items that service uses.
+ */
+export function materialsForService<T extends { serviceIds?: ServiceId[] }>(materials: T[], serviceId: ServiceId): T[] {
+  const mappedToThis = materials.some((material) => material.serviceIds?.includes(serviceId));
+  if (!mappedToThis) return materials;
+  return materials.filter((material) => !material.serviceIds?.length || material.serviceIds.includes(serviceId));
+}
+
 export function money(value: number) {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(value || 0);
 }

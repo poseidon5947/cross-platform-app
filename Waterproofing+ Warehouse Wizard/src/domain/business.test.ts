@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ServiceId } from "../types";
 import { drainOfflineQueue } from "../data/offline";
 import { validateMaterialsCsv } from "../data/csvImport";
 import { createSeedState } from "../data/seed";
@@ -7,6 +8,7 @@ import {
   applyTruckLog,
   combineDateWithNow,
   formatDate,
+  materialsForService,
   formatDateTime,
   loginEmailFor,
   creditOrPool,
@@ -26,6 +28,37 @@ import {
   todayKey,
   weekKey,
 } from "./business";
+
+describe("materialsForService", () => {
+  const list = [
+    { id: "a", serviceIds: ["wp"] as const },
+    { id: "b", serviceIds: ["ins"] as const },
+    { id: "c", serviceIds: ["wp", "ins"] as const },
+    { id: "d" },
+  ].map((m) => ({ ...m, serviceIds: m.serviceIds ? [...m.serviceIds] : undefined }));
+
+  it("shows the items that service uses", () => {
+    expect(materialsForService(list, "wp").map((m) => m.id)).toEqual(["a", "c", "d"]);
+    expect(materialsForService(list, "ins").map((m) => m.id)).toEqual(["b", "c", "d"]);
+  });
+
+  it("keeps an unmapped material visible on every service", () => {
+    // "d" has no service, so it must never vanish - PPE and consumables sit
+    // here until someone assigns them.
+    expect(materialsForService(list, "wp").map((m) => m.id)).toContain("d");
+    expect(materialsForService(list, "trf").map((m) => m.id)).toContain("d");
+  });
+
+  it("falls back to everything when nothing is mapped to that service", () => {
+    // Better a long list than an empty one while the mapping is half filled.
+    expect(materialsForService(list, "trf")).toHaveLength(4);
+  });
+
+  it("falls back to everything when nothing is mapped at all", () => {
+    const none: Array<{ id: string; serviceIds?: ServiceId[] }> = [{ id: "x" }, { id: "y" }];
+    expect(materialsForService(none, "wp")).toHaveLength(2);
+  });
+});
 
 describe("formatDateTime", () => {
   it("adds the clock time to the date", () => {
