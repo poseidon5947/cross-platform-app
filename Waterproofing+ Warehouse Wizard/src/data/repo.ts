@@ -308,7 +308,7 @@ async function read<T>(table: string, mapper: (row: any) => T, order = "created_
 }
 
 export async function loadRemoteState(currentUserId: string): Promise<AppState> {
-  const [materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streakRows, maintenanceRequests, dailyLogs, crewPoolPoints] =
+  const [materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streakRows, maintenanceRequests, dailyLogs, dailyLogMedia, crewPoolPoints] =
     await Promise.all([
       read("materials", materialFromRow),
       read("sites", siteFromRow),
@@ -324,9 +324,10 @@ export async function loadRemoteState(currentUserId: string): Promise<AppState> 
       read("streaks", (row) => ({ userId: row.user_id, count: row.count, last: row.last, awardedOn: row.awarded_on })),
       read("maintenance_request", maintenanceFromRow, "requested_at"),
       read("daily_logs", dailyLogFromRow, "date"),
+      readDailyLogMedia(),
       readCrewPoolPoints(),
     ]);
-  return { materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streaks: streakRows, currentUserId, offlineQueue: [], maintenanceRequests, dailyLogs, crewPoolPoints };
+  return { materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streaks: streakRows, currentUserId, offlineQueue: [], maintenanceRequests, dailyLogs, dailyLogMedia, crewPoolPoints };
 }
 
 export async function insertMaintenanceRequest(request: MaintenanceRequest) {

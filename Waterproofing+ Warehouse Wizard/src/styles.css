@@ -640,7 +640,11 @@ input[disabled], .in[disabled] { opacity: .6; background: var(--bg-3); cursor: n
   border-bottom: 1px solid var(--line);
 }
 .needs-review-row:last-child { border-bottom: 0; }
-.needs-review-row b { font-weight: 700; font-size: 14px; color: var(--ink); }
+.needs-review-row b { font-weight: 700; font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
+/* The raw text is whatever the crew typed, so it can be one long unbroken
+   run. Let it wrap rather than force the row wider than the phone. */
+.needs-review-row .mid { min-width: 0; }
+.needs-review-row .in { width: 100%; max-width: 100%; }
 .needs-review-qty-row { display: flex; gap: 8px; }
 .needs-review-qty-row .in { flex: 1; min-width: 0; }
 

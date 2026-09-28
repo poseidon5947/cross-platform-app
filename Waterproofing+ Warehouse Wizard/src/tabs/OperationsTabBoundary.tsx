@@ -1,15 +1,38 @@
 import { useEffect, useState } from "react";
 import { categoryLabels } from "../data/seed";
-import { receiptSignedUrl, uploadReceiptPhoto } from "../data/repo";
+import { dailyLogMediaSignedUrl, receiptSignedUrl, uploadReceiptPhoto } from "../data/repo";
 import { isSupabaseConfigured } from "../integrations/supabase";
 import { ALLOWED_MATERIAL_UNITS, batteryState, canResolveMaintenanceRequests, dailyProgress, formatDate, id, isKmEntryTask, isTaskDone, money, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
-import type { AppState, Category, DailyLog, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, TaskSection, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User } from "../types";
+import type { AppState, Category, DailyLog, DailyLogMedia, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, TaskSection, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User } from "../types";
 import { BulkToolSheet, canManage, Kpi, Pill, ProgressRing, serviceName, siteName, userName } from "../App";
 import type { Tab as AppTab } from "../App";
 
 type Tab = "inventory" | "tremco" | "log" | "tools" | "trucks";
 
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true" || !isSupabaseConfigured();
+
+function DailyLogMediaLinks({ media }: { media: DailyLogMedia[] }) {
+  const [busyId, setBusyId] = useState("");
+  const [failedId, setFailedId] = useState("");
+  if (!media.length) return null;
+  const open = async (item: DailyLogMedia) => {
+    setBusyId(item.id);
+    setFailedId("");
+    try {
+      const url = await dailyLogMediaSignedUrl(item.storageKey);
+      window.open(url, "_blank", "noopener");
+    } catch {
+      setFailedId(item.id);
+    } finally {
+      setBusyId("");
+    }
+  };
+  return <div className="row-action">{media.map((item, index) => (
+    <button key={item.id} className="link" disabled={busyId === item.id} onClick={() => open(item)}>
+      {busyId === item.id ? "Opening\u2026" : failedId === item.id ? "Could not open" : `${item.kind === "video" ? "Video" : "Photo"} ${index + 1}`}
+    </button>
+  ))}</div>;
+}
 
 function InventorySegments({ activeTab, setTab }: { activeTab: Tab; setTab: (tab: AppTab) => void }) {
   return <div className="seg inv-segments">
@@ -46,7 +69,7 @@ export default function OperationsTabBoundary({ activeTab, state, role, currentU
   setExactCount: (material: Material, qty: number) => void;
   setTab: (tab: AppTab) => void;
   submitTransactions: (txs: Omit<Transaction, "id" | "ts">[], chosenDate?: string) => void;
-  submitDailyLog: (input: Omit<DailyLog, "id" | "createdAt">) => void;
+  submitDailyLog: (input: Omit<DailyLog, "id" | "createdAt">, files?: File[]) => void;
   saveSite: (site: Site) => void;
   saveTool: (tool: ToolItem, message?: string) => void;
   saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void;
@@ -121,7 +144,7 @@ function printDailyLogs(state: AppState, list: DailyLog[]) {
   }
 }
 
-function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog, saveSite, setTab }: { state: AppState; role: Role; userId: string; submitTransactions: (txs: Omit<Transaction, "id" | "ts">[], chosenDate?: string) => void; submitDailyLog: (input: Omit<DailyLog, "id" | "createdAt">) => void; saveSite: (site: Site) => void; setTab: (tab: AppTab) => void }) {
+function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog, saveSite, setTab }: { state: AppState; role: Role; userId: string; submitTransactions: (txs: Omit<Transaction, "id" | "ts">[], chosenDate?: string) => void; submitDailyLog: (input: Omit<DailyLog, "id" | "createdAt">, files?: File[]) => void; saveSite: (site: Site) => void; setTab: (tab: AppTab) => void }) {
   const [siteId, setSiteId] = useState(state.sites[0]?.id);
   const [serviceId, setServiceId] = useState<ServiceId>("wp");
   const [type, setType] = useState<TxType>("use");
@@ -135,6 +158,7 @@ function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog,
   const [workCompleted, setWorkCompleted] = useState("");
   const [challenges, setChallenges] = useState("");
   const [weather, setWeather] = useState("");
+  const [photos, setPhotos] = useState<File[]>([]);
   const [toDoNextTime, setToDoNextTime] = useState("");
   const materials = state.materials.filter((material) => material.strictTracking !== false && (!query || material.name.toLowerCase().includes(query.toLowerCase())));
   const total = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
@@ -150,12 +174,13 @@ function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog,
   const submit = () => {
     if (!canSubmit || !siteId) return;
     submitTransactions(Object.entries(cart).filter(([, qty]) => qty > 0).map(([materialId, qty]) => ({ materialId, qty, type, siteId, serviceId, userId })), logDate);
-    submitDailyLog({ siteId, serviceId, date: logDate, materialsInstalled: materialsInstalled.trim() || undefined, workCompleted: workCompleted.trim(), challenges: challenges.trim() || undefined, weather: weather.trim() || undefined, toDoNextTime: toDoNextTime.trim(), completedByUserId, submittedByUserId: userId });
+    submitDailyLog({ siteId, serviceId, date: logDate, materialsInstalled: materialsInstalled.trim() || undefined, workCompleted: workCompleted.trim(), challenges: challenges.trim() || undefined, weather: weather.trim() || undefined, toDoNextTime: toDoNextTime.trim(), completedByUserId, submittedByUserId: userId }, photos);
     setCart({});
     setMaterialsInstalled("");
     setWorkCompleted("");
     setChallenges("");
     setWeather("");
+    setPhotos([]);
     setToDoNextTime("");
   };
   const addSite = () => {
@@ -165,10 +190,10 @@ function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog,
     setSiteId(site.id);
     setNewSite("");
   };
-  const historySection = <section className="card" id="wz-daily-log-history"><div className="sec-h"><h3>{canManage(role) ? "All daily logs" : "Your recent daily logs"}</h3>{recentLogs.length > 0 && <button className="link" onClick={() => printDailyLogs(state, recentLogs)}>Export</button>}</div>{canManage(role) && <><label className="fld">{logMonth ? "Month" : "Month (showing all)"}</label><input className="in" type="month" value={logMonth} onChange={(event) => setLogMonth(event.target.value)} /></>}{recentLogs.length ? recentLogs.map((log) => <div className="line-item" key={log.id}><div className="mid"><b>{siteName(state, log.siteId)}</b><div className="tiny muted">{formatDate(log.date)} · {serviceName(state, log.serviceId)} · {userName(state, log.completedByUserId)}</div><div className="tiny muted">{log.workCompleted}</div></div></div>) : <p className="tiny muted">{logMonth ? "Nothing logged for this month." : "No daily logs yet."}</p>}</section>;
+  const historySection = <section className="card" id="wz-daily-log-history"><div className="sec-h"><h3>{canManage(role) ? "All daily logs" : "Your recent daily logs"}</h3>{recentLogs.length > 0 && <button className="link" onClick={() => printDailyLogs(state, recentLogs)}>Export</button>}</div>{canManage(role) && <><label className="fld">{logMonth ? "Month" : "Month (showing all)"}</label><input className="in" type="month" value={logMonth} onChange={(event) => setLogMonth(event.target.value)} /></>}{recentLogs.length ? recentLogs.map((log) => <div className="line-item" key={log.id}><div className="mid"><b>{siteName(state, log.siteId)}</b><div className="tiny muted">{formatDate(log.date)} · {serviceName(state, log.serviceId)} · {userName(state, log.completedByUserId)}</div><div className="tiny muted">{log.workCompleted}</div><DailyLogMediaLinks media={state.dailyLogMedia.filter((item) => item.dailyLogId === log.id)} /></div></div>) : <p className="tiny muted">{logMonth ? "Nothing logged for this month." : "No daily logs yet."}</p>}</section>;
   const entryForm = <>
     <section className="card"><label className="fld">Date</label><input className="in" type="date" value={logDate} max={todayKey()} onChange={(event) => setLogDate(event.target.value)} /><label className="fld">Job site</label><select className="in" value={siteId ?? ""} onChange={(event) => setSiteId(event.target.value)}>{!siteId && <option value="">Choose a job site</option>}{sortedSites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select><div className="row-action"><input className="in" value={newSite} onChange={(event) => setNewSite(event.target.value)} placeholder="+ Add job site" /><button className="btn line sm" onClick={addSite}>Add</button></div>{selectedSite?.driveFolderUrl && <a className="tiny" href={selectedSite.driveFolderUrl} target="_blank" rel="noreferrer">Job details / site plans →</a>}<label className="fld">Service</label><div className="selrow">{state.services.map((service) => <button key={service.id} className={`sopt ${serviceId === service.id ? "on" : ""}`} onClick={() => setServiceId(service.id)}>{service.name}</button>)}</div></section>
-    <section className="card"><h3>Daily log</h3><label className="fld">Materials installed</label><textarea className="in" value={materialsInstalled} onChange={(event) => setMaterialsInstalled(event.target.value)} placeholder="Square feet / linear feet, optional" /><label className="fld">Work completed*</label><textarea className="in" value={workCompleted} onChange={(event) => setWorkCompleted(event.target.value)} /><label className="fld">Challenges</label><textarea className="in" value={challenges} onChange={(event) => setChallenges(event.target.value)} placeholder="Optional" /><label className="fld">Weather</label><input className="in" value={weather} onChange={(event) => setWeather(event.target.value)} placeholder="Optional — e.g. rain all afternoon" /><label className="fld">To do next time*</label><textarea className="in" value={toDoNextTime} onChange={(event) => setToDoNextTime(event.target.value)} /><label className="fld">Completed by</label><select className="in" value={completedByUserId} onChange={(event) => setCompletedByUserId(event.target.value)}>{activeUsers.map((item) => <option key={item.id} value={item.id}>{item.name}{item.orgRole ? ` — ${item.orgRole}` : ""}</option>)}</select></section>
+    <section className="card"><h3>Daily log</h3><label className="fld">Materials installed</label><textarea className="in" value={materialsInstalled} onChange={(event) => setMaterialsInstalled(event.target.value)} placeholder="Square feet / linear feet, optional" /><label className="fld">Work completed*</label><textarea className="in" value={workCompleted} onChange={(event) => setWorkCompleted(event.target.value)} /><label className="fld">Challenges</label><textarea className="in" value={challenges} onChange={(event) => setChallenges(event.target.value)} placeholder="Optional" /><label className="fld">Weather</label><input className="in" value={weather} onChange={(event) => setWeather(event.target.value)} placeholder="Optional — e.g. rain all afternoon" /><label className="fld">To do next time*</label><textarea className="in" value={toDoNextTime} onChange={(event) => setToDoNextTime(event.target.value)} /><label className="fld">Completed by</label><select className="in" value={completedByUserId} onChange={(event) => setCompletedByUserId(event.target.value)}>{activeUsers.map((item) => <option key={item.id} value={item.id}>{item.name}{item.orgRole ? ` — ${item.orgRole}` : ""}</option>)}</select><label className="fld">Photos &amp; video</label><div className="file-picker"><input className="in" type="file" accept="image/*,video/*" multiple onChange={(event) => { setPhotos((current) => [...current, ...Array.from(event.target.files ?? [])]); event.target.value = ""; }} /><p className="tiny muted">Optional. Add as many as you like, up to 50MB each.</p>{photos.map((file, index) => <div className="line-item" key={`${file.name}-${index}`}><div className="mid"><b>{file.name}</b><div className="tiny muted">{(file.size / 1024 / 1024).toFixed(1)} MB</div></div><button className="btn line sm" onClick={() => setPhotos((current) => current.filter((_, i) => i !== index))}>Remove</button></div>)}</div></section>
     <div className="seg">{(["use", "deliver", "return", "receive", "loss"] as TxType[]).map((item) => <button key={item} className={type === item ? "on" : ""} onClick={() => setType(item)}>{item}</button>)}</div>
     <div className="search"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search materials to add" /></div><section className="card">{materials.map((material) => <div className="line-item" key={material.id}><div className="mid"><b>{material.name}</b><div className="tiny muted">{material.qty} {material.unit} on hand · locked unit</div></div><div className="qtybox"><button onClick={() => add(material, -1)}>-</button><input readOnly value={cart[material.id] ?? 0} /><button onClick={() => add(material, 1)}>+</button></div>{cart[material.id] > 0 && <button className="btn line sm" onClick={() => setCart((current) => ({ ...current, [material.id]: 0 }))}>Remove</button>}</div>)}</section>
     {total > 0 && (

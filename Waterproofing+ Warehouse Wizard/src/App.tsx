@@ -23,6 +23,7 @@ import {
   insertMaintenanceRequest,
   insertTransactions,
   updateResolvedTransaction,
+  uploadDailyLogMedia,
   dismissTransactionReview,
   invokeMaterialsImport,
   invokeQuickBooksConnect,
@@ -562,7 +563,28 @@ export function App() {
     setSheet(null);
   };
 
-  const submitDailyLog = (input: Omit<DailyLog, "id" | "createdAt">) => {
+  /**
+   * Photos and clips go up after the log row itself is in, so a storage
+   * failure never costs the crew the written entry. They are not queued
+   * offline: the files can be hundreds of megabytes and localStorage is the
+   * wrong place for them, so an offline log says plainly that the photos
+   * still need adding.
+   */
+  const attachDailyLogFiles = async (dailyLogId: string, files: File[]) => {
+    const failed: string[] = [];
+    for (const file of files) {
+      try {
+        await uploadDailyLogMedia(dailyLogId, file, currentUser.id);
+      } catch (err) {
+        failed.push((err as Error).message);
+      }
+    }
+    if (failed.length) notify(failed[0]);
+    else notify(`${files.length} ${files.length === 1 ? "file" : "files"} attached to the daily log.`);
+    invalidateRemote();
+  };
+
+  const submitDailyLog = (input: Omit<DailyLog, "id" | "createdAt">, files: File[] = []) => {
     // Worked out here rather than inside the state updater. React only evaluates
     // an updater eagerly while its queue is empty, and this one is dispatched
     // straight after the transactions update from the same click - so it ran
@@ -597,14 +619,19 @@ export function App() {
       // Only a failed insert is queued. Once the row is in, a points hiccup must
       // not replay the whole command and credit the pool a second time.
       insertDailyLog(createdLog).then(
-        () => (poolDelta > 0 ? addToCrewPool(poolDelta) : createdEvent ? persistPoints([createdEvent]) : Promise.resolve())
-          .then(invalidateRemote)
-          .catch((err) => notify(`Daily log points sync failed: ${err.message}`)),
+        () => {
+          if (files.length) void attachDailyLogFiles(createdLog.id, files);
+          return (poolDelta > 0 ? addToCrewPool(poolDelta) : createdEvent ? persistPoints([createdEvent]) : Promise.resolve())
+            .then(invalidateRemote)
+            .catch((err) => notify(`Daily log points sync failed: ${err.message}`));
+        },
         () => {
           notify("Daily log saved offline. It will sync when connection returns.");
           setState((latest) => ({ ...latest, offlineQueue: [...latest.offlineQueue, queueItem] }));
         },
       );
+    } else if (files.length) {
+      notify("The log saved, but photos need a connection. Add them again once you are back on signal.");
     }
     setSheet(null);
   };
@@ -683,7 +710,7 @@ export function App() {
             Reports
           </button>
         ) : <>
-          {(["home", "log", "trucks", "tools", "inventory", "jobs"] as Tab[]).map((item) => (
+          {(["home", "log", "trucks", "tools", "inventory"] as Tab[]).map((item) => (
             <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>
               <NavIcon tab={item} />
               {item === "inventory" ? "Inventory" : item === "log" ? "Daily Log" : item === "trucks" ? "Tasks" : item[0].toUpperCase() + item.slice(1)}
@@ -695,6 +722,10 @@ export function App() {
               Reports
             </button>
           )}
+          <button className={tab === "jobs" ? "on" : ""} onClick={() => setTab("jobs")}>
+            <NavIcon tab={"jobs"} />
+            Jobs
+          </button>
           {canManage(currentUser.role) && (
             <button className={tab === "admin" ? "on" : ""} onClick={() => setTab("admin")}>
               <NavIcon tab={"admin"} />

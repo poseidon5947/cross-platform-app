@@ -248,6 +248,7 @@ export interface AppState {
   offlineQueue: OfflineCommand[];
   maintenanceRequests: MaintenanceRequest[];
   dailyLogs: DailyLog[];
+  dailyLogMedia: DailyLogMedia[];
   crewPoolPoints: number;
 }
 
