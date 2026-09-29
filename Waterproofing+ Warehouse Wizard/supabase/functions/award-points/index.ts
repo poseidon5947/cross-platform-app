@@ -241,11 +241,21 @@ async function awardLoadInComplete(service: any, caller: any, callerId: string, 
     return json({ error: "Points go to the person assigned to the load-in" }, 403);
   }
 
-  const { count, error: itemError } = await service
-    .from("project_load_in_item").select("id", { count: "exact", head: true })
+  // Counted by reading the outstanding rows, not by asking for a count. A
+  // head+count request can come back with count null, and `(count ?? 0) > 0`
+  // then reads as "nothing outstanding" - the guard fails open and pays for a
+  // load-in that was never finished. Rows cannot be ambiguous that way.
+  const { data: outstanding, error: itemError } = await service
+    .from("project_load_in_item").select("id")
     .eq("load_in_id", loadInId).is("done_at", null);
   if (itemError) return json({ error: itemError.message }, 500);
-  if ((count ?? 0) > 0) return json({ error: "Tick off every item before the points land" }, 409);
+  if (!outstanding) return json({ error: "Could not check the load-in items" }, 500);
+  if (outstanding.length > 0) return json({ error: "Tick off every item before the points land" }, 409);
+
+  const { data: anyItem, error: anyError } = await service
+    .from("project_load_in_item").select("id").eq("load_in_id", loadInId).limit(1);
+  if (anyError) return json({ error: anyError.message }, 500);
+  if (!anyItem?.length) return json({ error: "This load-in has no items to complete" }, 409);
 
   return insertIdempotent(service, {
     userId, type: "load_in_complete", points: LOAD_IN_POINTS,
