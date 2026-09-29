@@ -7,7 +7,9 @@ import type { UIStyle } from "./uiStyle";
 import { ThemeEditor } from "./components/ThemeEditor";
 import { UIStyleEditor } from "./components/UIStyleEditor";
 import { GraphModal } from "./components/GraphModal";
+import { LoadInChecklist } from "./components/LoadIn";
 import type { GraphType } from "./components/GraphModal";
+import type { NewLoadIn } from "./components/LoadIn";
 import { SuiteSwitcher } from "./components/SuiteSwitcher";
 import { ThemeControl, useThemePreference } from "./components/ThemeControl";
 import { ToastHost, useToast } from "./components/Toast";
@@ -24,6 +26,10 @@ import {
   insertTransactions,
   updateResolvedTransaction,
   uploadDailyLogMedia,
+  insertLoadIn,
+  uploadLoadInFile,
+  setLoadInItemDone,
+  markLoadInComplete,
   dismissTransactionReview,
   invokeMaterialsImport,
   invokeQuickBooksConnect,
@@ -70,11 +76,12 @@ import {
   ALLOWED_MATERIAL_UNITS,
   priceChangeMaterials,
   stepForMaterialUnit,
+  addDays,
   formatDate,
   loginEmailFor,
 } from "./domain/business";
 import { isSupabaseConfigured, supabase } from "./integrations/supabase";
-import type { AppState, Category, DailyLog, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, PointsEvent, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User, OfflineCommand } from "./types";
+import type { AppState, Category, DailyLog, ProjectLoadIn, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, PointsEvent, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User, OfflineCommand } from "./types";
 
 const STORAGE_KEY = "warehouse-wizard-state-v4";
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true" || !isSupabaseConfigured();
@@ -506,6 +513,79 @@ export function App() {
     }
   };
 
+  /**
+   * The project manager sends tomorrow's load-in list.
+   *
+   * Files go up after the list itself is saved, so a failed upload costs an
+   * attachment rather than the whole list - the crew can still load from it.
+   */
+  const saveLoadIn = (input: NewLoadIn) => {
+    if (!remoteMode) return notify("Load-in lists need the live database.");
+    const now = new Date().toISOString();
+    const loadIn: ProjectLoadIn = {
+      id: crypto.randomUUID(),
+      siteId: input.siteId,
+      serviceId: input.serviceId,
+      loadInDate: input.loadInDate,
+      notes: input.notes,
+      assignedTo: input.assignedTo,
+      createdBy: currentUser.id,
+      createdAt: now,
+      submittedAt: now,
+    };
+    insertLoadIn(loadIn, input.items)
+      .then(async (saved) => {
+        for (const file of input.files) {
+          try {
+            await uploadLoadInFile(saved.id, file, currentUser.id);
+          } catch (err) {
+            notify((err as Error).message);
+          }
+        }
+        invalidateRemote();
+        notify(`Load-in sent to ${userName(state, input.assignedTo ?? "")}.`);
+        setSheet(null);
+      })
+      .catch((err: Error) => notify(err.message));
+  };
+
+  const toggleLoadInItem = (itemId: string, done: boolean) => {
+    patchState((current) => ({
+      ...current,
+      loadInItems: current.loadInItems.map((item) => item.id === itemId
+        ? { ...item, doneAt: done ? new Date().toISOString() : undefined, doneBy: done ? currentUser.id : undefined }
+        : item),
+    }), done ? "Loaded" : "Unticked");
+    if (remoteMode) {
+      setLoadInItemDone(itemId, done, currentUser.id).then(invalidateRemote).catch((err: Error) => notify(err.message));
+    }
+  };
+
+  /** 50 points, and the server checks every item is ticked before it pays. */
+  const completeLoadIn = (loadIn: ProjectLoadIn) => {
+    const recipient = loadIn.assignedTo ?? currentUser.id;
+    const event: PointsEvent = {
+      id: id("pe"),
+      userId: recipient,
+      type: "load_in_complete",
+      points: 50,
+      reason: "Project load-in completed",
+      ref: `loadin:${loadIn.id}`,
+      ts: new Date().toISOString(),
+    };
+    patchState((current) => ({
+      ...current,
+      loadIns: current.loadIns.map((item) => item.id === loadIn.id ? { ...item, completedAt: event.ts } : item),
+      pointsEvents: [event, ...current.pointsEvents],
+    }), "Load-in complete - 50 points");
+    if (remoteMode) {
+      markLoadInComplete(loadIn.id)
+        .then(() => persistPoints([event]))
+        .then(invalidateRemote)
+        .catch((err: Error) => notify(err.message));
+    }
+  };
+
   const saveMaterial = (material: Material, includeQty = true) => {
     const materialToSave = applyCostChangeFlag(state.materials.find((item) => item.id === material.id), material);
     patchState((current) => ({
@@ -694,11 +774,11 @@ export function App() {
           </div>)}
           <div className="tiny muted" style={{ padding: "8px 11px" }}>These keep retrying. Discarding one removes it from this phone without saving it to the server.</div>
         </section>}
-        {tab === "home" && <Home state={state} role={currentUser.role} userId={currentUser.id} setTab={setTab} goToFocus={goToFocus} openGraph={setGraphModal} />}
+        {tab === "home" && <Home state={state} role={currentUser.role} userId={currentUser.id} setTab={setTab} goToFocus={goToFocus} openGraph={setGraphModal} toggleLoadInItem={toggleLoadInItem} completeLoadIn={completeLoadIn} />}
         <React.Suspense fallback={<TabSkeleton />}>
           {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
-          {tab === "jobs" && <LazyJobsTab state={state} role={currentUser.role} saveSite={saveSite} openSheet={setSheet} />}
+          {tab === "jobs" && <LazyJobsTab state={state} role={currentUser.role} userId={currentUser.id} saveSite={saveSite} openSheet={setSheet} saveLoadIn={saveLoadIn} />}
           {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} setState={setState} openSheet={setSheet} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "cfo" && <LazyCfoTab state={state} role={currentUser.role} resolveTransaction={resolveTransaction} dismissTransaction={dismissTransaction} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
         </React.Suspense>
@@ -788,7 +868,7 @@ function ShellMessage({ title, detail }: { title: string; detail: string }) {
   return <div className="app auth loading-screen"><section className="card"><div className="brand loading-brand"><span className={`logo ${loading ? "loading-mark" : ""}`} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2.5c3.5 4.2 6 7.4 6 10.6a6 6 0 1 1-12 0c0-3.2 2.5-6.4 6-10.6Z" fill="currentColor" /></svg></span><div><h1>{title}</h1><p>{detail}</p></div></div>{loading && <div className="loading-line" aria-hidden="true"><i /></div>}</section></div>;
 }
 
-function Home({ state, role, userId, setTab, goToFocus, openGraph }: { state: AppState; role: Role; userId: string; setTab: (tab: Tab) => void; goToFocus: (tab: Tab, focus: string) => void; openGraph: (t: GraphType) => void }) {
+function Home({ state, role, userId, setTab, goToFocus, openGraph, toggleLoadInItem, completeLoadIn }: { state: AppState; role: Role; userId: string; setTab: (tab: Tab) => void; goToFocus: (tab: Tab, focus: string) => void; openGraph: (t: GraphType) => void; toggleLoadInItem: (itemId: string, done: boolean) => void; completeLoadIn: (loadIn: ProjectLoadIn) => void }) {
   const trackedMaterials = state.materials.filter((material) => material.strictTracking !== false);
   const lows = trackedMaterials.filter((material) => stockStatus(material).key !== "good");
   const today = todayKey();
@@ -801,8 +881,22 @@ function Home({ state, role, userId, setTab, goToFocus, openGraph }: { state: Ap
   const maintenance = state.maintenanceRequests.filter((request) => request.status === "open").length;
   const incompleteTasks = Math.max(0, progress.total - progress.done);
   const needsReviewCount = state.transactions.filter((tx) => tx.needsReview && !tx.reviewDismissedAt).length;
+  // Today's and tomorrow's, so a list sent at 5pm is visible that evening as
+  // well as the next morning. Finished ones drop off.
+  const loadInWindow = [todayKey(), addDays(todayKey(), 1)];
+  const myLoadIns = state.loadIns.filter((loadIn) =>
+    loadIn.assignedTo === userId && !loadIn.completedAt && loadInWindow.includes(loadIn.loadInDate));
   const attention = [{ count: maintenance, label: "Open maintenance requests", tab: "trucks" as Tab, focus: "maintenance" }, { count: incompleteTasks, label: "Truck tasks remaining today", tab: "trucks" as Tab, focus: "tasks" }, { count: lows.length, label: "Items below reorder threshold", tab: "inventory" as Tab, focus: "low-stock" }, ...(canManage(role) ? [{ count: needsReviewCount, label: "Daily log items need review", tab: "cfo" as Tab, focus: "needs-review" }] : [])].filter((item) => item.count > 0);
   return <>
+    {myLoadIns.map((loadIn) => <LoadInChecklist
+      key={loadIn.id}
+      state={state}
+      loadIn={loadIn}
+      items={state.loadInItems.filter((item) => item.loadInId === loadIn.id)}
+      media={state.loadInMedia.filter((item) => item.loadInId === loadIn.id)}
+      onToggle={toggleLoadInItem}
+      onComplete={completeLoadIn}
+    />)}
     {attention.length > 0 && <section className="attention-strip" aria-label="Needs attention"><div className="attention-title"><span aria-hidden="true">!</span><b>Needs attention</b></div><div className="attention-rows">{attention.map((item) => <button key={item.label} onClick={() => item.focus ? goToFocus(item.tab, item.focus) : setTab(item.tab)}><span>{item.label}</span><b>{item.count}</b><span aria-hidden="true">→</span></button>)}</div></section>}
     <div className="banner"><b>{progress.pct === 100 ? "Daily tasks complete" : "Crew-first workflow"}</b><span>{progress.done}/{progress.total} daily tasks complete today.</span></div>
     <div className="kpis">

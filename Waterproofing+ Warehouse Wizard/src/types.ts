@@ -33,7 +33,8 @@ export type PointsEventType =
   | "crew_safety_milestone"
   | "crew_peer_recognition"
   | "redeem"
-  | "daily_log_entry";
+  | "daily_log_entry"
+  | "load_in_complete";
 
 export interface Material {
   id: string;
@@ -145,6 +146,42 @@ export interface Transaction {
   reviewDismissedAt?: string;
 }
 
+/** Tomorrow's load-in, prepared by the project manager the evening before. */
+export interface ProjectLoadIn {
+  id: string;
+  siteId: string;
+  serviceId: ServiceId;
+  /** The morning the load-in is for. */
+  loadInDate: string;
+  notes?: string;
+  assignedTo?: string;
+  createdBy?: string;
+  createdAt: string;
+  submittedAt?: string;
+  completedAt?: string;
+}
+
+/** One thing to load. The label is a snapshot, so editing the task list later
+ *  does not rewrite what someone was told to load. */
+export interface ProjectLoadInItem {
+  id: string;
+  loadInId: string;
+  taskId?: string;
+  label: string;
+  section?: string;
+  doneAt?: string;
+  doneBy?: string;
+}
+
+export interface ProjectLoadInMedia {
+  id: string;
+  loadInId: string;
+  storageKey: string;
+  kind: "photo" | "pdf";
+  uploadedBy?: string;
+  createdAt: string;
+}
+
 /** A photo or clip attached to a daily log. */
 export interface DailyLogMedia {
   id: string;
@@ -251,6 +288,9 @@ export interface AppState {
   maintenanceRequests: MaintenanceRequest[];
   dailyLogs: DailyLog[];
   dailyLogMedia: DailyLogMedia[];
+  loadIns: ProjectLoadIn[];
+  loadInItems: ProjectLoadInItem[];
+  loadInMedia: ProjectLoadInMedia[];
   crewPoolPoints: number;
 }
 

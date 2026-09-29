@@ -8,6 +8,11 @@ import {
   applyTruckLog,
   combineDateWithNow,
   formatDate,
+  addDays,
+  isCrewWorkDay,
+  loadInProgress,
+  nextLoadInDate,
+  weekdayOf,
   materialsForService,
   formatDateTime,
   loginEmailFor,
@@ -28,6 +33,42 @@ import {
   todayKey,
   weekKey,
 } from "./business";
+
+describe("load-in scheduling", () => {
+  it("adds calendar days without a timezone getting involved", () => {
+    expect(addDays("2026-09-30", 1)).toBe("2026-10-01");
+    expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
+  });
+
+  it("steps over the November DST change cleanly", () => {
+    // Vancouver leaves daylight time on 2026-11-01. Adding 24 hours to a Date
+    // lands on the wrong day here; shifting the calendar day does not.
+    expect(addDays("2026-10-31", 1)).toBe("2026-11-01");
+    expect(addDays("2026-11-01", 1)).toBe("2026-11-02");
+  });
+
+  it("knows the crew work Monday to Saturday", () => {
+    expect(weekdayOf("2026-10-04")).toBe(0);           // Sunday
+    expect(isCrewWorkDay("2026-10-04")).toBe(false);
+    expect(isCrewWorkDay("2026-10-03")).toBe(true);    // Saturday
+    expect(isCrewWorkDay("2026-10-05")).toBe(true);    // Monday
+  });
+
+  it("skips the Saturday-night list, because nobody works Sunday", () => {
+    // Friday evening -> Saturday morning
+    expect(nextLoadInDate("2026-10-02")).toBe("2026-10-03");
+    // Saturday evening -> Monday, not Sunday
+    expect(nextLoadInDate("2026-10-03")).toBe("2026-10-05");
+    // Sunday evening -> Monday
+    expect(nextLoadInDate("2026-10-04")).toBe("2026-10-05");
+  });
+
+  it("counts what is loaded", () => {
+    expect(loadInProgress([])).toEqual({ done: 0, total: 0, pct: 0, complete: false });
+    expect(loadInProgress([{ doneAt: "x" }, {}])).toEqual({ done: 1, total: 2, pct: 50, complete: false });
+    expect(loadInProgress([{ doneAt: "x" }, { doneAt: "y" }])).toEqual({ done: 2, total: 2, pct: 100, complete: true });
+  });
+});
 
 describe("materialsForService", () => {
   const list = [

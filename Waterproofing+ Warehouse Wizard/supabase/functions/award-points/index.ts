@@ -16,6 +16,7 @@ const selfServeCrewRules = new Set(["earn-daily", "earn-weekly", "earn-monthly",
 const peerCrewRules = new Set(["earn-peer"]);
 const managerCrewRules = new Set(["earn-review", "earn-kpi", "earn-google", "earn-compliment", "earn-safety", "earn-certs"]);
 const DAILY_LOG_ENTRY_POINTS = 5;
+const LOAD_IN_POINTS = 50;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -45,6 +46,7 @@ serve(async (req) => {
     if (kind === "streak_reversal") return await awardStreakReversal(service, caller, body);
     if (kind === "manual_adjust") return await awardManualAdjust(service, caller, body);
     if (kind === "daily_log_entry") return await awardDailyLogEntry(service, caller, userData.user.id, body);
+    if (kind === "load_in_complete") return await awardLoadInComplete(service, caller, userData.user.id, body);
     return json({ error: `Unsupported award kind: ${kind}` }, 400);
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Could not award points" }, 500);
@@ -205,6 +207,50 @@ async function awardDailyLogEntry(service: any, caller: any, callerId: string, b
   if (log.completed_by_user_id !== userId) return json({ error: "Points go to the person who completed the log" }, 403);
 
   return insertIdempotent(service, { userId, type: "daily_log_entry", points: DAILY_LOG_ENTRY_POINTS, reason: "Daily log entry submitted", ref, contract: "suite.points.v1" });
+}
+
+/**
+ * 50 points for finishing a project load-in.
+ *
+ * Verified against the row the same way the daily log award is: the load-in
+ * must exist, the caller must be the person it was assigned to (or a manager),
+ * and the points go to the assignee whatever the client sends. The points
+ * value is a server constant - a caller asking for 5000 gets 50.
+ *
+ * The list must actually be finished. The client's rule is that the assignee
+ * "checks off all completed items and gets 50 points", so an outstanding item
+ * is refused rather than quietly awarded.
+ */
+async function awardLoadInComplete(service: any, caller: any, callerId: string, body: Record<string, unknown>) {
+  const userId = stringValue(body.crewMemberId || body.userId);
+  const ref = stringValue(body.ref);
+  const loadInId = ref.replace(/^loadin:/, "");
+  if (!userId || !loadInId) return json({ error: "crewMemberId and ref are required" }, 400);
+
+  const existing = await existingResponse(service, "load_in_complete", ref);
+  if (existing) return existing;
+
+  const { data: loadIn, error } = await service
+    .from("project_load_in").select("id,assigned_to").eq("id", loadInId).maybeSingle();
+  if (error) return json({ error: error.message }, 500);
+  if (!loadIn) return json({ error: "Load-in not found" }, 404);
+  if (loadIn.assigned_to !== callerId && !isManager(caller)) {
+    return json({ error: "Only the person assigned to the load-in can claim its points" }, 403);
+  }
+  if (loadIn.assigned_to !== userId) {
+    return json({ error: "Points go to the person assigned to the load-in" }, 403);
+  }
+
+  const { count, error: itemError } = await service
+    .from("project_load_in_item").select("id", { count: "exact", head: true })
+    .eq("load_in_id", loadInId).is("done_at", null);
+  if (itemError) return json({ error: itemError.message }, 500);
+  if ((count ?? 0) > 0) return json({ error: "Tick off every item before the points land" }, 409);
+
+  return insertIdempotent(service, {
+    userId, type: "load_in_complete", points: LOAD_IN_POINTS,
+    reason: "Project load-in completed", ref, contract: "suite.points.v1",
+  });
 }
 
 async function insertIdempotent(service: any, event: { userId: string; type: string; points: number; reason: string; ref: string; contract: string }) {

@@ -1,6 +1,6 @@
 import { supabase } from "../integrations/supabase";
 import { todayKey } from "../domain/business";
-import type { AppState, DailyLog, DailyLogMedia, MaintenanceRequest, Material, OfflineCommand, PointsEvent, Service, Site, Streak, TaskCompletion, ToolItem, Transaction, Truck, TruckLog, TruckTask, User } from "../types";
+import type { AppState, DailyLog, DailyLogMedia, MaintenanceRequest, ProjectLoadIn, ProjectLoadInItem, ProjectLoadInMedia, Material, OfflineCommand, PointsEvent, Service, Site, Streak, TaskCompletion, ToolItem, Transaction, Truck, TruckLog, TruckTask, User } from "../types";
 
 function requireClient() {
   if (!supabase) throw new Error("Supabase is not configured.");
@@ -198,6 +198,9 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+/** A uuid column will not take a local id like "u_7" - send null instead. */
+const uuidOrNull = (value: string | undefined | null) => (value && isUuid(value) ? value : null);
+
 const dailyLogFromRow = (row: any): DailyLog => ({
   id: row.id,
   siteId: row.site_id,
@@ -311,7 +314,7 @@ async function read<T>(table: string, mapper: (row: any) => T, order = "created_
 }
 
 export async function loadRemoteState(currentUserId: string): Promise<AppState> {
-  const [materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streakRows, maintenanceRequests, dailyLogs, dailyLogMedia, crewPoolPoints] =
+  const [materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streakRows, maintenanceRequests, dailyLogs, dailyLogMedia, loadIns, loadInItems, loadInMedia, crewPoolPoints] =
     await Promise.all([
       read("materials", materialFromRow),
       read("sites", siteFromRow),
@@ -328,9 +331,12 @@ export async function loadRemoteState(currentUserId: string): Promise<AppState> 
       read("maintenance_request", maintenanceFromRow, "requested_at"),
       read("daily_logs", dailyLogFromRow, "date"),
       readDailyLogMedia(),
+      readLoadIns(),
+      readLoadInItems(),
+      readLoadInMedia(),
       readCrewPoolPoints(),
     ]);
-  return { materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streaks: streakRows, currentUserId, offlineQueue: [], maintenanceRequests, dailyLogs, dailyLogMedia, crewPoolPoints };
+  return { materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streaks: streakRows, currentUserId, offlineQueue: [], maintenanceRequests, dailyLogs, dailyLogMedia, loadIns, loadInItems, loadInMedia, crewPoolPoints };
 }
 
 export async function insertMaintenanceRequest(request: MaintenanceRequest) {
@@ -509,6 +515,136 @@ export async function uploadDailyLogMedia(dailyLogId: string, file: File, userId
 
 export async function dailyLogMediaSignedUrl(storageKey: string) {
   const { data, error } = await requireClient().storage.from("daily-log-media").createSignedUrl(storageKey, 60 * 60);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
+const loadInFromRow = (row: any): ProjectLoadIn => ({
+  id: row.id,
+  siteId: row.site_id,
+  serviceId: row.service_id,
+  loadInDate: row.load_in_date,
+  notes: row.notes ?? undefined,
+  assignedTo: row.assigned_to ?? undefined,
+  createdBy: row.created_by ?? undefined,
+  createdAt: row.created_at,
+  submittedAt: row.submitted_at ?? undefined,
+  completedAt: row.completed_at ?? undefined,
+});
+
+const loadInItemFromRow = (row: any): ProjectLoadInItem => ({
+  id: row.id,
+  loadInId: row.load_in_id,
+  taskId: row.task_id ?? undefined,
+  label: row.label,
+  section: row.section ?? undefined,
+  doneAt: row.done_at ?? undefined,
+  doneBy: row.done_by ?? undefined,
+});
+
+const loadInMediaFromRow = (row: any): ProjectLoadInMedia => ({
+  id: row.id,
+  loadInId: row.load_in_id,
+  storageKey: row.storage_key,
+  kind: row.kind === "pdf" ? "pdf" : "photo",
+  uploadedBy: row.uploaded_by ?? undefined,
+  createdAt: row.created_at,
+});
+
+/** Reads that return an empty list until the load-in migration has been run. */
+async function readLoadInTable<T>(table: string, mapper: (row: any) => T, order: string): Promise<T[]> {
+  const { data, error } = await requireClient().from(table).select("*").order(order, { ascending: true }).retry(false);
+  if (error) {
+    if (schemaMissing(error)) {
+      console.warn(`[warehouse] ${table} is not in the database yet - its migration still needs running.`);
+      return [];
+    }
+    throw error;
+  }
+  return (data ?? []).map(mapper);
+}
+
+export const readLoadIns = () => readLoadInTable("project_load_in", loadInFromRow, "load_in_date");
+export const readLoadInItems = () => readLoadInTable("project_load_in_item", loadInItemFromRow, "id");
+export const readLoadInMedia = () => readLoadInTable("project_load_in_media", loadInMediaFromRow, "created_at");
+
+/**
+ * The load-in and its items go in together. If the items fail the parent is
+ * removed again rather than leaving a crew member an empty list at 6am.
+ */
+export async function insertLoadIn(loadIn: ProjectLoadIn, items: Array<Pick<ProjectLoadInItem, "taskId" | "label" | "section">>) {
+  const client = requireClient();
+  const { data, error } = await client.from("project_load_in").insert({
+    id: isUuid(loadIn.id) ? loadIn.id : undefined,
+    site_id: loadIn.siteId,
+    service_id: loadIn.serviceId,
+    load_in_date: loadIn.loadInDate,
+    notes: loadIn.notes ?? null,
+    assigned_to: uuidOrNull(loadIn.assignedTo),
+    created_by: uuidOrNull(loadIn.createdBy),
+    submitted_at: loadIn.submittedAt ?? null,
+  }).select("*").single();
+  if (error) {
+    if (schemaMissing(error)) throw new Error("Project load-in needs its database update before lists can be saved.");
+    throw error;
+  }
+
+  if (items.length) {
+    const { error: itemError } = await client.from("project_load_in_item").insert(
+      items.map((item) => ({
+        load_in_id: data.id,
+        task_id: uuidOrNull(item.taskId),
+        label: item.label,
+        section: item.section ?? null,
+      })),
+    );
+    if (itemError) {
+      await client.from("project_load_in").delete().eq("id", data.id);
+      throw itemError;
+    }
+  }
+  return loadInFromRow(data);
+}
+
+export async function setLoadInItemDone(itemId: string, done: boolean, userId: string) {
+  const { data, error } = await requireClient().from("project_load_in_item").update({
+    done_at: done ? new Date().toISOString() : null,
+    done_by: done ? uuidOrNull(userId) : null,
+  }).eq("id", itemId).select("id");
+  if (error) throw error;
+  // Same guard as the transactions update: RLS that matches no rows reports
+  // success, and a tick that silently does not save is worse than an error.
+  if (!data?.length) throw new Error("That did not save - this load-in may not be assigned to you.");
+}
+
+export async function markLoadInComplete(loadInId: string) {
+  const { data, error } = await requireClient().from("project_load_in")
+    .update({ completed_at: new Date().toISOString() }).eq("id", loadInId).select("id");
+  if (error) throw error;
+  if (!data?.length) throw new Error("That did not save - this load-in may not be assigned to you.");
+}
+
+export async function uploadLoadInFile(loadInId: string, file: File, userId: string): Promise<ProjectLoadInMedia> {
+  if (file.size > MAX_MEDIA_BYTES) {
+    throw new Error(`${file.name} is ${(file.size / 1024 / 1024).toFixed(0)}MB. The limit is 50MB.`);
+  }
+  const kind: "photo" | "pdf" = file.type === "application/pdf" || /\.pdf$/i.test(file.name) ? "pdf" : "photo";
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+  const storageKey = `load-ins/${loadInId}/${crypto.randomUUID()}-${safeName}`;
+  const { error: uploadError } = await requireClient().storage.from("project-load-in").upload(storageKey, file, {
+    cacheControl: "31536000", upsert: false, contentType: file.type || undefined,
+  });
+  if (uploadError) throw uploadError;
+
+  const { data, error } = await requireClient().from("project_load_in_media")
+    .insert({ load_in_id: loadInId, storage_key: storageKey, kind, uploaded_by: uuidOrNull(userId) })
+    .select("*").single();
+  if (error) throw error;
+  return loadInMediaFromRow(data);
+}
+
+export async function loadInFileSignedUrl(storageKey: string) {
+  const { data, error } = await requireClient().storage.from("project-load-in").createSignedUrl(storageKey, 60 * 60);
   if (error) throw error;
   return data.signedUrl;
 }

@@ -375,6 +375,9 @@ export const truckTasks: TruckTask[] = [
 export function createSeedState(): AppState {
   return {
     dailyLogMedia: [],
+    loadIns: [],
+    loadInItems: [],
+    loadInMedia: [],
     materials,
     sites,
     services,

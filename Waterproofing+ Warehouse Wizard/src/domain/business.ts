@@ -63,6 +63,45 @@ export function materialsForService<T extends { serviceIds?: ServiceId[] }>(mate
   return materials.filter((material) => !material.serviceIds?.length || material.serviceIds.includes(serviceId));
 }
 
+/**
+ * Calendar maths on a YYYY-MM-DD, done in UTC on a date that has no time in
+ * it. Adding 24 hours to a Date would land on the wrong day across the
+ * November DST change; shifting the calendar day cannot.
+ */
+export function addDays(dayKey: string, days: number) {
+  const [year, month, day] = dayKey.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day));
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return shifted.toISOString().slice(0, 10);
+}
+
+/** 0 = Sunday. */
+export function weekdayOf(dayKey: string) {
+  const [year, month, day] = dayKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+}
+
+/** The crew work Monday to Saturday. */
+export function isCrewWorkDay(dayKey: string) {
+  return weekdayOf(dayKey) !== 0;
+}
+
+/**
+ * The morning a list prepared now is for: tomorrow, unless tomorrow is Sunday,
+ * in which case the next working morning is Monday. This is the client's rule
+ * that no alert is needed the night before Sunday.
+ */
+export function nextLoadInDate(todayDayKey: string) {
+  const tomorrow = addDays(todayDayKey, 1);
+  return isCrewWorkDay(tomorrow) ? tomorrow : addDays(tomorrow, 1);
+}
+
+export function loadInProgress(items: Array<{ doneAt?: string }>) {
+  const total = items.length;
+  const done = items.filter((item) => item.doneAt).length;
+  return { done, total, pct: total ? Math.round((done / total) * 100) : 0, complete: total > 0 && done === total };
+}
+
 export function money(value: number) {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(value || 0);
 }
