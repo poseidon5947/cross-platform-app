@@ -118,11 +118,11 @@ describe("materialsForService", () => {
     // visible everywhere. A caulking crew should now get the caulking gun
     // items and the shared supplies, not the drain mat.
     const trades = [
-      { id: "cws", serviceIds: ["clk"] },
-      { id: "dymonic", serviceIds: ["clk", "wp"] },
-      { id: "drainmat", serviceIds: ["wp"] },
+      { id: "cws", serviceIds: ["clk"] as const },
+      { id: "dymonic", serviceIds: ["clk", "wp"] as const },
+      { id: "drainmat", serviceIds: ["wp"] as const },
       { id: "gloves" },
-    ];
+    ].map((m) => ({ ...m, serviceIds: m.serviceIds ? [...m.serviceIds] : undefined }));
     expect(materialsForService(trades, "clk").map((m) => m.id)).toEqual(["cws", "dymonic", "gloves"]);
     expect(materialsForService(trades, "wp").map((m) => m.id)).toEqual(["dymonic", "drainmat", "gloves"]);
   });
