@@ -733,12 +733,14 @@ export function App() {
   });
 
   const handlePrimaryAction = () => {
-    if (tab === "log") setTab("inventory");
-    else if (tab === "tools") openToolsCheck();
+    if (tab === "tools") openToolsCheck();
     else setTab("log");
   };
 
-  const primaryActionLabel = tab === "log" ? "Back" : tab === "tools" ? "Check tools" : "Submit log";
+  // Nothing floating over the Daily Log page. It said "Back" while actually
+  // jumping to Inventory, it sat on top of the form, and the page already has
+  // its own Submit daily log button at the end of the entry.
+  const primaryActionLabel = tab === "log" ? null : tab === "tools" ? "Check tools" : "Submit log";
 
   return (
     <div className="app">
@@ -815,9 +817,9 @@ export function App() {
           )}
         </>}
       </nav>
-      <div className="bottom-bar">
+      {primaryActionLabel && <div className="bottom-bar">
         <button className="fab btn good" onClick={handlePrimaryAction}>{primaryActionLabel}</button>
-      </div>
+      </div>}
       {sheet && <BottomSheet title={sheet.title} onClose={() => setSheet(null)}>{sheet.content}</BottomSheet>}
       <ToastHost />
       {confetti && <Confetti />}

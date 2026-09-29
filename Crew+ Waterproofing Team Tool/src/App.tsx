@@ -6,6 +6,7 @@ import { bonusTrajectory, loginEmailFor, canApproveRedemptions, canRunReviews, c
 import type { CrewState, Profile, ReviewRating } from "./types";
 import { isSupabaseConfigured } from "./integrations/supabase";
 import { SuiteSwitcher } from "./components/SuiteSwitcher";
+import { NotOpenYet, useLaunchGate } from "./components/LaunchGate";
 import { ThemeControl, useThemePreference } from "./components/ThemeControl";
 import { ToastHost, useToast } from "./components/Toast";
 import { GraphModal } from "./components/GraphModal";
@@ -46,10 +47,13 @@ export function App() {
     if (remote.error) showToast(remote.error, "bad");
   }, [remote.error, showToast]);
 
+  const appIsLive = useLaunchGate("crew_plus_live");
+
   if (REMOTE_MODE && remote.loading) return <Splash text="Loading Crew+ from Supabase..." />;
   if (REMOTE_MODE && !remote.sessionUserId) return <LoginScreen error={remote.error} onLogin={remote.login} />;
 
   const currentUser = state.users.find((user) => user.id === state.currentUserId) ?? state.users[0];
+  if (REMOTE_MODE && !appIsLive && currentUser?.role !== "admin") return <NotOpenYet app="Crew+" />;
   const today = new Date().toISOString().slice(0, 10);
   const newHireRestricted = isNewHireRestricted(currentUser, today);
   const visibleTabs = (["home", "profile", "onboarding", "wallet", "rituals", "reviews", "forms", "timeoff", "incidents", "bonus", "certs", "rewards", "feedback", "admin"] as const).filter((item) => !newHireRestricted || NEW_HIRE_TABS.includes(item))

@@ -8,6 +8,7 @@ import { addStep, loginEmailFor, approveSop, attachMedia, attachUploadedMedia, c
 import type { MediaType, Role, SopDraft, SopItem, SopState, SopStatus } from "./types";
 import { isSupabaseConfigured } from "./integrations/supabase";
 import { SuiteSwitcher } from "./components/SuiteSwitcher";
+import { NotOpenYet, useLaunchGate } from "./components/LaunchGate";
 import { ThemeControl, useThemePreference } from "./components/ThemeControl";
 import { ToastHost, useToast } from "./components/Toast";
 import { GraphModal } from "./components/GraphModal";
@@ -58,11 +59,14 @@ export function App() {
     return () => window.removeEventListener("online", onOnline);
   }, [remote, setState]);
 
+  const appIsLive = useLaunchGate("sop_plus_live");
+
   if (REMOTE_MODE && remote.loading) return <Splash text="Loading SOP+ from Supabase..." />;
   if (REMOTE_MODE && !remote.sessionUserId) return <LoginScreen error={remote.error} onLogin={remote.login} />;
   if (!state) return <Splash text="Preparing SOP+..." />;
 
   const currentUser = state.users.find((user) => user.id === state.currentUserId) ?? state.users[0];
+  if (REMOTE_MODE && !appIsLive && currentUser?.role !== "admin") return <NotOpenYet app="SOP+" />;
   const selected = state.sops.find((sop) => sop.id === selectedId) ?? state.sops[0];
   const role = currentUser.role;
   const reviewCount = state.sops.filter((sop) => sop.status === "in_review").length;
