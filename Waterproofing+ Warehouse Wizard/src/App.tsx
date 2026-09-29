@@ -758,7 +758,9 @@ export function App() {
             <button className="theme-quick-btn" onClick={openThemeSheet} title="Appearance settings">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v6m0 6v6M1 12h6m6 0h6M3.93 3.93l4.24 4.24m5.66 5.66l4.24 4.24M3.93 20.07l4.24-4.24m5.66-5.66l4.24-4.24"/></svg>
             </button>
-            <button className="whoami" onClick={() => DEMO_MODE ? setSheet({ title: "Choose demo user", content: <UserSheet state={state} switchUser={switchDemoUser} /> }) : signOut().catch((err: Error) => notify(`Sign out failed: ${err.message}`))}>
+            <button className="whoami" onClick={() => DEMO_MODE
+              ? setSheet({ title: "Choose demo user", content: <UserSheet state={state} switchUser={switchDemoUser} /> })
+              : setSheet({ title: "Your account", content: <AccountSheet user={currentUser} onSignOut={() => { setSheet(null); signOut().catch((err: Error) => notify(`Sign out failed: ${err.message}`)); }} /> })}>
               <span className="av" style={{ background: currentUser.color }}>{initials(currentUser.name)}</span>
               <span>{currentUser.name} · {currentUser.role}</span>
             </button>
@@ -846,6 +848,24 @@ export function App() {
       )}
     </div>
   );
+}
+
+/**
+ * "Where is Log Out?" - it was the avatar chip, unlabelled, and it signed you
+ * straight out on the first tap. Now that chip opens this, so the way out is
+ * named and nobody loses a half-filled daily log by tapping their own initials.
+ */
+function AccountSheet({ user, onSignOut }: { user: User; onSignOut: () => void }) {
+  return <div>
+    <div className="line-item">
+      <div className="mid">
+        <b>{user.name}</b>
+        <div className="tiny muted">{user.email} &middot; {user.role}</div>
+      </div>
+    </div>
+    <button className="btn line block" onClick={onSignOut}>Log out</button>
+    <p className="tiny muted">Logging out here does not sign you out of Crew+ or SOP+.</p>
+  </div>;
 }
 
 function TabSkeleton() { return <section className="card tab-skeleton" aria-label="Loading section"><i /><i /><i /></section>; }
