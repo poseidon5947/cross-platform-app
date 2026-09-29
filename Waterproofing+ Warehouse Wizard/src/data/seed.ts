@@ -166,6 +166,7 @@ export const services: Service[] = [
   { id: "veh", name: "Vehicle / General", short: "TRK" },
   { id: "cfi", name: "CFI", short: "CFI" },
   { id: "xps", name: "XPS", short: "XPS" },
+  { id: "clk", name: "Caulking", short: "CLK" },
   { id: "always", name: "Always on Vehicle", short: "AOV" },
 ];
 

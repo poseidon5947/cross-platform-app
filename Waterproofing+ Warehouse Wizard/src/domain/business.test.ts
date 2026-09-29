@@ -112,6 +112,21 @@ describe("materialsForService", () => {
     expect(materialsForService(list, "trf").map((m) => m.id)).toContain("d");
   });
 
+  it("keeps Caulking separate from the waterproofing trades", () => {
+    // Caulking was missing from the app for months while being the second
+    // busiest service on the client's own sheet, so its materials were
+    // visible everywhere. A caulking crew should now get the caulking gun
+    // items and the shared supplies, not the drain mat.
+    const trades = [
+      { id: "cws", serviceIds: ["clk"] },
+      { id: "dymonic", serviceIds: ["clk", "wp"] },
+      { id: "drainmat", serviceIds: ["wp"] },
+      { id: "gloves" },
+    ];
+    expect(materialsForService(trades, "clk").map((m) => m.id)).toEqual(["cws", "dymonic", "gloves"]);
+    expect(materialsForService(trades, "wp").map((m) => m.id)).toEqual(["dymonic", "drainmat", "gloves"]);
+  });
+
   it("falls back to everything when nothing is mapped to that service", () => {
     // Better a long list than an empty one while the mapping is half filled.
     expect(materialsForService(list, "trf")).toHaveLength(4);

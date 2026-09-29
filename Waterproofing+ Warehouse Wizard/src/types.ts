@@ -10,7 +10,7 @@ export type Category =
   | "consumables"
   | "ppe"
   | "shop";
-export type ServiceId = "wp" | "ins" | "inj" | "trf" | "veh" | "cfi" | "xps" | "always";
+export type ServiceId = "wp" | "ins" | "inj" | "trf" | "veh" | "cfi" | "xps" | "clk" | "always";
 export type TxType = "use" | "deliver" | "loss" | "receive" | "return" | "adjust";
 export type ToolStatus = "in" | "out";
 export type ToolCondition = "good" | "repair" | "damaged";
