@@ -42,10 +42,24 @@ export function id(prefix: string) {
  */
 export const COMPANY_EMAIL_DOMAIN = "vanislecoatings.com";
 
+/**
+ * Usernames whose account was created under a different address.
+ *
+ * The sign-in sheet gives everyone a username and the account is almost always
+ * `username@vanislecoatings.com`, so the default below is a plain domain
+ * append. Tara is the exception - her account predates the sheet and lives at
+ * ops@, so typing the username from her own sheet would have failed on launch
+ * morning with "invalid login credentials" and no clue why.
+ */
+const USERNAME_ALIASES: Record<string, string> = {
+  tclark: "ops",
+};
+
 export function loginEmailFor(input: string, domain = COMPANY_EMAIL_DOMAIN) {
   const trimmed = input.trim().toLowerCase();
   if (!trimmed) return "";
-  return trimmed.includes("@") ? trimmed : `${trimmed}@${domain}`;
+  if (trimmed.includes("@")) return trimmed;
+  return `${USERNAME_ALIASES[trimmed] ?? trimmed}@${domain}`;
 }
 
 /**
