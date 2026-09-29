@@ -196,3 +196,52 @@ function LoadInFiles({ media }: { media: ProjectLoadInMedia[] }) {
     </button>
   ))}</div>;
 }
+
+/**
+ * The Project Load-In tab.
+ *
+ * The manager sees everything and plans the next one. A crew member sees only
+ * what they were assigned, per the client's rule that the three crew leads see
+ * their own load-in rather than the whole board.
+ */
+export function LoadInTab({ state, role, userId, openSheet, saveLoadIn, onToggle, onComplete }: {
+  state: AppState;
+  role: string;
+  userId: string;
+  openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void;
+  saveLoadIn: (input: NewLoadIn) => void;
+  onToggle: (itemId: string, done: boolean) => void;
+  onComplete: (loadIn: ProjectLoadIn) => void;
+}) {
+  const manages = role === "admin" || role === "manager";
+  const mine = state.loadIns
+    .filter((loadIn) => loadIn.assignedTo === userId)
+    .sort((a, b) => b.loadInDate.localeCompare(a.loadInDate));
+  const visible = manages
+    ? [...state.loadIns].sort((a, b) => b.loadInDate.localeCompare(a.loadInDate))
+    : mine;
+
+  return <>
+    {manages && <button className="btn primary block" onClick={() => openSheet({
+      title: "Plan a load-in",
+      content: <LoadInPlanner state={state} userId={userId} saveLoadIn={saveLoadIn} />,
+    })}>Plan a load-in</button>}
+
+    {visible.length === 0 && <section className="card">
+      <p className="tiny muted">{manages
+        ? "No load-ins yet. Plan one for tomorrow morning."
+        : "Nothing assigned to you yet. The project manager sends these out the evening before."}</p>
+    </section>}
+
+    {visible.map((loadIn) => <LoadInChecklist
+      key={loadIn.id}
+      state={state}
+      loadIn={loadIn}
+      items={state.loadInItems.filter((item) => item.loadInId === loadIn.id)}
+      media={state.loadInMedia.filter((item) => item.loadInId === loadIn.id)}
+      onToggle={onToggle}
+      onComplete={onComplete}
+      readOnly={loadIn.assignedTo !== userId}
+    />)}
+  </>;
+}

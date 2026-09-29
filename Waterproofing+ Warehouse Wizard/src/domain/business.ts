@@ -102,6 +102,15 @@ export function loadInProgress(items: Array<{ doneAt?: string }>) {
   return { done, total, pct: total ? Math.round((done / total) * 100) : 0, complete: total > 0 && done === total };
 }
 
+/**
+ * Who may see money. A different question from who may edit: finance reads
+ * costs and values but changes nothing, and the crew must not see prices
+ * anywhere. Gating prices on canManage quietly got the CFO wrong.
+ */
+export function canSeePrices(role: string) {
+  return role === "admin" || role === "manager" || role === "cfo";
+}
+
 export function money(value: number) {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(value || 0);
 }

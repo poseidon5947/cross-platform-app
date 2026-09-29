@@ -1,17 +1,13 @@
 import { useState } from "react";
-import { todayKey, id, formatDate, loadInProgress } from "../domain/business";
+import { todayKey, id } from "../domain/business";
 import type { AppState, Role, Site } from "../types";
-import { canManage, Pill, siteName, userName } from "../App";
-import { LoadInPlanner } from "../components/LoadIn";
-import type { NewLoadIn } from "../components/LoadIn";
+import { canManage } from "../App";
 
-export default function JobsTabBoundary({ state, role, userId, saveSite, openSheet, saveLoadIn }: {
+export default function JobsTabBoundary({ state, role, saveSite, openSheet }: {
   state: AppState;
   role: Role;
-  userId: string;
   saveSite: (site: Site) => void;
   openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void;
-  saveLoadIn: (input: NewLoadIn) => void;
 }) {
   // Vancouver time, not UTC: a job ending today used to drop into Past from 5pm
   // Pacific onward, while the crew were still on it.
@@ -20,32 +16,8 @@ export default function JobsTabBoundary({ state, role, userId, saveSite, openShe
   const past = state.sites.filter((site) => site.endDate && site.endDate < today);
   const canEdit = canManage(role);
 
-  // Upcoming first, and anything still outstanding from earlier mornings.
-  const upcomingLoadIns = [...state.loadIns]
-    .filter((loadIn) => !loadIn.completedAt || loadIn.loadInDate >= today)
-    .sort((a, b) => a.loadInDate.localeCompare(b.loadInDate));
-
   return <>
-    {canEdit && <button className="btn primary block" onClick={() => openSheet({ title: "Plan a load-in", content: <LoadInPlanner state={state} userId={userId} saveLoadIn={saveLoadIn} /> })}>Plan a load-in</button>}
-    {canEdit && upcomingLoadIns.length > 0 && <section className="card">
-      <div className="sec-h"><h2>Load-ins</h2></div>
-      {upcomingLoadIns.map((loadIn) => {
-        const items = state.loadInItems.filter((item) => item.loadInId === loadIn.id);
-        const progress = loadInProgress(items);
-        return <div className="line-item" key={loadIn.id}>
-          <div className="mid">
-            <b>{siteName(state, loadIn.siteId)}</b>
-            <div className="tiny muted">
-              {formatDate(loadIn.loadInDate)} &middot; {userName(state, loadIn.assignedTo ?? "")} &middot; {progress.done}/{progress.total} loaded
-            </div>
-          </div>
-          <Pill tone={loadIn.completedAt ? "good" : progress.done ? "warn" : "bad"}>
-            {loadIn.completedAt ? "done" : progress.done ? "started" : "not started"}
-          </Pill>
-        </div>;
-      })}
-    </section>}
-    {canEdit && <button className="btn line block" onClick={() => openSheet({ title: "New job", content: <JobForm saveSite={saveSite} /> })}>Add new job</button>}
+    {canEdit && <button className="btn primary block" onClick={() => openSheet({ title: "New job", content: <JobForm saveSite={saveSite} /> })}>Add new job</button>}
     <section className="card">
       <div className="sec-h"><h2>Active jobs</h2></div>
       {active.length ? active.map((site) => <JobRow key={site.id} site={site} canEdit={canEdit} onOpen={() => openSheet({ title: site.name, content: <JobForm site={site} saveSite={saveSite} /> })} />) : <p className="tiny muted">No active jobs.</p>}

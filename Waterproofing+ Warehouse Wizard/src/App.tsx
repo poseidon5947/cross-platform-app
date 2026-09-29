@@ -7,7 +7,7 @@ import type { UIStyle } from "./uiStyle";
 import { ThemeEditor } from "./components/ThemeEditor";
 import { UIStyleEditor } from "./components/UIStyleEditor";
 import { GraphModal } from "./components/GraphModal";
-import { LoadInChecklist } from "./components/LoadIn";
+import { LoadInChecklist, LoadInTab } from "./components/LoadIn";
 import type { GraphType } from "./components/GraphModal";
 import type { NewLoadIn } from "./components/LoadIn";
 import { SuiteSwitcher } from "./components/SuiteSwitcher";
@@ -77,6 +77,7 @@ import {
   priceChangeMaterials,
   stepForMaterialUnit,
   addDays,
+  canSeePrices,
   formatDate,
   loginEmailFor,
 } from "./domain/business";
@@ -95,6 +96,7 @@ const tabTitles = {
   home: ["Today", "Trucks, tools and stock at a glance"],
   inventory: ["Warehouse inventory", "Live counts, locked units and reorder thresholds"],
   tremco: ["Tremco", "Highest-value tracked items, billed back to projects"],
+  loadin: ["Project Load-In", "Tomorrow's list, loaded 6-7am"],
   log: ["Daily inventory log", "Fast crew flow with offline sync"],
   tools: ["Tools & equipment", "Check in/out, damage and battery charge"],
   trucks: ["Tasks", "Trucks, warehouse and job-site checklists"],
@@ -776,27 +778,34 @@ export function App() {
           </div>)}
           <div className="tiny muted" style={{ padding: "8px 11px" }}>These keep retrying. Discarding one removes it from this phone without saving it to the server.</div>
         </section>}
+        {tab === "loadin" && <LoadInTab state={state} role={currentUser.role} userId={currentUser.id} openSheet={setSheet} saveLoadIn={saveLoadIn} onToggle={toggleLoadInItem} onComplete={completeLoadIn} />}
         {tab === "home" && <Home state={state} role={currentUser.role} userId={currentUser.id} setTab={setTab} goToFocus={goToFocus} openGraph={setGraphModal} toggleLoadInItem={toggleLoadInItem} completeLoadIn={completeLoadIn} />}
         <React.Suspense fallback={<TabSkeleton />}>
           {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
-          {tab === "jobs" && <LazyJobsTab state={state} role={currentUser.role} userId={currentUser.id} saveSite={saveSite} openSheet={setSheet} saveLoadIn={saveLoadIn} />}
+          {tab === "jobs" && <LazyJobsTab state={state} role={currentUser.role} saveSite={saveSite} openSheet={setSheet} />}
           {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} setState={setState} openSheet={setSheet} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "cfo" && <LazyCfoTab state={state} role={currentUser.role} resolveTransaction={resolveTransaction} dismissTransaction={dismissTransaction} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
         </React.Suspense>
       </main>
 
       <nav className="tabs">
-        {currentUser.role === "cfo" ? (
+        {currentUser.role === "cfo" ? (<>
+          <button className={tab === "inventory" ? "on" : ""} onClick={() => setTab("inventory")}>
+            <NavIcon tab={"inventory"} />
+            Inventory
+          </button>
           <button className={tab === "cfo" ? "on" : ""} onClick={() => setTab("cfo")}>
             <NavIcon tab={"cfo"} />
             Reports
           </button>
-        ) : <>
-          {(["home", "log", "trucks", "tools", "inventory"] as Tab[]).map((item) => (
+        </>) : <>
+          {(canManage(currentUser.role) || state.loadIns.some((loadIn) => loadIn.assignedTo === currentUser.id)
+            ? (["home", "loadin", "log", "trucks", "tools", "inventory"] as Tab[])
+            : (["home", "log", "trucks", "tools", "inventory"] as Tab[])).map((item) => (
             <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>
               <NavIcon tab={item} />
-              {item === "inventory" ? "Inventory" : item === "log" ? "Daily Log" : item === "trucks" ? "Tasks" : item[0].toUpperCase() + item.slice(1)}
+              {item === "inventory" ? "Inventory" : item === "log" ? "Daily Log" : item === "trucks" ? "Tasks" : item === "loadin" ? "Load-In" : item[0].toUpperCase() + item.slice(1)}
             </button>
           ))}
           {canManage(currentUser.role) && (
@@ -809,7 +818,7 @@ export function App() {
             <NavIcon tab={"jobs"} />
             Jobs
           </button>
-          {canManage(currentUser.role) && (
+          {canAdmin(currentUser.role) && (
             <button className={tab === "admin" ? "on" : ""} onClick={() => setTab("admin")}>
               <NavIcon tab={"admin"} />
               Admin
@@ -823,7 +832,7 @@ export function App() {
       {sheet && <BottomSheet title={sheet.title} onClose={() => setSheet(null)}>{sheet.content}</BottomSheet>}
       <ToastHost />
       {confetti && <Confetti />}
-      {graphModal && <GraphModal type={graphModal} state={state} showMoney={canManage(currentUser.role)} onClose={() => setGraphModal(null)} />}
+      {graphModal && <GraphModal type={graphModal} state={state} showMoney={canSeePrices(currentUser.role)} onClose={() => setGraphModal(null)} />}
       {showAppearance && (
         <BottomSheet title="Appearance" onClose={() => setShowAppearance(false)}>
           <AppearanceSheet
@@ -1016,6 +1025,7 @@ function NavIcon({ tab }: { tab: Tab | "admin" }) {
     trucks: <svg viewBox="0 0 24 24"><path d="M3 6h11v9H3z" /><path d="M14 9h4l3 3v3h-7z" /><circle cx="7" cy="18" r="1.6" /><circle cx="17" cy="18" r="1.6" /></svg>,
     crew: <svg viewBox="0 0 24 24"><path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /><path d="M2 21a6 6 0 0 1 12 0" /><path d="M16 4a4 4 0 0 1 0 8M22 21a6 6 0 0 0-6-6" /></svg>,
     log: <svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z" /><path d="M14 3v4h4" /><path d="M9 13h6M9 17h6M9 9h2" /></svg>,
+    loadin: <svg viewBox="0 0 24 24"><path d="M4 7h16v12H4z" /><path d="M4 11h16" /><path d="M9 3v4M15 3v4" /><path d="M8 15h3" /></svg>,
     tremco: <svg viewBox="0 0 24 24"><path d="M12 2.5c3.5 4.2 6 7.4 6 10.6a6 6 0 1 1-12 0c0-3.2 2.5-6.4 6-10.6Z" /></svg>,
     jobs: <svg viewBox="0 0 24 24"><path d="M3 8h18v11H3z" /><path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M3 13h18" /></svg>,
     admin: <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><path d="M18 2l1.5 1.5M18 7l1.5-1.5M13 2l-1.5 1.5M13 7l-1.5-1.5"/></svg>,

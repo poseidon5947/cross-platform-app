@@ -9,6 +9,7 @@ import {
   combineDateWithNow,
   formatDate,
   addDays,
+  canSeePrices,
   isCrewWorkDay,
   loadInProgress,
   nextLoadInDate,
@@ -33,6 +34,27 @@ import {
   todayKey,
   weekKey,
 } from "./business";
+
+describe("canSeePrices", () => {
+  it("never shows the crew a price", () => {
+    // The client's standing rule, and the one worth a test of its own.
+    expect(canSeePrices("crew")).toBe(false);
+  });
+
+  it("shows finance the numbers it exists to read", () => {
+    expect(canSeePrices("cfo")).toBe(true);
+  });
+
+  it("shows admins and managers", () => {
+    expect(canSeePrices("admin")).toBe(true);
+    expect(canSeePrices("manager")).toBe(true);
+  });
+
+  it("refuses anything it does not recognise", () => {
+    expect(canSeePrices("")).toBe(false);
+    expect(canSeePrices("contractor")).toBe(false);
+  });
+});
 
 describe("load-in scheduling", () => {
   it("adds calendar days without a timezone getting involved", () => {
