@@ -25,3 +25,8 @@ Thumbs.db
 supabase access token
 *access token*
 *.token
+
+# Client-supplied specs and log printouts. These land in the repo root by
+# habit and some carry live credentials, so keep them out of git history.
+*.pdf
+*.docx
