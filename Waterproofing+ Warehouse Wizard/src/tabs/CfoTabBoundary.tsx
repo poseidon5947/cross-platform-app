@@ -36,7 +36,7 @@ function NeedsReviewRow({ tx, state, resolveTransaction, dismissTransaction }: {
     </div>
     <select className="in" value={materialId} onChange={(event) => setMaterialId(event.target.value)}>
       <option value="">Pick the real item…</option>
-      {state.materials.map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}
+      {[...state.materials].sort((a, b) => a.name.localeCompare(b.name)).map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}
     </select>
     <div className="needs-review-qty-row">
       <input className="in" type="number" step="any" value={qty} onChange={(event) => setQty(event.target.value)} placeholder="Qty" />
