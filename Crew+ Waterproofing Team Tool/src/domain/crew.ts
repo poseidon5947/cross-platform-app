@@ -707,6 +707,23 @@ export function canSeeBonusDollars(state: CrewState, user: Profile) {
   return user.role === "admin" && (user.orgRole === "CFO" || user.orgRole === "Operations / Admin" || user.orgRole === "CEO / Owner" || state.permissions.cfoUserIds.includes(user.id) || state.permissions.hrOwnerUserIds.includes(user.id));
 }
 
+/**
+ * Who may read wage figures.
+ *
+ * The compensation panel was gated on `user.role === "admin"` alone, which meant
+ * the actual CFO could not open it - their app role is "cfo", not "admin". The
+ * `viewCompensation` permission already existed and was already granted to the
+ * CFO, CEO and Operations / Admin org roles; nothing consulted it. Reading is
+ * now driven by that permission, and editing stays with admin.
+ */
+export function canSeeCompensation(state: CrewState, user: Profile) {
+  return user.role === "admin" || hasRolePermission(state, user, "viewCompensation");
+}
+
+export function canEditCompensation(user: Profile) {
+  return user.role === "admin";
+}
+
 export function canApproveRedemptions(state: CrewState, user: Profile) {
   return user.role === "admin" || state.permissions.hrOwnerUserIds.includes(user.id);
 }

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
-import { localDayKey, canAwardManagerRule, kpiHitFor, awardKpiHit, submitFeedback, isoWeekKey, quarterKey, quarterMonths, quarterlyLeaderboard, ritualPeriodKey, acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount, loginEmailFor } from "./crew";
+import type { CrewState, Profile } from "../types";
+import { localDayKey, canAwardManagerRule, kpiHitFor, awardKpiHit, submitFeedback, isoWeekKey, quarterKey, quarterMonths, quarterlyLeaderboard, ritualPeriodKey, acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount, loginEmailFor,
+  canSeeCompensation,
+  canEditCompensation,
+} from "./crew";
 import type { IncidentReportInput, OnboardingInput } from "../types";
 
 describe("Crew+ wallet", () => {
@@ -481,5 +485,30 @@ describe("loginEmailFor", () => {
 
   it("gives nothing back for nothing", () => {
     expect(loginEmailFor("   ")).toBe("");
+  });
+});
+
+describe("canSeeCompensation", () => {
+  const permissions = [
+    { orgRole: "CFO", appRole: "admin", reportsTo: "", permissions: { viewCompensation: true } },
+    { orgRole: "Technician", appRole: "crew", reportsTo: "", permissions: { viewOwnData: true } },
+  ] as unknown as CrewState["rolePermissions"];
+  const state = { rolePermissions: permissions, permissions: {} } as unknown as CrewState;
+  const user = (role: string, orgRole?: string) => ({ id: "u", role, orgRole } as unknown as Profile);
+
+  it("lets the CFO read wages even though their app role is not admin", () => {
+    // The panel used to be gated on role === "admin" alone, so the one person
+    // who most needs these figures could not open it.
+    expect(canSeeCompensation(state, user("cfo", "CFO"))).toBe(true);
+  });
+
+  it("still keeps wages away from managers and crew", () => {
+    expect(canSeeCompensation(state, user("manager", "Crew Lead"))).toBe(false);
+    expect(canSeeCompensation(state, user("crew", "Technician"))).toBe(false);
+  });
+
+  it("keeps editing with admin only", () => {
+    expect(canEditCompensation(user("admin"))).toBe(true);
+    expect(canEditCompensation(user("cfo", "CFO"))).toBe(false);
   });
 });
