@@ -1,6 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { configureVapid, sendPushToSubscription } from "../_shared/webpush.ts";
 
+/** The client asked for 6am and for it to stay at 6am. */
+const SEND_HOUR = 6;
+
 // Scheduled worker (invoked by pg_cron via pg_net). Not user-facing — auth is
 // a bearer match against the service role key, same as other cron-only
 // entrypoints in this suite.
@@ -12,7 +15,17 @@ Deno.serve(async (req) => {
   const service = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey);
   configureVapid();
 
-  const today = new Date().toISOString().slice(0, 10);
+  // 6am Vancouver, every day, whatever the clocks are doing.
+  //
+  // This used to run on a fixed UTC schedule, which meant the local time it
+  // landed at moved by an hour whenever the province changed its clocks. Asking
+  // Intl for the Vancouver hour tracks whatever the rule actually is, so this
+  // stays at 6am without anyone having to remember to re-point the cron.
+  //
+  // `today` is the local day for the same reason: deriving it from UTC put the
+  // function a day ahead for anything running in the Pacific evening.
+  const { day: today, hour } = vancouverParts(new Date());
+  if (hour !== SEND_HOUR) return json({ skipped: true, localDay: today, localHour: hour });
   const year = today.slice(0, 4);
   const sent: string[] = [];
 
@@ -94,4 +107,15 @@ async function notifyOnce(
 
 function json(body: unknown, status = 200) {
   return Response.json(body, { status });
+}
+
+/** Local day and hour in Vancouver, whatever the server clock is set to. */
+function vancouverParts(now: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Vancouver",
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false,
+  }).formatToParts(now);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  const hour = Number(get("hour")) % 24;
+  return { day: `${get("year")}-${get("month")}-${get("day")}`, hour };
 }
