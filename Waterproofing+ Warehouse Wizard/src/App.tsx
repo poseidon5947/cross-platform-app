@@ -792,16 +792,15 @@ export function App() {
       </main>
 
       <nav className="tabs">
-        {currentUser.role === "cfo" ? (<>
-          <button className={tab === "inventory" ? "on" : ""} onClick={() => setTab("inventory")}>
-            <NavIcon tab={"inventory"} />
-            Inventory
-          </button>
+        {/* Finance asked for reports and nothing else. Reports already carries
+            inventory, Tremco and the daily log, so the separate stock tab was
+            a second way into figures they can already see here. */}
+        {currentUser.role === "cfo" ? (
           <button className={tab === "cfo" ? "on" : ""} onClick={() => setTab("cfo")}>
             <NavIcon tab={"cfo"} />
             Reports
           </button>
-        </>) : <>
+        ) : <>
           {(canManage(currentUser.role) || state.loadIns.some((loadIn) => loadIn.assignedTo === currentUser.id)
             ? (["home", "loadin", "log", "trucks", "tools", "inventory"] as Tab[])
             : (["home", "log", "trucks", "tools", "inventory"] as Tab[])).map((item) => (
