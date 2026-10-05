@@ -30,3 +30,5 @@ supabase access token
 # habit and some carry live credentials, so keep them out of git history.
 *.pdf
 *.docx
+*.xls
+*.xlsx
