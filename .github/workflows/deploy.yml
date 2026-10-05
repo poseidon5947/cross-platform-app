@@ -1,12 +1,13 @@
 name: Deploy
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
 
 jobs:
   changes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     outputs:
       crew: ${{ steps.filter.outputs.crew }}
       warehouse: ${{ steps.filter.outputs.warehouse }}
@@ -19,15 +20,18 @@ jobs:
           filters: |
             crew:
               - 'Crew+ Waterproofing Team Tool/**'
+              - '.github/workflows/deploy.yml'
             warehouse:
               - 'Waterproofing+ Warehouse Wizard/**'
+              - '.github/workflows/deploy.yml'
             sop:
               - 'SOP+ Tool/**'
+              - '.github/workflows/deploy.yml'
 
   deploy-crew:
     needs: changes
-    if: needs.changes.outputs.crew == 'true'
-    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.crew == 'true'
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: "Crew+ Waterproofing Team Tool"
@@ -52,8 +56,8 @@ jobs:
 
   deploy-warehouse:
     needs: changes
-    if: needs.changes.outputs.warehouse == 'true'
-    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.warehouse == 'true'
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: "Waterproofing+ Warehouse Wizard"
@@ -77,8 +81,8 @@ jobs:
 
   deploy-sop:
     needs: changes
-    if: needs.changes.outputs.sop == 'true'
-    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.sop == 'true'
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: "SOP+ Tool"
