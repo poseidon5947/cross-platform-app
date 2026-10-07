@@ -916,7 +916,7 @@ function Home({ state, role, userId, setTab, goToFocus, openGraph, toggleLoadInI
   const loadInWindow = [todayKey(), addDays(todayKey(), 1)];
   const myLoadIns = state.loadIns.filter((loadIn) =>
     loadIn.assignedTo === userId && !loadIn.completedAt && loadInWindow.includes(loadIn.loadInDate));
-  const attention = [{ count: maintenance, label: "Open maintenance requests", tab: "trucks" as Tab, focus: "maintenance" }, { count: incompleteTasks, label: "Truck tasks remaining today", tab: "trucks" as Tab, focus: "tasks" }, { count: lows.length, label: "Items below reorder threshold", tab: "inventory" as Tab, focus: "low-stock" }, ...(canManage(role) ? [{ count: needsReviewCount, label: "Daily log items need review", tab: "cfo" as Tab, focus: "needs-review" }] : [])].filter((item) => item.count > 0);
+  const attention = [{ count: maintenance, label: "Open maintenance requests", tab: "trucks" as Tab, focus: "maintenance" }, { count: incompleteTasks, label: "Truck tasks remaining today", tab: "trucks" as Tab, focus: "tasks" }, { count: lows.length, label: "Items below reorder threshold", tab: "inventory" as Tab, focus: "low-stock" }, ...(canManage(role) ? [{ count: needsReviewCount, label: "Inventory Log \u2014 Needs Review", tab: "cfo" as Tab, focus: "needs-review" }] : [])].filter((item) => item.count > 0);
   return <>
     {myLoadIns.map((loadIn) => <LoadInChecklist
       key={loadIn.id}
