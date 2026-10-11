@@ -32,3 +32,10 @@ supabase access token
 *.docx
 *.xls
 *.xlsx
+
+# Client documents land in the repo root, sometimes with no file extension.
+VIWP*
+*Daily Log Print*
+Product names to confirm*
+Warehouse Wizard - Status*
+What I need from you*
