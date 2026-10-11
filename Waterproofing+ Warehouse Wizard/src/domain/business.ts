@@ -53,6 +53,10 @@ export const COMPANY_EMAIL_DOMAIN = "vanislecoatings.com";
  */
 const USERNAME_ALIASES: Record<string, string> = {
   tclark: "ops",
+  // Vitalli came back onto the sign-in sheet as "vs" after being marked a
+  // leaver. Pointing the new username at the account they already have keeps
+  // their history in one place instead of creating a second person.
+  vs: "vitalli",
 };
 
 export function loginEmailFor(input: string, domain = COMPANY_EMAIL_DOMAIN) {
