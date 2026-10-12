@@ -898,6 +898,28 @@ function ShellMessage({ title, detail }: { title: string; detail: string }) {
   return <div className="app auth loading-screen"><section className="card"><div className="brand loading-brand"><span className={`logo ${loading ? "loading-mark" : ""}`} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2.5c3.5 4.2 6 7.4 6 10.6a6 6 0 1 1-12 0c0-3.2 2.5-6.4 6-10.6Z" fill="currentColor" /></svg></span><div><h1>{title}</h1><p>{detail}</p></div></div>{loading && <div className="loading-line" aria-hidden="true"><i /></div>}</section></div>;
 }
 
+/**
+ * The jobs each role actually opens the app to do.
+ *
+ * Every role used to land on the same warehouse dashboard - SKUs tracked,
+ * reorder lists, price changes, suite-wide recent activity. For a crew member
+ * standing on a site with a phone, none of that is their job, and the one
+ * thing that is - filing the daily log - was four cards down. V20.5 onwards
+ * asked for shortcuts instead; this is them.
+ */
+function Shortcuts({ items }: { items: { label: string; hint: string; go: () => void }[] }) {
+  return <section className="card" aria-label="Shortcuts">
+    <div className="attention-rows shortcut-rows">
+      {items.map((item) => (
+        <button key={item.label} onClick={item.go}>
+          <span><b>{item.label}</b><span className="tiny muted shortcut-hint">{item.hint}</span></span>
+          <span aria-hidden="true">→</span>
+        </button>
+      ))}
+    </div>
+  </section>;
+}
+
 function Home({ state, role, userId, setTab, goToFocus, openGraph, toggleLoadInItem, completeLoadIn }: { state: AppState; role: Role; userId: string; setTab: (tab: Tab) => void; goToFocus: (tab: Tab, focus: string) => void; openGraph: (t: GraphType) => void; toggleLoadInItem: (itemId: string, done: boolean) => void; completeLoadIn: (loadIn: ProjectLoadIn) => void }) {
   const trackedMaterials = state.materials.filter((material) => material.strictTracking !== false);
   const lows = trackedMaterials.filter((material) => stockStatus(material).key !== "good");
@@ -917,6 +939,40 @@ function Home({ state, role, userId, setTab, goToFocus, openGraph, toggleLoadInI
   const myLoadIns = state.loadIns.filter((loadIn) =>
     loadIn.assignedTo === userId && !loadIn.completedAt && loadInWindow.includes(loadIn.loadInDate));
   const attention = [{ count: maintenance, label: "Open maintenance requests", tab: "trucks" as Tab, focus: "maintenance" }, { count: incompleteTasks, label: "Truck tasks remaining today", tab: "trucks" as Tab, focus: "tasks" }, { count: lows.length, label: "Items below reorder threshold", tab: "inventory" as Tab, focus: "low-stock" }, ...(canManage(role) ? [{ count: needsReviewCount, label: "Inventory Log \u2014 Needs Review", tab: "cfo" as Tab, focus: "needs-review" }] : [])].filter((item) => item.count > 0);
+
+  // Crew: the four things they open the app to do, and nothing about stock
+  // levels or prices. Reorder thresholds and price changes are not their call,
+  // and burying "add a daily log" under them is why it got missed.
+  if (!canManage(role)) {
+    const mine = state.dailyLogs.filter((log) => log.submittedByUserId === userId).slice(0, 3);
+    return <>
+      {myLoadIns.map((loadIn) => <LoadInChecklist
+        key={loadIn.id}
+        state={state}
+        loadIn={loadIn}
+        items={state.loadInItems.filter((item) => item.loadInId === loadIn.id)}
+        media={state.loadInMedia.filter((item) => item.loadInId === loadIn.id)}
+        onToggle={toggleLoadInItem}
+        onComplete={completeLoadIn}
+      />)}
+      {incompleteTasks > 0 && <section className="attention-strip" aria-label="Needs attention">
+        <div className="attention-title"><span aria-hidden="true">!</span><b>Needs attention</b></div>
+        <div className="attention-rows"><button onClick={() => goToFocus("trucks", "tasks")}>
+          <span>Your tasks remaining today</span><b>{incompleteTasks}</b><span aria-hidden="true">→</span>
+        </button></div>
+      </section>}
+      <Shortcuts items={[
+        { label: "Add a daily log", hint: "Work done, materials used, photos", go: () => setTab("log") },
+        { label: "Gas station check", hint: "Fuel, odometer and receipt", go: () => setTab("trucks") },
+        { label: "Check out tools", hint: toolsOut ? `${toolsOut} out on a job right now` : "All tools in the warehouse", go: () => setTab("tools") },
+        { label: "Jobs", hint: "Site details, plans and documents", go: () => setTab("jobs") },
+      ]} />
+      <div className="banner"><b>{progress.pct === 100 ? "Daily tasks complete" : "Today's tasks"}</b><span>{progress.done}/{progress.total} complete today.</span></div>
+      <section className="card card-interactive"><div className="sec-h"><h2>Today's truck tasks</h2><button className="link" onClick={() => setTab("trucks")}>Open</button></div><ProgressRing pct={progress.pct} /></section>
+      <section className="card"><div className="sec-h"><div><h2>Your recent daily logs</h2><p className="tiny muted">The last three you sent</p></div><button className="link" onClick={() => setTab("log")}>View all →</button></div>{mine.length ? mine.map((log) => <div className="line-item" key={log.id}><div className="mid"><b>{siteName(state, log.siteId)}</b><div className="tiny muted">{formatDate(log.date)} · {serviceName(state, log.serviceId)}</div></div></div>) : <div className="empty-state"><span className="empty-icon">📋</span><div className="empty-msg">No daily logs from you yet</div></div>}</section>
+    </>;
+  }
+
   return <>
     {myLoadIns.map((loadIn) => <LoadInChecklist
       key={loadIn.id}
@@ -928,6 +984,12 @@ function Home({ state, role, userId, setTab, goToFocus, openGraph, toggleLoadInI
       onComplete={completeLoadIn}
     />)}
     {attention.length > 0 && <section className="attention-strip" aria-label="Needs attention"><div className="attention-title"><span aria-hidden="true">!</span><b>Needs attention</b></div><div className="attention-rows">{attention.map((item) => <button key={item.label} onClick={() => item.focus ? goToFocus(item.tab, item.focus) : setTab(item.tab)}><span>{item.label}</span><b>{item.count}</b><span aria-hidden="true">→</span></button>)}</div></section>}
+    <Shortcuts items={[
+      { label: "Assign project load-in", hint: "Pick the crew member, job and list", go: () => setTab("loadin") },
+      { label: "Jobs", hint: `${state.sites.length} job sites`, go: () => setTab("jobs") },
+      { label: "Check daily logs", hint: "Everything the crew has filed", go: () => goToFocus("log", "daily-log-history") },
+      { label: "Inventory Log \u2014 Needs Review", hint: needsReviewCount ? `${needsReviewCount} waiting on you` : "Nothing waiting", go: () => goToFocus("cfo", "needs-review") },
+    ]} />
     <div className="banner"><b>{progress.pct === 100 ? "Daily tasks complete" : "Crew-first workflow"}</b><span>{progress.done}/{progress.total} daily tasks complete today.</span></div>
     <div className="kpis">
       <Kpi label="SKUs tracked"  value={trackedMaterials.length}  sub={`${state.materials.length - trackedMaterials.length} reference only`} onClick={() => openGraph("inventory_stock")} />

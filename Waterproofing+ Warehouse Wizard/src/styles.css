@@ -2124,3 +2124,9 @@ main > *:nth-child(5) { animation-delay: .15s; }
     min-height: 44px;
   }
 }
+
+/* Shortcut rows reuse the attention-strip layout but carry a label, not a
+   count, so the pill styling on <b> has to be undone here. */
+.shortcut-rows button { grid-template-columns:minmax(0,1fr) auto; }
+.shortcut-rows button b { min-width:0; padding:0; border-radius:0; background:none; color:inherit; font-weight:800; text-align:left; }
+.shortcut-rows .shortcut-hint { display:block; margin-top:2px; font-weight:600; }
