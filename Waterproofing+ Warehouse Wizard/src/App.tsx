@@ -943,7 +943,10 @@ function Home({ state, role, userId, setTab, goToFocus, openGraph, toggleLoadInI
   // Crew: the four things they open the app to do, and nothing about stock
   // levels or prices. Reorder thresholds and price changes are not their call,
   // and burying "add a daily log" under them is why it got missed.
-  if (!canManage(role)) {
+  // Crew only. Finance is redirected to Reports before Home ever renders, but
+  // naming the role here means this does not quietly become their landing page
+  // if that redirect is ever changed.
+  if (role === "crew") {
     const mine = state.dailyLogs.filter((log) => log.submittedByUserId === userId).slice(0, 3);
     return <>
       {myLoadIns.map((loadIn) => <LoadInChecklist
