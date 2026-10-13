@@ -124,7 +124,7 @@ export default function CfoTabBoundary({ state, role, resolveTransaction, dismis
 
     <section className="card" id="wz-section-exports">
       <h3>Exports</h3>
-      <p className="tiny muted">Cost report can be printed to PDF by your browser. BuilderTrend remains a CSV/PDF export stub.</p>
+      <p className="tiny muted">Cost report can be printed to PDF by your browser. The transactions CSV opens in Excel or Google Sheets.</p>
       <button className="btn line block" onClick={() => printReport(state)}>Print cost report</button>
       <button className="btn line block" onClick={() => navigator.clipboard?.writeText(csv)}>Copy transactions CSV</button>
       <label className="fld">Monthly Inventory Log</label>

@@ -159,7 +159,7 @@ export const rewards: Reward[] = [
 ];
 
 export const kpis: Kpi[] = [
-  kpi("kpi-cl-1", "Crew Lead", "Crew jobs on schedule", "%", "Monthly", "BuilderTrend / schedule"),
+  kpi("kpi-cl-1", "Crew Lead", "Crew jobs on schedule", "%", "Monthly", "SuperCrew / schedule"),
   kpi("kpi-cl-2", "Crew Lead", "Callback / rework rate", "%", "Monthly", "Job records"),
   kpi("kpi-cl-3", "Crew Lead", "Safety incidents", "count", "Monthly", "Safety log"),
   kpi("kpi-cl-4", "Crew Lead", "Logging accuracy", "%", "Monthly", "Waterproofing+"),
@@ -171,7 +171,7 @@ export const kpis: Kpi[] = [
   kpi("kpi-asst-2", "Assistant Technician", "Safety compliance", "%", "Monthly", "Safety log"),
   kpi("kpi-sr-1", "Senior Technician", "Quality on complex scopes", "%", "Monthly", "Job records"),
   kpi("kpi-sr-2", "Senior Technician", "Mentoring contribution", "count", "Quarterly", "1:1 notes"),
-  kpi("kpi-ops-1", "Operations / Admin", "Job scheduling / throughput", "count", "Monthly", "BuilderTrend"),
+  kpi("kpi-ops-1", "Operations / Admin", "Job scheduling / throughput", "count", "Monthly", "SuperCrew"),
   kpi("kpi-ops-2", "Operations / Admin", "Review-lead generation", "count", "Monthly", "Google/manual log"),
   kpi("kpi-ops-3", "Operations / Admin", "AP/AR or invoicing timeliness", "%", "Monthly", "Accounting"),
   kpi("kpi-cfo-1", "CFO", "Gross margin by job", "%", "Monthly", "Accounting"),
