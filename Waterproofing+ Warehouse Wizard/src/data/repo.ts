@@ -26,15 +26,23 @@ const materialFromRow = (row: any): Material => ({
   step: Number(row.step) === 0.25 ? 0.25 : Number(row.step) === 0.5 ? 0.5 : 1,
   pack: row.pack ?? "",
   unitsPerPallet: Number(row.units_per_pallet ?? 0),
-  cost: Number(row.cost ?? 0),
-  previousCost: row.previous_cost == null ? undefined : Number(row.previous_cost),
-  priceChangedAt: row.price_changed_at ?? undefined,
+  // Cost is merged in from material_costs after load; the crew cannot read that
+  // table, so for them it stays at zero and every price on screen is hidden
+  // behind canSeePrices anyway.
+  cost: 0,
   strictTracking: row.strict_tracking ?? true,
   qty: Number(row.qty ?? 0),
   reorderPoint: Number(row.reorder_point ?? 0),
   bin: row.bin ?? "",
   isTremco: row.is_tremco ?? false,
   serviceIds: Array.isArray(row.service_ids) && row.service_ids.length ? row.service_ids : undefined,
+});
+
+const materialCostFromRow = (row: any) => ({
+  materialId: row.material_id as string,
+  cost: Number(row.cost ?? 0),
+  previousCost: row.previous_cost == null ? undefined : Number(row.previous_cost),
+  priceChangedAt: row.price_changed_at ?? undefined,
 });
 
 const materialToRow = (material: Material, includeQty = true) => ({
@@ -45,9 +53,6 @@ const materialToRow = (material: Material, includeQty = true) => ({
   step: material.step,
   pack: material.pack,
   units_per_pallet: material.unitsPerPallet,
-  cost: material.cost,
-  previous_cost: material.previousCost ?? null,
-  price_changed_at: material.priceChangedAt ?? null,
   strict_tracking: material.strictTracking ?? true,
   ...(includeQty ? { qty: material.qty } : {}),
   reorder_point: material.reorderPoint,
@@ -321,9 +326,10 @@ async function read<T>(table: string, mapper: (row: any) => T, order = "created_
 }
 
 export async function loadRemoteState(currentUserId: string): Promise<AppState> {
-  const [materials, sites, services, users, transactions, tools, trucksRaw, truckDetails, truckLogs, truckTasks, taskCompletions, pointsEvents, streakRows, maintenanceRequests, dailyLogs, dailyLogMedia, loadIns, loadInItems, loadInMedia, crewPoolPoints] =
+  const [materialsRaw, materialCosts, sites, services, users, transactions, tools, trucksRaw, truckDetails, truckLogs, truckTasks, taskCompletions, pointsEvents, streakRows, maintenanceRequests, dailyLogs, dailyLogMedia, loadIns, loadInItems, loadInMedia, crewPoolPoints] =
     await Promise.all([
       read("materials", materialFromRow),
+      read("material_costs", materialCostFromRow),
       read("sites", siteFromRow),
       read("services", serviceFromRow),
       read("profiles", profileFromRow),
@@ -344,6 +350,11 @@ export async function loadRemoteState(currentUserId: string): Promise<AppState> 
       readLoadInMedia(),
       readCrewPoolPoints(),
     ]);
+  const costByMaterial = new Map(materialCosts.map((entry) => [entry.materialId, entry]));
+  const materials = materialsRaw.map((material) => {
+    const money = costByMaterial.get(material.id);
+    return money ? { ...material, cost: money.cost, previousCost: money.previousCost, priceChangedAt: money.priceChangedAt } : material;
+  });
   const detailByTruck = new Map(truckDetails.map((detail) => [detail.truckId, detail]));
   const trucks = trucksRaw.map((truck) => ({ ...truck, ...(detailByTruck.get(truck.id) ?? {}) }));
   return { materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streaks: streakRows, currentUserId, offlineQueue: [], maintenanceRequests, dailyLogs, dailyLogMedia, loadIns, loadInItems, loadInMedia, crewPoolPoints };
@@ -428,7 +439,10 @@ export async function upsertMaterial(material: Material, includeQty = true) {
     requireClient().from("materials").upsert(body, { onConflict: "name" });
 
   const { error } = await write(row);
-  if (!error) return;
+  if (!error) {
+    await writeMaterialCost(material);
+    return;
+  }
   if (!schemaMissing(error)) throw error;
 
   // service_ids not added yet - save everything else rather than refuse the
@@ -437,11 +451,36 @@ export async function upsertMaterial(material: Material, includeQty = true) {
   const { service_ids: _serviceIds, ...withoutServices } = row;
   const { error: retryError } = await write(withoutServices);
   if (retryError) throw retryError;
+  await writeMaterialCost(material);
+}
+
+/**
+ * Prices live in material_costs, which only admin, manager and finance may
+ * write. Materials are saved by name rather than id, so a new one has no id
+ * until it comes back from the database; look it up before attaching a price.
+ */
+async function writeMaterialCost(material: Material) {
+  const client = requireClient();
+  let materialId = isUuid(material.id) ? material.id : undefined;
+  if (!materialId) {
+    const { data } = await client.from("materials").select("id").eq("name", material.name).maybeSingle();
+    materialId = (data as { id: string } | null)?.id;
+  }
+  if (!materialId) return;
+  const { error } = await client.from("material_costs").upsert({
+    material_id: materialId,
+    cost: material.cost ?? 0,
+    previous_cost: material.previousCost ?? null,
+    price_changed_at: material.priceChangedAt ?? null,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "material_id" });
+  if (error) throw error;
 }
 
 export async function upsertMaterialsMetadata(materials: Material[]) {
   const { error } = await requireClient().from("materials").upsert(materials.map((material) => materialToRow(material, false)), { onConflict: "name" });
   if (error) throw error;
+  for (const material of materials) await writeMaterialCost(material);
 }
 
 export async function upsertSite(site: Site) {

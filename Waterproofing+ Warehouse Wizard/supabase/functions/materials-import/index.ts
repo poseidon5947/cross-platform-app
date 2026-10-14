@@ -105,10 +105,18 @@ serve(async (req) => {
     // the column, because there is nothing else to take the category from.
     const allNames = [...new Set(records.map(nameOf).filter(Boolean))];
     const { data: existingRows, error: existingError } = allNames.length
-      ? await supabase.from("materials").select("name,category,unit,cost,reorder_point,previous_cost,price_changed_at,strict_tracking").in("name", allNames)
+      ? await supabase.from("materials").select("id,name,category,unit,reorder_point,strict_tracking").in("name", allNames)
       : { data: [], error: null };
     if (existingError) throw existingError;
-    const existingByName = new Map((existingRows ?? []).map((item) => [item.name, item]));
+    // Prices sit in material_costs, which the crew cannot read; the import runs
+    // as the service role, so it reaches both and stitches them back together.
+    const existingIds = (existingRows ?? []).map((item) => item.id);
+    const { data: costRows, error: costError } = existingIds.length
+      ? await supabase.from("material_costs").select("material_id,cost,previous_cost,price_changed_at").in("material_id", existingIds)
+      : { data: [], error: null };
+    if (costError) throw costError;
+    const costById = new Map((costRows ?? []).map((item) => [item.material_id, item]));
+    const existingByName = new Map((existingRows ?? []).map((item) => [item.name, { ...item, ...(costById.get(item.id) ?? { cost: 0, previous_cost: null, price_changed_at: null }) }]));
     const payload = records.flatMap((record, index) => {
       const name = nameOf(record);
       const existing = existingByName.get(name);
@@ -140,7 +148,7 @@ serve(async (req) => {
       }];
       return [];
     });
-    const newDefaults = { pack: "", units_per_pallet: 0, cost: 0, reorder_point: 3, bin: "" };
+    const newDefaults = { pack: "", units_per_pallet: 0, reorder_point: 3, bin: "" };
     const present = (item: Record<string, unknown>) => Object.fromEntries(Object.entries(item).filter(([, value]) => value !== undefined));
     const now = new Date().toISOString();
     // An import must never move stock on hand. It used to read qty and write the
@@ -153,22 +161,32 @@ serve(async (req) => {
     // Existing materials are updated without qty in the payload at all, so the
     // column is never written and there is nothing to race. Only genuinely new
     // materials get an opening quantity, and only from the sheet.
-    const decorate = (item: Record<string, unknown>, existing: Record<string, unknown> | undefined) => {
-      const changed = existing && item.cost !== undefined && Number(existing.cost) !== item.cost;
+    const decorate = (item: Record<string, unknown>, existing: Record<string, unknown> | undefined) => ({
+      ...item,
+      strict_tracking: hasOnHandColumn ? item.strict_tracking : existing?.strict_tracking ?? true,
+    });
+
+    /** The price for a row, kept aside so it can be written to material_costs. */
+    const priceFor = (item: Record<string, unknown>, existing: Record<string, unknown> | undefined) => {
+      if (item.cost === undefined) return existing ? null : { cost: 0, previous_cost: null, price_changed_at: null };
+      const changed = existing && Number(existing.cost) !== item.cost;
       return {
-        ...item,
-        strict_tracking: hasOnHandColumn ? item.strict_tracking : existing?.strict_tracking ?? true,
-        previous_cost: changed ? Number(existing!.cost) : existing?.previous_cost ?? null,
-        price_changed_at: changed ? now : existing?.price_changed_at ?? null,
+        cost: item.cost as number,
+        previous_cost: changed ? Number(existing!.cost) : (existing?.previous_cost as number | null) ?? null,
+        price_changed_at: changed ? now : (existing?.price_changed_at as string | null) ?? null,
       };
     };
 
     const newRows: Record<string, unknown>[] = [];
     const updates: Record<string, unknown>[] = [];
+    const prices = new Map<string, Record<string, unknown>>();
     for (const { imported_on_hand, ...item } of payload) {
       const existing = existingByName.get(item.name);
-      if (existing) updates.push(present(decorate(item, existing)));
-      else newRows.push({ ...newDefaults, ...present(decorate(item, undefined)), qty: num(imported_on_hand, 0) });
+      const { cost: _cost, ...withoutCost } = item;
+      const price = priceFor(item, existing);
+      if (price) prices.set(item.name as string, price);
+      if (existing) updates.push(present(decorate(withoutCost, existing)));
+      else newRows.push({ ...newDefaults, ...present(decorate(withoutCost, undefined)), qty: num(imported_on_hand, 0) });
     }
 
     if (newRows.length) {
@@ -179,6 +197,19 @@ serve(async (req) => {
       const { name, ...fields } = row;
       const { error: updateError } = await supabase.from("materials").update(fields).eq("name", name);
       if (updateError) throw updateError;
+    }
+
+    if (prices.size) {
+      const { data: idRows, error: idError } = await supabase.from("materials").select("id,name").in("name", [...prices.keys()]);
+      if (idError) throw idError;
+      const costPayload = (idRows ?? []).flatMap((row) => {
+        const price = prices.get(row.name);
+        return price ? [{ material_id: row.id, ...price, updated_at: now }] : [];
+      });
+      if (costPayload.length) {
+        const { error: priceError } = await supabase.from("material_costs").upsert(costPayload, { onConflict: "material_id" });
+        if (priceError) throw priceError;
+      }
     }
     return Response.json({ imported: newRows.length + updates.length, created: newRows.length, updated: updates.length, skipped }, { headers: cors });
   } catch (err) {

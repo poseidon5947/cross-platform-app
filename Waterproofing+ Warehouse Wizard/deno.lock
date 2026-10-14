@@ -1,0 +1,33 @@
+{
+  "version": "4",
+  "redirects": {
+    "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.117.3"
+  },
+  "remote": {
+    "https://deno.land/std@0.224.0/async/delay.ts": "f90dd685b97c2f142b8069082993e437b1602b8e2561134827eeb7c12b95c499",
+    "https://deno.land/std@0.224.0/http/server.ts": "f9313804bf6467a1704f45f76cb6cd0a3396a3b31c316035e6a4c2035d1ea514",
+    "https://esm.sh/@supabase/supabase-js@2.117.3": "614f9e550b12b4be7054f947cc4949ebcc0eceeb8e83f7e226cc875356e9b126"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@eslint/js@^9.39.5",
+        "npm:@supabase/supabase-js@^2.47.10",
+        "npm:@tanstack/react-query@^5.62.11",
+        "npm:@types/react-dom@^19.0.2",
+        "npm:@types/react@^19.0.2",
+        "npm:@vitejs/plugin-react@^4.3.4",
+        "npm:eslint-plugin-react-hooks@^5.2.0",
+        "npm:eslint@^9.39.5",
+        "npm:globals@^17.12.0",
+        "npm:jsdom@^25.0.1",
+        "npm:react-dom@19",
+        "npm:react@19",
+        "npm:typescript-eslint@^8.70.1",
+        "npm:typescript@^5.7.2",
+        "npm:vite@^6.0.7",
+        "npm:vitest@^2.1.8"
+      ]
+    }
+  }
+}
