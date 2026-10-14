@@ -39,3 +39,6 @@ VIWP*
 Product names to confirm*
 Warehouse Wizard - Status*
 What I need from you*
+
+# Written by a one-off `deno check`, not part of the build.
+deno.lock
