@@ -162,7 +162,7 @@ const toolToRow = (tool: ToolItem) => ({
   out_ts: tool.outTs ?? null,
 });
 
-const truckFromRow = (row: any): Truck => ({ id: row.id, name: row.name, km: Number(row.km), lastServiced: row.last_serviced, lastOil: Number(row.last_oil) });
+const truckFromRow = (row: any): Truck => ({ id: row.id, name: row.name, km: Number(row.km), lastServiced: row.last_serviced, lastOil: Number(row.last_oil), make: row.make ?? undefined, model: row.model ?? undefined, modelYear: row.model_year ?? undefined, vin: row.vin ?? undefined, registration: row.registration ?? undefined, licensePlate: row.license_plate ?? undefined, insurancePolicy: row.insurance_policy ?? undefined, showToCrew: row.show_to_crew ?? true });
 const truckTaskFromRow = (row: any): TruckTask => ({
   id: row.id,
   text: row.text,
@@ -674,6 +674,14 @@ export async function upsertTruck(truck: Truck) {
     km: truck.km,
     last_serviced: truck.lastServiced || null,
     last_oil: truck.lastOil,
+    make: truck.make || null,
+    model: truck.model || null,
+    model_year: truck.modelYear || null,
+    vin: truck.vin || null,
+    registration: truck.registration || null,
+    license_plate: truck.licensePlate || null,
+    insurance_policy: truck.insurancePolicy || null,
+    show_to_crew: truck.showToCrew ?? true,
   });
   if (error) throw error;
 }

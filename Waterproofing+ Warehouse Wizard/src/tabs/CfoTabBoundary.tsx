@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ALLOWED_MATERIAL_UNITS, formatDate, formatDateTime, money, monthlyInventoryLogCsv, stockStatus } from "../domain/business";
+import { ALLOWED_MATERIAL_UNITS, canSeeEverything, formatDate, formatDateTime, money, monthlyInventoryLogCsv, stockStatus } from "../domain/business";
 import type { AppState, DailyLog, MaterialUnit, Role, Transaction } from "../types";
 import { canManage, Pill, serviceName, siteName, userName } from "../App";
 
@@ -117,7 +117,7 @@ export default function CfoTabBoundary({ state, role, resolveTransaction, dismis
       {monthLogs.length > 0 && <button className="btn line block" onClick={() => printDailyLogs(state, monthLogs, month)}>Export Daily Log</button>}
     </>}
 
-    {canManage(role) && <section className="card wide" id="wz-section-needs-review">
+    {canSeeEverything(role) && <section className="card wide" id="wz-section-needs-review">
       <div className="sec-h"><div><h3>Needs review</h3><p className="tiny muted">Imported or messy log entries where the item, quantity, or unit wasn't clear. Fix by the 10th of every month.</p></div><Pill tone={needsReview.length ? "warn" : "good"}>{needsReview.length}</Pill></div>
       {needsReview.length ? needsReview.map((tx) => <NeedsReviewRow key={tx.id} tx={tx} state={state} resolveTransaction={resolveTransaction} dismissTransaction={dismissTransaction} />) : <p className="tiny muted">Nothing needs review.</p>}
     </section>}

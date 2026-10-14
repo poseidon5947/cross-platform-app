@@ -129,6 +129,17 @@ export function canSeePrices(role: string) {
   return role === "admin" || role === "manager" || role === "cfo";
 }
 
+/**
+ * Who may look at everything the tool holds. The client's answer on 13 October
+ * was "Admin, Manager and Finance can see anything", which widened Finance from
+ * the reports-only view they had been given in V22. Seeing is not the same as
+ * administering: the Admin tab stays with admin, because that is where accounts
+ * and configuration are changed rather than read.
+ */
+export function canSeeEverything(role: string) {
+  return role === "admin" || role === "manager" || role === "cfo";
+}
+
 export function money(value: number) {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(value || 0);
 }

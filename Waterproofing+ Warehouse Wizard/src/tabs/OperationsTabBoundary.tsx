@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { categoryLabels, services as seedServices } from "../data/seed";
 import { dailyLogMediaSignedUrl, receiptSignedUrl, uploadReceiptPhoto } from "../data/repo";
 import { isSupabaseConfigured } from "../integrations/supabase";
-import { ALLOWED_MATERIAL_UNITS, batteryState, canResolveMaintenanceRequests, canSeePrices, dailyProgress, formatDate, materialsForService, id, isKmEntryTask, isTaskDone, money, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
+import { ALLOWED_MATERIAL_UNITS, batteryState, canResolveMaintenanceRequests, canSeeEverything, canSeePrices, dailyProgress, formatDate, materialsForService, id, isKmEntryTask, isTaskDone, money, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
 import type { AppState, Category, DailyLog, DailyLogMedia, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, TaskSection, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User } from "../types";
 import { BulkToolSheet, canManage, Kpi, Pill, ProgressRing, serviceName, siteName, userName } from "../App";
 import type { Tab as AppTab } from "../App";
@@ -322,6 +322,9 @@ function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTr
   const [freq, setFreq] = useState<TaskFrequency>("daily");
   const progress = dailyProgress(state.truckTasks, state.taskCompletions, state.currentUserId);
   const visibleTasks = state.truckTasks.filter((task) => task.section === "trucks" && task.freq === freq);
+  // The company car is on the fleet sheet but marked "show to crew: N", so it
+  // stays out of the list the crew books trucks from.
+  const fleet = canSeeEverything(role) ? state.trucks : state.trucks.filter((truck) => truck.showToCrew !== false);
 
   useEffect(() => {
     if (!focusTarget) return;
@@ -347,14 +350,22 @@ function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTr
       {otherTasks.length > 0 && <TaskGroup title="Vehicle / General" subtitle="No time assigned" tasks={otherTasks} state={state} toggleTask={toggleTask} currentUser={currentUser} saveTruck={saveTruck} />}
     </div>
     {canManage(role) && <button className="btn line block" onClick={() => openSheet({ title: "Edit Trucks tasks", content: <TaskEditor state={state} section="trucks" saveTask={saveTask} removeTask={removeTask} /> })}>Edit task list</button>}
-    {state.trucks.length > 0 && (
+    {fleet.length > 0 && (
       <section className="card">
         <div className="sec-h"><h2>Fleet</h2>{canManage(role) && <button className="link" onClick={() => openSheet({ title: "Add truck", content: <TruckForm state={state} saveTruckRecord={saveTruckRecord} /> })}>Add truck</button>}</div>
         <div className="truck-list">
-          {state.trucks.map(truck => {
+          {fleet.map(truck => {
             const lastLog = state.truckLogs.filter(l => l.truckId === truck.id).sort((a, b) => b.ts.localeCompare(a.ts))[0];
+            /* Managers edit the vehicle; Finance opens the same card read-only;
+               the crew taps through to nothing, because the registration and
+               insurance numbers are not theirs to carry around. */
+            const open = canManage(role)
+              ? () => openSheet({ title: truck.name, content: <TruckForm state={state} truck={truck} saveTruckRecord={saveTruckRecord} /> })
+              : canSeeEverything(role)
+                ? () => openSheet({ title: truck.name, content: <VehicleDetails truck={truck} /> })
+                : undefined;
             return (
-              <div className="truck-item" key={truck.id} onClick={canManage(role) ? () => openSheet({ title: truck.name, content: <TruckForm state={state} truck={truck} saveTruckRecord={saveTruckRecord} /> }) : undefined} style={canManage(role) ? { cursor: "pointer" } : undefined}>
+              <div className="truck-item" key={truck.id} onClick={open} style={open ? { cursor: "pointer" } : undefined}>
                 <div className="truck-icon">🚛</div>
                 <div className="mid">
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{truck.name}</div>
@@ -458,8 +469,47 @@ function TruckForm({ state, truck, saveTruckRecord }: { state: AppState; truck?:
     <label className="fld">Last serviced</label>
     <input className="in" type="date" value={draft.lastServiced ?? ""} onChange={(event) => set("lastServiced", event.target.value)} />
     <NumberField label="Last oil change (km)" value={draft.lastOil} setValue={(value) => set("lastOil", value)} />
+    <h3 className="form-section-head">Vehicle details</h3>
+    <label className="fld">Make</label>
+    <input className="in" value={draft.make ?? ""} onChange={(event) => set("make", event.target.value)} />
+    <label className="fld">Model</label>
+    <input className="in" value={draft.model ?? ""} onChange={(event) => set("model", event.target.value)} />
+    <label className="fld">Model year</label>
+    <input className="in" value={draft.modelYear ?? ""} onChange={(event) => set("modelYear", event.target.value)} />
+    <label className="fld">VIN</label>
+    <input className="in" value={draft.vin ?? ""} onChange={(event) => set("vin", event.target.value)} />
+    <label className="fld">Registration number</label>
+    <input className="in" value={draft.registration ?? ""} onChange={(event) => set("registration", event.target.value)} />
+    <label className="fld">Licence plate</label>
+    <input className="in" value={draft.licensePlate ?? ""} onChange={(event) => set("licensePlate", event.target.value)} />
+    <label className="fld">Insurance policy number</label>
+    <input className="in" value={draft.insurancePolicy ?? ""} onChange={(event) => set("insurancePolicy", event.target.value)} />
+    <label className="check"><input type="checkbox" checked={draft.showToCrew ?? true} onChange={(event) => set("showToCrew", event.target.checked)} /> Show this vehicle to the crew</label>
     <button className="btn primary block" disabled={!draft.name.trim()} onClick={() => saveTruckRecord(draft, truck ? "Truck updated" : "Truck added")}>Save truck</button>
     {truck && <TruckReceipts state={state} truckId={truck.id} />}
+  </div>;
+}
+
+/**
+ * What Finance and anyone else who may look at a vehicle but not change it
+ * sees: the paperwork, in the order you get asked for it on the phone.
+ */
+function VehicleDetails({ truck }: { truck: Truck }) {
+  const rows: [string, string | undefined][] = [
+    ["Make", truck.make],
+    ["Model", truck.model],
+    ["Model year", truck.modelYear],
+    ["VIN", truck.vin],
+    ["Registration number", truck.registration],
+    ["Licence plate", truck.licensePlate],
+    ["Insurance policy number", truck.insurancePolicy],
+  ];
+  const known = rows.filter(([, value]) => value);
+  return <div className="form-stack">
+    <div className="line-item"><div className="mid"><b>{truck.name}</b><div className="tiny muted">{truck.km ? `${truck.km.toLocaleString()} km` : "No mileage yet"} \u00b7 last service {formatServiceDate(truck.lastServiced)}</div></div></div>
+    {known.length
+      ? <dl className="vehicle-details">{known.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+      : <p className="tiny muted">No registration details recorded for this vehicle yet.</p>}
   </div>;
 }
 

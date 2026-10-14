@@ -213,6 +213,21 @@ export interface Truck {
   km: number;
   lastServiced: string;
   lastOil: number;
+  /**
+   * Registration details, straight off the fleet sheet. These are what somebody
+   * needs at the roadside or on the phone to ICBC, so they live on the vehicle
+   * rather than in a filing cabinet. All optional: a truck added in the app
+   * before its paperwork is to hand is still a truck.
+   */
+  make?: string;
+  model?: string;
+  modelYear?: string;
+  vin?: string;
+  registration?: string;
+  licensePlate?: string;
+  insurancePolicy?: string;
+  /** The Mazda is a company car, not a work truck; the crew never books it out. */
+  showToCrew?: boolean;
 }
 
 export interface TruckLog {

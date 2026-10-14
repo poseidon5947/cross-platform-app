@@ -2130,3 +2130,11 @@ main > *:nth-child(5) { animation-delay: .15s; }
 .shortcut-rows button { grid-template-columns:minmax(0,1fr) auto; }
 .shortcut-rows button b { min-width:0; padding:0; border-radius:0; background:none; color:inherit; font-weight:800; text-align:left; }
 .shortcut-rows .shortcut-hint { display:block; margin-top:2px; font-weight:600; }
+
+/* Registration paperwork on a vehicle: a label/value list that stays readable
+   when a VIN runs to seventeen characters on a phone. */
+.form-section-head{margin:18px 0 2px;font-size:13px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
+.vehicle-details{display:grid;gap:10px;margin:0}
+.vehicle-details>div{display:grid;grid-template-columns:minmax(0,1fr);gap:2px}
+.vehicle-details dt{font-size:12px;font-weight:700;color:var(--muted)}
+.vehicle-details dd{margin:0;font-size:14px;font-weight:600;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}

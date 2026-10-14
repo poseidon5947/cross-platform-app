@@ -77,6 +77,7 @@ import {
   priceChangeMaterials,
   stepForMaterialUnit,
   addDays,
+  canSeeEverything,
   canSeePrices,
   formatDate,
   loginEmailFor,
@@ -103,7 +104,7 @@ const tabTitles = {
   crew: ["Crew & points", "100% daily tasks earns points"],
   jobs: ["Jobs", "Active jobs, contacts, and site documents"],
   admin: ["Admin", "Crew, imports, and integrations"],
-  cfo: ["Reports", "Inventory, Tremco, and Daily Log — view and export"],
+  cfo: ["Reports", "Inventory, Tremco, and Daily Log \u2014 view and export"],
 } as const;
 
 export type Tab = keyof typeof tabTitles;
@@ -356,9 +357,12 @@ export function App() {
   };
   const [title, sub] = tabTitles[tab];
 
-  useEffect(() => {
-    if (currentUser.role === "cfo" && tab === "home") setTab("cfo");
-  }, [currentUser.role, tab]);
+  /*
+   * Finance used to be redirected straight to Reports, because V22 said they
+   * needed reports and nothing else. On 13 October that became "Admin, Manager
+   * and Finance can see anything", so they land on Home like everyone else and
+   * reach Reports from the nav.
+   */
 
   useEffect(() => {
     const flush = async () => {
@@ -792,15 +796,7 @@ export function App() {
       </main>
 
       <nav className="tabs">
-        {/* Finance asked for reports and nothing else. Reports already carries
-            inventory, Tremco and the daily log, so the separate stock tab was
-            a second way into figures they can already see here. */}
-        {currentUser.role === "cfo" ? (
-          <button className={tab === "cfo" ? "on" : ""} onClick={() => setTab("cfo")}>
-            <NavIcon tab={"cfo"} />
-            Reports
-          </button>
-        ) : <>
+        <>
           {(canManage(currentUser.role) || state.loadIns.some((loadIn) => loadIn.assignedTo === currentUser.id)
             ? (["home", "loadin", "log", "trucks", "tools", "inventory"] as Tab[])
             : (["home", "log", "trucks", "tools", "inventory"] as Tab[])).map((item) => (
@@ -809,7 +805,7 @@ export function App() {
               {item === "inventory" ? "Inventory" : item === "log" ? "Daily Log" : item === "trucks" ? "Tasks" : item === "loadin" ? "Load-In" : item[0].toUpperCase() + item.slice(1)}
             </button>
           ))}
-          {canManage(currentUser.role) && (
+          {canSeeEverything(currentUser.role) && (
             <button className={tab === "cfo" ? "on" : ""} onClick={() => setTab("cfo")}>
               <NavIcon tab={"cfo"} />
               Reports
@@ -825,7 +821,7 @@ export function App() {
               Admin
             </button>
           )}
-        </>}
+        </>
       </nav>
       {primaryActionLabel && <div className="bottom-bar">
         <button className="fab btn good" onClick={handlePrimaryAction}>{primaryActionLabel}</button>
@@ -938,7 +934,7 @@ function Home({ state, role, userId, setTab, goToFocus, openGraph, toggleLoadInI
   const loadInWindow = [todayKey(), addDays(todayKey(), 1)];
   const myLoadIns = state.loadIns.filter((loadIn) =>
     loadIn.assignedTo === userId && !loadIn.completedAt && loadInWindow.includes(loadIn.loadInDate));
-  const attention = [{ count: maintenance, label: "Open maintenance requests", tab: "trucks" as Tab, focus: "maintenance" }, { count: incompleteTasks, label: "Truck tasks remaining today", tab: "trucks" as Tab, focus: "tasks" }, { count: lows.length, label: "Items below reorder threshold", tab: "inventory" as Tab, focus: "low-stock" }, ...(canManage(role) ? [{ count: needsReviewCount, label: "Inventory Log \u2014 Needs Review", tab: "cfo" as Tab, focus: "needs-review" }] : [])].filter((item) => item.count > 0);
+  const attention = [{ count: maintenance, label: "Open maintenance requests", tab: "trucks" as Tab, focus: "maintenance" }, { count: incompleteTasks, label: "Truck tasks remaining today", tab: "trucks" as Tab, focus: "tasks" }, { count: lows.length, label: "Items below reorder threshold", tab: "inventory" as Tab, focus: "low-stock" }, ...(canSeeEverything(role) ? [{ count: needsReviewCount, label: "Inventory Log \u2014 Needs Review", tab: "cfo" as Tab, focus: "needs-review" }] : [])].filter((item) => item.count > 0);
 
   // Crew: the four things they open the app to do, and nothing about stock
   // levels or prices. Reorder thresholds and price changes are not their call,

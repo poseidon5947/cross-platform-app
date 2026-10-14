@@ -334,13 +334,14 @@ export const policyDocuments: PolicyDocument[] = [
     id: "policy-crew-code-of-conduct",
     title: "Crew Policies & Code of Conduct",
     version: "2026",
-    effectiveDate: "2026-10-09",
+    effectiveDate: "2026-10-11",
     fileUrl: "https://docs.google.com/document/d/1h_XmTTdiMI0v0bMSOr7Q7s1HNOFElITKEG898dARUB0/edit?usp=sharing",
     annualDueMonthDay: "08-31",
     active: true,
-    // 9 October revision. BuilderTrend is gone - time and daily logs now go
-    // through SuperCrew - and the logs section gained the rule that product
-    // names and units must match Warehouse Wizard.
+    // 11 October revision, matching the date on the client's own document.
+    // BuilderTrend and the construction-clock wording are gone - time and daily
+    // logs go through SuperCrew - and the logs section gained the rule that
+    // product names and units must match Warehouse Wizard.
     sections: [
       "Crew Policies", "Our Values", "Payday", "Breaks", "Travel Time", "SuperCrew",
       "Work Orders & Daily Logs", "Overtime", "Time Off", "Vacation", "Cell Phones & Earbuds",
