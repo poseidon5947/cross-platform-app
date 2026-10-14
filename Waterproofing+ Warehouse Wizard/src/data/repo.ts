@@ -162,7 +162,14 @@ const toolToRow = (tool: ToolItem) => ({
   out_ts: tool.outTs ?? null,
 });
 
-const truckFromRow = (row: any): Truck => ({ id: row.id, name: row.name, km: Number(row.km), lastServiced: row.last_serviced, lastOil: Number(row.last_oil), make: row.make ?? undefined, model: row.model ?? undefined, modelYear: row.model_year ?? undefined, vin: row.vin ?? undefined, registration: row.registration ?? undefined, licensePlate: row.license_plate ?? undefined, insurancePolicy: row.insurance_policy ?? undefined, showToCrew: row.show_to_crew ?? true });
+const truckFromRow = (row: any): Truck => ({ id: row.id, name: row.name, km: Number(row.km), lastServiced: row.last_serviced, lastOil: Number(row.last_oil), showToCrew: row.show_to_crew ?? true });
+
+/**
+ * Registration details come from their own table, which only admin, manager and
+ * finance may read. A crew account gets an empty list back rather than an error,
+ * so the fields simply stay undefined for them.
+ */
+const truckDetailFromRow = (row: any) => ({ truckId: row.truck_id as string, make: row.make ?? undefined, model: row.model ?? undefined, modelYear: row.model_year ?? undefined, vin: row.vin ?? undefined, registration: row.registration ?? undefined, licensePlate: row.license_plate ?? undefined, insurancePolicy: row.insurance_policy ?? undefined });
 const truckTaskFromRow = (row: any): TruckTask => ({
   id: row.id,
   text: row.text,
@@ -314,7 +321,7 @@ async function read<T>(table: string, mapper: (row: any) => T, order = "created_
 }
 
 export async function loadRemoteState(currentUserId: string): Promise<AppState> {
-  const [materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streakRows, maintenanceRequests, dailyLogs, dailyLogMedia, loadIns, loadInItems, loadInMedia, crewPoolPoints] =
+  const [materials, sites, services, users, transactions, tools, trucksRaw, truckDetails, truckLogs, truckTasks, taskCompletions, pointsEvents, streakRows, maintenanceRequests, dailyLogs, dailyLogMedia, loadIns, loadInItems, loadInMedia, crewPoolPoints] =
     await Promise.all([
       read("materials", materialFromRow),
       read("sites", siteFromRow),
@@ -323,6 +330,7 @@ export async function loadRemoteState(currentUserId: string): Promise<AppState> 
       read("transactions", txFromRow, "ts"),
       read("tools", toolFromRow),
       read("trucks", truckFromRow),
+      read("truck_details", truckDetailFromRow),
       read("truck_logs", truckLogFromRow, "ts"),
       read("truck_tasks", truckTaskFromRow),
       read("task_completions", completionFromRow, "completed_at"),
@@ -336,6 +344,8 @@ export async function loadRemoteState(currentUserId: string): Promise<AppState> 
       readLoadInMedia(),
       readCrewPoolPoints(),
     ]);
+  const detailByTruck = new Map(truckDetails.map((detail) => [detail.truckId, detail]));
+  const trucks = trucksRaw.map((truck) => ({ ...truck, ...(detailByTruck.get(truck.id) ?? {}) }));
   return { materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streaks: streakRows, currentUserId, offlineQueue: [], maintenanceRequests, dailyLogs, dailyLogMedia, loadIns, loadInItems, loadInMedia, crewPoolPoints };
 }
 
@@ -668,12 +678,18 @@ export async function receiptSignedUrl(storageKey: string) {
 }
 
 export async function upsertTruck(truck: Truck) {
-  const { error } = await requireClient().from("trucks").upsert({
+  const { data, error } = await requireClient().from("trucks").upsert({
     id: isUuid(truck.id) ? truck.id : undefined,
     name: truck.name,
     km: truck.km,
     last_serviced: truck.lastServiced || null,
     last_oil: truck.lastOil,
+    show_to_crew: truck.showToCrew ?? true,
+  }, { onConflict: "id" }).select("id").single();
+  if (error) throw error;
+  const truckId = (data as { id: string } | null)?.id ?? truck.id;
+  const { error: detailError } = await requireClient().from("truck_details").upsert({
+    truck_id: truckId,
     make: truck.make || null,
     model: truck.model || null,
     model_year: truck.modelYear || null,
@@ -681,9 +697,9 @@ export async function upsertTruck(truck: Truck) {
     registration: truck.registration || null,
     license_plate: truck.licensePlate || null,
     insurance_policy: truck.insurancePolicy || null,
-    show_to_crew: truck.showToCrew ?? true,
-  });
-  if (error) throw error;
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "truck_id" });
+  if (detailError) throw detailError;
 }
 
 /**
