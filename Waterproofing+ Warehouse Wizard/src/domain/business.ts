@@ -516,7 +516,10 @@ export function resolveNeedsReviewTransaction(
   if (!tx || !tx.needsReview || !material || qty <= 0) return state;
   const resolved: Transaction = { ...tx, materialId, qty, needsReview: false, rawUnitText: unit ?? tx.rawUnitText };
   const transactions = state.transactions.map((item) => (item.id === transactionId ? resolved : item));
-  return { ...state, transactions, materials: applyTransactions(state.materials, [resolved]) };
+  // Historical lines are a record, not a movement: the database trigger skips
+  // them too, and the screen has to agree or the two drift apart until reload.
+  const materials = tx.skipStock ? state.materials : applyTransactions(state.materials, [resolved]);
+  return { ...state, transactions, materials };
 }
 
 const DAILY_LOG_ENTRY_POINTS = 5;

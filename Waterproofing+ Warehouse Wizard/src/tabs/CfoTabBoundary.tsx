@@ -33,6 +33,9 @@ function NeedsReviewRow({ tx, state, resolveTransaction, dismissTransaction }: {
     <div className="mid">
       <b>{tx.rawItemText ?? "Unlabeled item"}</b>
       <div className="tiny muted">{formatDateTime(tx.ts)} · {siteName(state, tx.siteId)} · {userName(state, tx.userId)} · raw qty: {tx.rawQtyText ?? "—"} {tx.rawUnitText ?? ""}</div>
+      {/* Imported from a back-dated log. Naming the product fixes the record;
+          the stock count it sits behind has already been taken. */}
+      {tx.skipStock && <div className="tiny muted">Past log — naming the item corrects the record and leaves stock on hand alone.</div>}
     </div>
     <select className="in" value={materialId} onChange={(event) => setMaterialId(event.target.value)}>
       <option value="">Pick the real item…</option>

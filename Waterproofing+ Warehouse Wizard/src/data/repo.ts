@@ -76,6 +76,7 @@ const txFromRow = (row: any): Transaction => ({
   rawQtyText: row.raw_qty_text ?? undefined,
   rawUnitText: row.raw_unit_text ?? undefined,
   reviewDismissedAt: row.review_dismissed_at ?? undefined,
+  skipStock: row.skip_stock ?? false,
 });
 
 const txToRow = (tx: Omit<Transaction, "id" | "ts">) => ({

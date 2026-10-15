@@ -144,6 +144,12 @@ export interface Transaction {
   rawQtyText?: string;
   rawUnitText?: string;
   reviewDismissedAt?: string;
+  /**
+   * A line imported from a back-dated daily log. It records what was used, but
+   * the stock count it belongs behind has already been taken, so naming the
+   * product must not deduct it a second time.
+   */
+  skipStock?: boolean;
 }
 
 /** Tomorrow's load-in, prepared by the project manager the evening before. */
