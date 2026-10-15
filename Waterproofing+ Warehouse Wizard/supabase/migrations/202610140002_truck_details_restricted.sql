@@ -13,7 +13,10 @@ create table if not exists public.truck_details (
   registration text,
   license_plate text,
   insurance_policy text,
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  -- loadRemoteState orders every table by created_at unless told otherwise,
+  -- so a table without this column 400s and takes the whole app load down.
+  created_at timestamptz not null default now()
 );
 
 alter table public.truck_details enable row level security;

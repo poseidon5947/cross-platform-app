@@ -7,7 +7,10 @@ create table if not exists public.material_costs (
   cost numeric(12,2) not null default 0,
   previous_cost numeric(12,2),
   price_changed_at timestamptz,
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  -- loadRemoteState orders every table by created_at unless told otherwise,
+  -- so a table without this column 400s and takes the whole app load down.
+  created_at timestamptz not null default now()
 );
 
 alter table public.material_costs enable row level security;
