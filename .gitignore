@@ -42,3 +42,8 @@ What I need from you*
 
 # Written by a one-off `deno check`, not part of the build.
 deno.lock
+
+# Client worksheets exported for review. The earlier sweep covered PDF, Word and
+# Excel but not CSV, which is how a product list stayed tracked in a public repo.
+*.csv
+!**/src/**/*.csv
