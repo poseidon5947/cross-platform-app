@@ -151,6 +151,8 @@ const toolFromRow = (row: any): ToolItem => ({
   outJob: row.out_job ?? undefined,
   outService: row.out_service ?? undefined,
   outTs: row.out_ts ?? undefined,
+  photoKey: row.photo_key ?? undefined,
+  locationPhotoKey: row.location_photo_key ?? undefined,
 });
 
 const toolToRow = (tool: ToolItem) => ({
@@ -166,6 +168,8 @@ const toolToRow = (tool: ToolItem) => ({
   out_job: tool.outJob ?? null,
   out_service: tool.outService ?? null,
   out_ts: tool.outTs ?? null,
+  photo_key: tool.photoKey ?? null,
+  location_photo_key: tool.locationPhotoKey ?? null,
 });
 
 const truckFromRow = (row: any): Truck => ({ id: row.id, name: row.name, km: Number(row.km), lastServiced: row.last_serviced, lastOil: Number(row.last_oil), showToCrew: row.show_to_crew ?? true });
@@ -772,6 +776,31 @@ export async function uploadReceiptPhoto(truckId: string, file: File) {
   if (error) throw error;
   return storageKey;
 }
+
+/**
+ * Tool photos live in the warehouse-receipts bucket under a tools/ prefix.
+ *
+ * That bucket is already private, with team-read and team-upload policies that
+ * are exactly what these need. A second bucket would mean a second set of
+ * storage rules to keep right, and storage rules are where a photo quietly
+ * becomes public.
+ */
+export async function uploadToolPhoto(toolId: string, file: File) {
+  if (file.size > MAX_MEDIA_BYTES) {
+    throw new Error(`${file.name} is ${(file.size / 1024 / 1024).toFixed(0)}MB. The limit is 50MB.`);
+  }
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+  const storageKey = `tools/${toolId}/${crypto.randomUUID()}-${safeName}`;
+  const { error } = await requireClient().storage.from("warehouse-receipts").upload(storageKey, file, {
+    cacheControl: "31536000",
+    upsert: false,
+    contentType: file.type || undefined,
+  });
+  if (error) throw error;
+  return storageKey;
+}
+
+export const toolPhotoSignedUrl = (storageKey: string) => receiptSignedUrl(storageKey);
 
 export async function receiptSignedUrl(storageKey: string) {
   const { data, error } = await requireClient().storage.from("warehouse-receipts").createSignedUrl(storageKey, 60 * 60);

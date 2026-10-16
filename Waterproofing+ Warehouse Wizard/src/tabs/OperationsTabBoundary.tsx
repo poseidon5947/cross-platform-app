@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { categoryLabels, services as seedServices } from "../data/seed";
-import { dailyLogMediaSignedUrl, receiptSignedUrl, uploadReceiptPhoto } from "../data/repo";
+import { dailyLogMediaSignedUrl, receiptSignedUrl, toolPhotoSignedUrl, uploadReceiptPhoto, uploadToolPhoto } from "../data/repo";
 import { isSupabaseConfigured } from "../integrations/supabase";
 import { ALLOWED_MATERIAL_UNITS, batteryState, canResolveMaintenanceRequests, canSeeEverything, canSeePrices, dailyProgress, formatDate, materialsForService, id, isKmEntryTask, isTaskDone, money, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
 import type { AppState, Category, DailyLog, DailyLogMedia, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, TaskSection, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User } from "../types";
@@ -288,6 +288,62 @@ function Tools({ state, role, userId, openSheet, saveTool }: { state: AppState; 
   return <><div className="kpis"><Kpi label="Checked out" value={state.tools.filter((tool) => tool.status === "out").length} sub={`of ${state.tools.length}`} /><Kpi label="Repair flags" value={state.tools.filter((tool) => tool.condition !== "good").length} sub="needs manager review" /></div><button className="btn primary block" onClick={() => openSheet({ title: "Check tools for job", content: <BulkToolSheet state={state} userId={userId} saveTool={saveTool} /> })}>Check tools for job</button><div className="chips"><Chip on={filter === "all"} onClick={() => setFilter("all")}>All</Chip><Chip on={filter === "charge"} onClick={() => setFilter("charge")}>🔋 Charge due {state.tools.filter(t => t.battery && batteryState(t.lastCharged).key === "bad").length > 0 ? `(${state.tools.filter(t => t.battery && batteryState(t.lastCharged).key === "bad").length})` : ""}</Chip>{state.services.map((service) => <Chip key={service.id} on={filter === service.id} onClick={() => setFilter(service.id)}>{service.name}</Chip>)}</div><section className="card">{list.map((tool) => { const charge = tool.battery ? batteryState(tool.lastCharged) : null; return <div className="tool-row" key={tool.id} onClick={() => openSheet({ title: tool.name, content: <ToolSheet state={state} role={role} userId={userId} tool={tool} saveTool={saveTool} /> })}><div><b>{tool.name}</b><div className="tiny muted">{serviceName(state, tool.serviceId)} {tool.status === "out" ? `- out with ${userName(state, tool.outBy)} - ${siteName(state, tool.outJob)}` : "- in warehouse"}</div></div><div className="tool-actions"><Pill tone={tool.status === "out" ? "warn" : "good"}>{tool.status}</Pill><Pill tone={tool.condition === "good" ? "good" : "bad"}>{tool.condition}</Pill>{charge && <Pill tone={charge.key}>{charge.label}</Pill>}</div></div>; })}</section>{canManage(role) && <button className="btn line block" onClick={() => openSheet({ title: "New tool", content: <ToolForm state={state} saveTool={saveTool} /> })}>Add new tool</button>}</>;
 }
 
+/**
+ * A tool photo already uploaded, fetched through a signed URL.
+ *
+ * The bucket is private, so there is no permanent address to put in an <img>;
+ * the link is minted on view and expires. A failure shows the slot as empty
+ * rather than a broken image, because a broken image looks like a bug in the
+ * tool rather than a photo that would not load.
+ */
+function ToolPhotoPreview({ storageKey, alt }: { storageKey: string; alt: string }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    let live = true;
+    toolPhotoSignedUrl(storageKey).then((signed) => { if (live) setUrl(signed); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [storageKey]);
+  return url ? <img src={url} alt={alt} className="file-preview-thumb" /> : <p className="tiny muted">Photo on file.</p>;
+}
+
+/**
+ * Two photos per tool: the tool, and where it lives.
+ *
+ * Uploading happens on pick rather than on save, so a slow photo over site
+ * wifi does not hold up the rest of the form, and a failed upload says so
+ * instead of silently dropping the picture.
+ */
+function ToolPhotoFields({ tool, onChange }: { tool: ToolItem; onChange: (patch: Partial<ToolItem>) => void }) {
+  const [busy, setBusy] = useState<"" | "photoKey" | "locationPhotoKey">("");
+  const [failed, setFailed] = useState("");
+  const pick = async (field: "photoKey" | "locationPhotoKey", file: File | null) => {
+    if (!file) return onChange({ [field]: undefined });
+    if (DEMO_MODE) return onChange({ [field]: file.name });
+    setBusy(field);
+    setFailed("");
+    try {
+      onChange({ [field]: await uploadToolPhoto(tool.id, file) });
+    } catch (error) {
+      setFailed(error instanceof Error ? error.message : "That photo did not upload.");
+    } finally {
+      setBusy("");
+    }
+  };
+  const slot = (field: "photoKey" | "locationPhotoKey", label: string, hint: string) => <>
+    <label className="fld">{label}</label>
+    <p className="tiny muted">{hint}</p>
+    <ImageFilePicker accept="image/*" onChange={(file) => void pick(field, file)} />
+    {busy === field && <p className="tiny muted">Uploading&hellip;</p>}
+    {tool[field] && busy !== field && <ToolPhotoPreview storageKey={tool[field] as string} alt={label} />}
+    {tool[field] && <button className="btn line sm" onClick={() => onChange({ [field]: undefined })}>Remove photo</button>}
+  </>;
+  return <>
+    {slot("photoKey", "Photo of the tool", "A close-up, so it is recognisable on the shelf.")}
+    {slot("locationPhotoKey", "Warehouse location", "A wider shot showing where it lives, so someone can go and find it.")}
+    {failed && <p className="tiny error">{failed}</p>}
+  </>;
+}
+
 function ToolForm({ state, tool, saveTool }: { state: AppState; tool?: ToolItem; saveTool: (tool: ToolItem, message?: string) => void }) {
   const [draft, setDraft] = useState<ToolItem>(tool ?? { id: id("t"), name: "", serviceId: "veh", battery: false, status: "in", condition: "good" });
   const set = <K extends keyof ToolItem>(key: K, value: ToolItem[K]) => setDraft((current) => ({ ...current, [key]: value }));
@@ -297,6 +353,7 @@ function ToolForm({ state, tool, saveTool }: { state: AppState; tool?: ToolItem;
     <label className="fld">Service</label>
     <select className="in" value={draft.serviceId} onChange={(event) => set("serviceId", event.target.value as ServiceId)}>{state.services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select>
     <label className="check"><input type="checkbox" checked={draft.battery} onChange={(event) => set("battery", event.target.checked)} /> Cordless / battery powered</label>
+    <ToolPhotoFields tool={draft} onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))} />
     <button className="btn primary block" disabled={!draft.name.trim()} onClick={() => saveTool(draft, tool ? "Tool updated" : "Tool added")}>Save tool</button>
   </div>;
 }
@@ -611,7 +668,7 @@ function ToolSheet({ state, role, userId, tool, saveTool }: { state: AppState; r
     ? checkout()
     : saveTool({ ...tool, status: "in", outBy: undefined, outJob: undefined, outService: undefined, outTs: undefined }, "Checked in");
   const chargedOn = tool.lastCharged ? tool.lastCharged.slice(0, 10) : "";
-  return <div><div className="line-item"><b>Status</b><select className="in tool-state" value={tool.status} onChange={(event) => setStatus(event.target.value)} aria-label="Tool status"><option value="in">in warehouse</option><option value="out">out on a job</option></select></div>{tool.battery && <div className="line-item"><b>Battery</b><div className="tool-battery"><Pill tone={batteryState(tool.lastCharged).key}>{batteryState(tool.lastCharged).label}</Pill><input className="in tool-state" type="date" max={todayKey()} value={chargedOn} aria-label="Last charged" onChange={(event) => saveTool({ ...tool, lastCharged: event.target.value ? new Date(`${event.target.value}T12:00:00`).toISOString() : undefined }, "Charge date updated")} /></div></div>}<p className="tiny muted">Switching to &ldquo;out on a job&rdquo; uses the job and service picked below.</p><label className="fld">Job</label><select className="in" value={siteId} onChange={(event) => setSiteId(event.target.value)}>{state.sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select><label className="fld">Service</label><select className="in" value={serviceId} onChange={(event) => setServiceId(event.target.value as ServiceId)}>{state.services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select><label className="fld">Damage / repair note</label><textarea className="in" value={note} onChange={(event) => setNote(event.target.value)} /><button className="btn primary block" onClick={tool.status === "out" ? () => saveTool({ ...tool, status: "in", outBy: undefined, outJob: undefined, outService: undefined, outTs: undefined }, "Checked in") : checkout}>{tool.status === "out" ? "Check in" : "Check out"}</button>{tool.battery && <button className="btn line block" onClick={() => saveTool({ ...tool, lastCharged: new Date().toISOString() }, "Marked charged")}>Mark charged</button>}{canManage(role) && <div className="row-action"><button className="btn line sm" onClick={() => markCondition("damaged")}>Report damage</button><button className="btn line sm" onClick={() => markCondition("repair")}>Send to repair</button><button className="btn line sm" onClick={() => markCondition("good")}>Back in service</button></div>}</div>;
+  return <div><div className="line-item"><b>Status</b><select className="in tool-state" value={tool.status} onChange={(event) => setStatus(event.target.value)} aria-label="Tool status"><option value="in">in warehouse</option><option value="out">out on a job</option></select></div>{tool.battery && <div className="line-item"><b>Battery</b><div className="tool-battery"><Pill tone={batteryState(tool.lastCharged).key}>{batteryState(tool.lastCharged).label}</Pill><input className="in tool-state" type="date" max={todayKey()} value={chargedOn} aria-label="Last charged" onChange={(event) => saveTool({ ...tool, lastCharged: event.target.value ? new Date(`${event.target.value}T12:00:00`).toISOString() : undefined }, "Charge date updated")} /></div></div>}<p className="tiny muted">Switching to &ldquo;out on a job&rdquo; uses the job and service picked below.</p><label className="fld">Job</label><select className="in" value={siteId} onChange={(event) => setSiteId(event.target.value)}>{state.sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select><label className="fld">Service</label><select className="in" value={serviceId} onChange={(event) => setServiceId(event.target.value as ServiceId)}>{state.services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select><ToolPhotoFields tool={tool} onChange={(patch) => saveTool({ ...tool, ...patch }, "Tool photo saved")} /><label className="fld">Damage / repair note</label><textarea className="in" value={note} onChange={(event) => setNote(event.target.value)} /><button className="btn primary block" onClick={tool.status === "out" ? () => saveTool({ ...tool, status: "in", outBy: undefined, outJob: undefined, outService: undefined, outTs: undefined }, "Checked in") : checkout}>{tool.status === "out" ? "Check in" : "Check out"}</button>{tool.battery && <button className="btn line block" onClick={() => saveTool({ ...tool, lastCharged: new Date().toISOString() }, "Marked charged")}>Mark charged</button>}{canManage(role) && <div className="row-action"><button className="btn line sm" onClick={() => markCondition("damaged")}>Report damage</button><button className="btn line sm" onClick={() => markCondition("repair")}>Send to repair</button><button className="btn line sm" onClick={() => markCondition("good")}>Back in service</button></div>}</div>;
 }
 
 function TruckLogForm({ state, saveTruck }: { state: AppState; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void }) {

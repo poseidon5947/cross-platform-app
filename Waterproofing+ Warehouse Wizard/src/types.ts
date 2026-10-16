@@ -211,6 +211,13 @@ export interface ToolItem {
   outJob?: string;
   outService?: ServiceId;
   outTs?: string;
+  /** A photo of the tool itself. */
+  photoKey?: string;
+  /**
+   * A wider shot of where it sits in the warehouse. This is the one that gets
+   * used: "which shelf is the Lavina on" is not answered by a close-up.
+   */
+  locationPhotoKey?: string;
 }
 
 export interface Truck {
