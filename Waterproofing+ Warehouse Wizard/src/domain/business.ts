@@ -645,18 +645,34 @@ export function applyReviewSplit(
  * slash in "screws/washers". The guess is a starting point the operator edits
  * - nothing is split without them confirming the pieces.
  */
-export function suggestReviewSplit(rawItemText: string): ReviewSplitPiece[] {
+export function suggestReviewSplit(rawItemText: string, rawQtyText?: string): ReviewSplitPiece[] {
+  // The slash in "screws/washers" separates two products; the one in "1/3
+  // barrel to260" is a fraction, and splitting there turns a third of a
+  // barrel into a product called "3 barrel to260". A fraction is a slash
+  // with digits on both sides, so hide those before splitting and put them
+  // back after. Done with a placeholder rather than a lookbehind, which
+  // older iPhones do not have.
+  const FRACTION = "\u0000";
   const parts = rawItemText
+    // A trailing aside is a note about the line, not another product. The
+    // import wrote several of them, and "(looks like measurements, not a
+    // product)" has a comma in it that would otherwise split.
+    .replace(/\s*\([^()]*\)\s*$/, "")
+    .replace(/(\d)\/(\d)/g, `$1${FRACTION}$2`)
     .split(/\s*(?:,|\band\b|&|\+|\/)\s*/i)
-    .map((part) => part.replace(/^[\s.;-]+|[\s.;-]+$/g, ""))
+    .map((part) => part.split(FRACTION).join("/").replace(/^[\s.;-]+|[\s.;-]+$/g, ""))
     .filter(Boolean);
   if (parts.length < 2) return [];
   // "6 pieces of term bar" -> qty 6. A leading count is the one piece of this
   // the crew write consistently; anything else is left for the operator.
-  return parts.map((part) => {
+  const pieces = parts.map((part) => {
     const lead = /^(\d+(?:\.\d+)?)\s+(.*)$/.exec(part);
     return lead && lead[2] ? { rawItemText: lead[2], rawQtyText: lead[1] } : { rawItemText: part };
   });
+  // The row's own quantity belongs to whatever it is named first - "pins, 450
+  // shot" with a raw quantity of 400 means 400 pins.
+  if (rawQtyText && !pieces[0].rawQtyText) pieces[0] = { ...pieces[0], rawQtyText };
+  return pieces;
 }
 
 const DAILY_LOG_ENTRY_POINTS = 5;

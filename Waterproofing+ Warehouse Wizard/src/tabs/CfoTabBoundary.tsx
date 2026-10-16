@@ -66,7 +66,7 @@ function MaterialPicker({ state, value, onChange }: { state: AppState; value: st
  */
 function SplitEditor({ tx, onSplit, onCancel }: { tx: Transaction; onSplit: (pieces: ReviewSplitPiece[]) => void; onCancel: () => void }) {
   const suggestion = useMemo(() => {
-    const guess = suggestReviewSplit(tx.rawItemText ?? "");
+    const guess = suggestReviewSplit(tx.rawItemText ?? "", tx.rawQtyText);
     return guess.length >= 2 ? guess : [
       { rawItemText: tx.rawItemText ?? "", rawQtyText: tx.rawQtyText },
       { rawItemText: "" },
