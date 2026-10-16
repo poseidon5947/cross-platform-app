@@ -116,6 +116,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
 }
 .sheet, .bottom-sheet { border-radius: 26px 26px 0 0; }
+/* Centred rather than docked from 760px up, so the rounding has to close.
+   This file loads after styles.css, so the desktop radius belongs here too or
+   the bottom-sheet corners win over the centred ones. */
+@media (min-width: 760px) {
+  .sheet { border-radius: 26px; }
+}
 table { color: var(--glass-ink); }
 th { background: var(--glass-field); color: var(--glass-muted); }
 td { border-color: var(--glass-edge); }

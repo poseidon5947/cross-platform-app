@@ -425,6 +425,47 @@ async function updateOneTransaction(id: string, patch: Record<string, unknown>, 
   }
 }
 
+/**
+ * Write the rows a split or a pairing creates.
+ *
+ * These carry their own ids and their own `ts`, because a split row belongs on
+ * the day the crew logged it, not the day someone tidied it up, and because
+ * replaying the same split must not file it twice - the upsert collides on the
+ * primary key and does nothing. `skip_stock` and `needs_review` ride along:
+ * the insert trigger reads both now, so a back-dated row is recorded without
+ * moving stock and a row still awaiting review moves nothing at all.
+ */
+export async function insertReviewRows(rows: Transaction[]) {
+  if (!rows.length) return;
+  const payload = rows.map((tx) => ({
+    id: tx.id,
+    material_id: tx.materialId ?? null,
+    qty: tx.qty,
+    type: tx.type,
+    site_id: tx.siteId ?? null,
+    service_id: tx.serviceId ?? null,
+    user_id: tx.userId,
+    ts: tx.ts,
+    note: tx.note ?? null,
+    needs_review: tx.needsReview ?? false,
+    raw_item_text: tx.rawItemText ?? null,
+    raw_qty_text: tx.rawQtyText ?? null,
+    raw_unit_text: tx.rawUnitText ?? null,
+    skip_stock: tx.skipStock ?? false,
+  }));
+  const { error } = await requireClient().from("transactions").upsert(payload, { onConflict: "id", ignoreDuplicates: true });
+  if (error) throw error;
+}
+
+/** Narrow a split row to the one product it is now about. */
+export async function updateReviewRawText(transactionId: string, rawItemText: string, rawQtyText?: string, note?: string) {
+  await updateOneTransaction(transactionId, {
+    raw_item_text: rawItemText,
+    raw_qty_text: rawQtyText ?? null,
+    note: note ?? null,
+  }, "Splitting this line");
+}
+
 export async function updateResolvedTransaction(tx: Transaction) {
   await updateOneTransaction(tx.id, {
     material_id: tx.materialId,
@@ -665,6 +706,27 @@ export async function setLoadInItemDone(itemId: string, done: boolean, userId: s
   // Same guard as the transactions update: RLS that matches no rows reports
   // success, and a tick that silently does not save is worse than an error.
   if (!data?.length) throw new Error("That did not save - this load-in may not be assigned to you.");
+}
+
+/**
+ * Hand a load-in to someone else, or take an item off the list.
+ *
+ * Both were already allowed by the policies - a manager may update and delete
+ * these rows - and only the screen had no way to ask. A list sent to the wrong
+ * person had to be left sitting there, and a mistyped item stayed on it.
+ */
+export async function reassignLoadIn(loadInId: string, userId: string) {
+  const { data, error } = await requireClient().from("project_load_in")
+    .update({ assigned_to: uuidOrNull(userId) }).eq("id", loadInId).select("id");
+  if (error) throw error;
+  if (!data?.length) throw new Error("That did not save - only a manager can reassign a load-in.");
+}
+
+export async function deleteLoadInItem(itemId: string) {
+  const { data, error } = await requireClient().from("project_load_in_item")
+    .delete().eq("id", itemId).select("id");
+  if (error) throw error;
+  if (!data?.length) throw new Error("That did not delete - only a manager can change a load-in list.");
 }
 
 export async function markLoadInComplete(loadInId: string) {

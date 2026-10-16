@@ -126,18 +126,23 @@ export function LoadInPlanner({ state, userId, saveLoadIn }: {
 }
 
 /** What the assigned crew member sees, and ticks off. */
-export function LoadInChecklist({ state, loadIn, items, media, onToggle, onComplete, readOnly = false }: {
+export function LoadInChecklist({ state, loadIn, items, media, onToggle, onComplete, onReassign, onRemoveItem, readOnly = false }: {
   state: AppState;
   loadIn: ProjectLoadIn;
   items: ProjectLoadInItem[];
   media: ProjectLoadInMedia[];
   onToggle: (itemId: string, done: boolean) => void;
   onComplete: (loadIn: ProjectLoadIn) => void;
+  /** Only passed to whoever may change the list - the planner, not the crew. */
+  onReassign?: (loadIn: ProjectLoadIn, userId: string) => void;
+  onRemoveItem?: (item: ProjectLoadInItem) => void;
   readOnly?: boolean;
 }) {
+  const [reassigning, setReassigning] = useState(false);
   const progress = loadInProgress(items);
   const site = state.sites.find((item) => item.id === loadIn.siteId);
   const service = state.services.find((item) => item.id === loadIn.serviceId);
+  const assignee = state.users.find((item) => item.id === loadIn.assignedTo);
   const grouped = ["services", "trucks", "warehouse"].map((section) => ({
     section,
     rows: items.filter((item) => (item.section ?? "services") === section),
@@ -148,18 +153,31 @@ export function LoadInChecklist({ state, loadIn, items, media, onToggle, onCompl
       <div>
         <h3>Load-in &mdash; {site?.name ?? "Job"}</h3>
         <p className="tiny muted">{service?.name} &middot; {formatDate(loadIn.loadInDate)} &middot; {progress.done} of {progress.total} loaded</p>
+        {/* Who is loading this was stored but never shown, so the board gave
+            no way to tell one card from another at a glance. */}
+        <p className="tiny muted">Loading: {assignee?.name ?? "nobody yet"}{onReassign && " "}
+          {onReassign && <button className="link" onClick={() => setReassigning((current) => !current)}>{reassigning ? "Cancel" : "Change"}</button>}</p>
       </div>
     </div>
+
+    {onReassign && reassigning && <select className="in" value={loadIn.assignedTo ?? ""} aria-label="Assign this load-in to"
+      onChange={(event) => { onReassign(loadIn, event.target.value); setReassigning(false); }}>
+      <option value="">Choose a crew member</option>
+      {state.users.filter((user) => user.status !== "Inactive").map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+    </select>}
 
     {loadIn.notes && <p className="tiny">{loadIn.notes}</p>}
 
     {grouped.map((group) => <div key={group.section}>
       <label className="fld">{sectionLabels[group.section] ?? group.section}</label>
-      {group.rows.map((item) => <label className="line-item" key={item.id} style={{ cursor: readOnly ? "default" : "pointer" }}>
-        <input type="checkbox" checked={Boolean(item.doneAt)} disabled={readOnly}
-          onChange={() => onToggle(item.id, !item.doneAt)} />
-        <div className="mid"><b>{item.label}</b></div>
-      </label>)}
+      {group.rows.map((item) => <div className="line-item" key={item.id}>
+        <label className="mid" style={{ cursor: readOnly ? "default" : "pointer", display: "flex", gap: "10px", alignItems: "center", minWidth: 0 }}>
+          <input type="checkbox" checked={Boolean(item.doneAt)} disabled={readOnly}
+            onChange={() => onToggle(item.id, !item.doneAt)} />
+          <b>{item.label}</b>
+        </label>
+        {onRemoveItem && <button className="btn line sm" aria-label={`Remove ${item.label}`} onClick={() => onRemoveItem(item)}>Remove</button>}
+      </div>)}
     </div>)}
 
     {media.length > 0 && <>
@@ -204,7 +222,7 @@ function LoadInFiles({ media }: { media: ProjectLoadInMedia[] }) {
  * what they were assigned, per the client's rule that the three crew leads see
  * their own load-in rather than the whole board.
  */
-export function LoadInTab({ state, role, userId, openSheet, saveLoadIn, onToggle, onComplete }: {
+export function LoadInTab({ state, role, userId, openSheet, saveLoadIn, onToggle, onComplete, onReassign, onRemoveItem }: {
   state: AppState;
   role: string;
   userId: string;
@@ -212,6 +230,8 @@ export function LoadInTab({ state, role, userId, openSheet, saveLoadIn, onToggle
   saveLoadIn: (input: NewLoadIn) => void;
   onToggle: (itemId: string, done: boolean) => void;
   onComplete: (loadIn: ProjectLoadIn) => void;
+  onReassign: (loadIn: ProjectLoadIn, userId: string) => void;
+  onRemoveItem: (item: ProjectLoadInItem) => void;
 }) {
   const manages = role === "admin" || role === "manager";
   const mine = state.loadIns
@@ -241,7 +261,11 @@ export function LoadInTab({ state, role, userId, openSheet, saveLoadIn, onToggle
       media={state.loadInMedia.filter((item) => item.loadInId === loadIn.id)}
       onToggle={onToggle}
       onComplete={onComplete}
-      readOnly={loadIn.assignedTo !== userId}
+      onReassign={manages ? onReassign : undefined}
+      onRemoveItem={manages ? onRemoveItem : undefined}
+      // Whoever built the list can tick it off too, not only the person it
+      // went to - the planner is often loading the truck alongside them.
+      readOnly={loadIn.assignedTo !== userId && !manages}
     />)}
   </>;
 }

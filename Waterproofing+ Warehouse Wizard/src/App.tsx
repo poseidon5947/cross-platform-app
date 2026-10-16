@@ -25,11 +25,15 @@ import {
   insertMaintenanceRequest,
   insertTransactions,
   updateResolvedTransaction,
+  insertReviewRows,
+  updateReviewRawText,
   uploadDailyLogMedia,
   insertLoadIn,
   uploadLoadInFile,
   setLoadInItemDone,
   markLoadInComplete,
+  reassignLoadIn,
+  deleteLoadInItem,
   dismissTransactionReview,
   invokeMaterialsImport,
   invokeQuickBooksConnect,
@@ -66,6 +70,11 @@ import {
   reorderEstimate,
   remapProvisionalMaterialUnit,
   resolveNeedsReviewTransaction,
+  applyReviewSplit,
+  type ReviewSplitPiece,
+  buildCompanionTransaction,
+  companionMaterial,
+  splitReviewPieces,
   respondToMaintenanceRequest,
   serviceRequired,
   setExactCountDelta,
@@ -83,7 +92,7 @@ import {
   loginEmailFor,
 } from "./domain/business";
 import { isSupabaseConfigured, supabase } from "./integrations/supabase";
-import type { AppState, Category, DailyLog, ProjectLoadIn, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, PointsEvent, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User, OfflineCommand } from "./types";
+import type { AppState, Category, DailyLog, ProjectLoadIn, ProjectLoadInItem, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, PointsEvent, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User, OfflineCommand } from "./types";
 
 const STORAGE_KEY = "warehouse-wizard-state-v4";
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true" || !isSupabaseConfigured();
@@ -491,14 +500,63 @@ export function App() {
     setSheet(null);
   };
 
-  const resolveTransaction = (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit) => {
+  /**
+   * `companionQty` records the product that goes with the one being named -
+   * the shot fired with a Ucan pin. The crew write "shot and pins" and mean
+   * both, and resolving the pins alone has already lost the shot twice.
+   */
+  const resolveTransaction = (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit, companionQty?: number) => {
+    const original = state.transactions.find((item) => item.id === transactionId);
+    const pairing = companionMaterial(state, materialId);
+    const companion = original && pairing && companionQty && companionQty > 0
+      ? buildCompanionTransaction(original, pairing.id, companionQty)
+      : undefined;
     let resolved: Transaction | undefined;
     patchState((current) => {
-      const applied = resolveNeedsReviewTransaction(current, transactionId, materialId, qty, unit);
+      const applied = resolveNeedsReviewTransaction(current, transactionId, materialId, qty, unit, companion);
       resolved = applied.transactions.find((item) => item.id === transactionId);
       return applied;
-    }, "Item resolved");
-    if (remoteMode && resolved) updateResolvedTransaction(resolved).then(invalidateRemote).catch((err) => notify(`Resolve sync failed: ${err.message}`));
+    }, companion && pairing ? `Resolved, with ${pairing.name} recorded alongside it` : "Item resolved");
+    if (!remoteMode || !resolved) return;
+    // The row itself is resolved first. Writing the companion first and then
+    // failing would leave the row on the review list with the shot already
+    // filed, and the next attempt would file it a second time.
+    updateResolvedTransaction(resolved)
+      .then(() => (companion ? insertReviewRows([companion]) : undefined))
+      .then(invalidateRemote)
+      .catch((err: Error) => notify(companion
+        ? `Resolve sync failed: ${err.message}. Check whether ${pairing?.name} was recorded.`
+        : `Resolve sync failed: ${err.message}`));
+  };
+
+  /**
+   * One log line, several products: give each its own review row.
+   *
+   * The siblings are written before the original is narrowed, so a failure
+   * part way through leaves the whole line on screen. Narrowing first and
+   * then failing would delete the very products this is meant to recover.
+   */
+  const splitTransaction = (transactionId: string, pieces: ReviewSplitPiece[]) => {
+    const original = state.transactions.find((item) => item.id === transactionId);
+    if (!original || pieces.length < 2) return;
+    const [first, ...rest] = pieces;
+    const siblings = splitReviewPieces(original, rest);
+    const applyLocally = (message: string) =>
+      patchState((current) => applyReviewSplit(current, transactionId, first, siblings), message);
+    if (!remoteMode) return applyLocally(`Split into ${pieces.length} items`);
+    const line = original.rawItemText?.trim();
+    insertReviewRows(siblings)
+      .then(() => updateReviewRawText(
+        transactionId,
+        first.rawItemText.trim(),
+        first.rawQtyText?.trim() || undefined,
+        line ? `Split from the log line: ${line}` : undefined,
+      ))
+      .then(() => {
+        applyLocally(`Split into ${pieces.length} items`);
+        invalidateRemote();
+      })
+      .catch((err: Error) => notify(`Split failed to save: ${err.message}`));
   };
 
   /**
@@ -568,6 +626,26 @@ export function App() {
   };
 
   /** 50 points, and the server checks every item is ticked before it pays. */
+  const reassignLoadInTo = (loadIn: ProjectLoadIn, nextUserId: string) => {
+    if (!remoteMode) return notify("Load-in lists need the live database.");
+    if (!nextUserId || nextUserId === loadIn.assignedTo) return;
+    const name = state.users.find((item) => item.id === nextUserId)?.name ?? "that crew member";
+    patchState((current) => ({
+      ...current,
+      loadIns: current.loadIns.map((item) => (item.id === loadIn.id ? { ...item, assignedTo: nextUserId } : item)),
+    }), `Load-in moved to ${name}`);
+    reassignLoadIn(loadIn.id, nextUserId).then(invalidateRemote).catch((err: Error) => notify(`Reassign failed: ${err.message}`));
+  };
+
+  const removeLoadInItem = (item: ProjectLoadInItem) => {
+    if (!remoteMode) return notify("Load-in lists need the live database.");
+    patchState((current) => ({
+      ...current,
+      loadInItems: current.loadInItems.filter((row) => row.id !== item.id),
+    }), `Removed ${item.label}`);
+    deleteLoadInItem(item.id).then(invalidateRemote).catch((err: Error) => notify(`Could not remove that item: ${err.message}`));
+  };
+
   const completeLoadIn = (loadIn: ProjectLoadIn) => {
     const recipient = loadIn.assignedTo ?? currentUser.id;
     const event: PointsEvent = {
@@ -784,14 +862,14 @@ export function App() {
           </div>)}
           <div className="tiny muted" style={{ padding: "8px 11px" }}>These keep retrying. Discarding one removes it from this phone without saving it to the server.</div>
         </section>}
-        {tab === "loadin" && <LoadInTab state={state} role={currentUser.role} userId={currentUser.id} openSheet={setSheet} saveLoadIn={saveLoadIn} onToggle={toggleLoadInItem} onComplete={completeLoadIn} />}
+        {tab === "loadin" && <LoadInTab state={state} role={currentUser.role} userId={currentUser.id} openSheet={setSheet} saveLoadIn={saveLoadIn} onToggle={toggleLoadInItem} onComplete={completeLoadIn} onReassign={reassignLoadInTo} onRemoveItem={removeLoadInItem} />}
         {tab === "home" && <Home state={state} role={currentUser.role} userId={currentUser.id} setTab={setTab} goToFocus={goToFocus} openGraph={setGraphModal} toggleLoadInItem={toggleLoadInItem} completeLoadIn={completeLoadIn} />}
         <React.Suspense fallback={<TabSkeleton />}>
           {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
           {tab === "jobs" && <LazyJobsTab state={state} role={currentUser.role} saveSite={saveSite} openSheet={setSheet} />}
           {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} setState={setState} openSheet={setSheet} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
-          {tab === "cfo" && <LazyCfoTab state={state} role={currentUser.role} resolveTransaction={resolveTransaction} dismissTransaction={dismissTransaction} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
+          {tab === "cfo" && <LazyCfoTab state={state} role={currentUser.role} resolveTransaction={resolveTransaction} dismissTransaction={dismissTransaction} splitTransaction={splitTransaction} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
         </React.Suspense>
       </main>
 

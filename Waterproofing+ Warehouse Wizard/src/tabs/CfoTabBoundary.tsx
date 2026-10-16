@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { ALLOWED_MATERIAL_UNITS, canSeeEverything, formatDate, formatDateTime, money, monthlyInventoryLogCsv, stockStatus } from "../domain/business";
+import { ALLOWED_MATERIAL_UNITS, canSeeEverything, companionMaterial, formatDate, formatDateTime, money, monthlyInventoryLogCsv, stockStatus, suggestReviewSplit } from "../domain/business";
+import type { ReviewSplitPiece } from "../domain/business";
 import type { AppState, DailyLog, MaterialUnit, Role, Transaction } from "../types";
 import { canManage, Pill, serviceName, siteName, userName } from "../App";
 
@@ -25,31 +26,122 @@ function MonthPicker({ month, setMonth }: { month: string; setMonth: (value: str
   return <div className="field-stack"><label className="fld">Month</label><input className="in" type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></div>;
 }
 
-function NeedsReviewRow({ tx, state, resolveTransaction, dismissTransaction }: { tx: Transaction; state: AppState; resolveTransaction: (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit) => void; dismissTransaction: (transactionId: string) => void }) {
+/**
+ * Picking the product out of 166 of them.
+ *
+ * This was a plain dropdown, alphabetical, with no way to type. Jordan asked
+ * for search, and he is right: the names are long, near-identical in places
+ * ("Dymonic 100 (Black)" against "Dymoic 100 grey ssg"), and scrolling a list
+ * that size on a phone is how the wrong one gets picked.
+ */
+function MaterialPicker({ state, value, onChange }: { state: AppState; value: string; onChange: (materialId: string) => void }) {
+  const [query, setQuery] = useState("");
+  const sorted = useMemo(() => [...state.materials].sort((a, b) => a.name.localeCompare(b.name)), [state.materials]);
+  const matches = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return sorted;
+    return sorted.filter((material) => material.name.toLowerCase().includes(needle));
+  }, [sorted, query]);
+  const chosen = state.materials.find((material) => material.id === value);
+  // A filtered list that no longer holds the selection would silently clear it,
+  // so the chosen product stays on the list whatever the search says.
+  const options = chosen && !matches.some((material) => material.id === chosen.id) ? [chosen, ...matches] : matches;
+  return <div className="field-stack">
+    <input className="in" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search product names" aria-label="Search product names" />
+    <select className="in" value={value} onChange={(event) => onChange(event.target.value)} size={query.trim() ? Math.min(6, Math.max(2, options.length)) : undefined}>
+      <option value="">Pick the real item&hellip;</option>
+      {options.map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}
+    </select>
+    {query.trim() && <p className="tiny muted">{matches.length} of {sorted.length} products match &ldquo;{query.trim()}&rdquo;.</p>}
+  </div>;
+}
+
+/**
+ * One log line that names several products.
+ *
+ * The crew write the day's materials as a sentence - "42 360 38 950" is 42
+ * pails of Vulkem 360 and 38 of Vulkem 950 - and resolving took a single
+ * product, so everything after the first was dropped. The separators are
+ * guessed and then edited: nothing splits until the pieces are confirmed.
+ */
+function SplitEditor({ tx, onSplit, onCancel }: { tx: Transaction; onSplit: (pieces: ReviewSplitPiece[]) => void; onCancel: () => void }) {
+  const suggestion = useMemo(() => {
+    const guess = suggestReviewSplit(tx.rawItemText ?? "");
+    return guess.length >= 2 ? guess : [
+      { rawItemText: tx.rawItemText ?? "", rawQtyText: tx.rawQtyText },
+      { rawItemText: "" },
+    ];
+  }, [tx.rawItemText, tx.rawQtyText]);
+  const [pieces, setPieces] = useState<ReviewSplitPiece[]>(suggestion);
+  const set = (index: number, patch: Partial<ReviewSplitPiece>) =>
+    setPieces((current) => current.map((piece, i) => (i === index ? { ...piece, ...patch } : piece)));
+  const filled = pieces.filter((piece) => piece.rawItemText.trim());
+  return <div className="split-editor">
+    <p className="tiny muted">One row per product. Each keeps this line&rsquo;s date, job and crew member, and you name the real item on each afterwards.</p>
+    {pieces.map((piece, index) => <div className="needs-review-qty-row" key={index}>
+      <input className="in" value={piece.rawItemText} placeholder={`Product ${index + 1} as written`} aria-label={`Product ${index + 1} as written`}
+        onChange={(event) => set(index, { rawItemText: event.target.value })} />
+      <input className="in" value={piece.rawQtyText ?? ""} placeholder="Qty" aria-label={`Quantity for product ${index + 1}`}
+        onChange={(event) => set(index, { rawQtyText: event.target.value })} />
+      <button className="btn line sm" aria-label={`Remove product ${index + 1}`} disabled={pieces.length <= 2}
+        onClick={() => setPieces((current) => current.filter((_, i) => i !== index))}>Remove</button>
+    </div>)}
+    <button className="btn line block" onClick={() => setPieces((current) => [...current, { rawItemText: "" }])}>Add another product</button>
+    <div className="row-action">
+      <button className="btn primary sm" disabled={filled.length < 2} onClick={() => onSplit(filled)}>Split into {filled.length || 2} rows</button>
+      <button className="btn line sm" onClick={onCancel}>Cancel</button>
+    </div>
+    {filled.length < 2 && <p className="tiny muted">Name at least two products to split.</p>}
+  </div>;
+}
+
+function NeedsReviewRow({ tx, state, resolveTransaction, dismissTransaction, splitTransaction }: { tx: Transaction; state: AppState; resolveTransaction: (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit, companionQty?: number) => void; dismissTransaction: (transactionId: string) => void; splitTransaction: (transactionId: string, pieces: ReviewSplitPiece[]) => void }) {
   const [materialId, setMaterialId] = useState("");
   const [qty, setQty] = useState(tx.rawQtyText ?? "");
   const [unit, setUnit] = useState<MaterialUnit | "">("");
+  const [splitting, setSplitting] = useState(false);
+  // Pins are driven with shot. The crew log "shot and pins" and mean both, and
+  // resolving the pins on their own has already left the shot unrecorded.
+  const companion = materialId ? companionMaterial(state, materialId) : undefined;
+  const [pairCompanion, setPairCompanion] = useState(true);
+  const [companionQty, setCompanionQty] = useState("");
+  const companionAmount = companionQty.trim() ? Number(companionQty) : Number(qty);
+  const sendCompanion = Boolean(companion && pairCompanion && companionAmount > 0);
   return <div className="needs-review-row">
     <div className="mid">
       <b>{tx.rawItemText ?? "Unlabeled item"}</b>
-      <div className="tiny muted">{formatDateTime(tx.ts)} · {siteName(state, tx.siteId)} · {userName(state, tx.userId)} · raw qty: {tx.rawQtyText ?? "—"} {tx.rawUnitText ?? ""}</div>
+      <div className="tiny muted">{formatDateTime(tx.ts)} &middot; {siteName(state, tx.siteId)} &middot; {userName(state, tx.userId)} &middot; raw qty: {tx.rawQtyText ?? "\u2014"} {tx.rawUnitText ?? ""}</div>
       {/* Imported from a back-dated log. Naming the product fixes the record;
           the stock count it sits behind has already been taken. */}
-      {tx.skipStock && <div className="tiny muted">Past log — naming the item corrects the record and leaves stock on hand alone.</div>}
+      {tx.skipStock && <div className="tiny muted">Past log &mdash; naming the item corrects the record and leaves stock on hand alone.</div>}
     </div>
-    <select className="in" value={materialId} onChange={(event) => setMaterialId(event.target.value)}>
-      <option value="">Pick the real item…</option>
-      {[...state.materials].sort((a, b) => a.name.localeCompare(b.name)).map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}
-    </select>
-    <div className="needs-review-qty-row">
-      <input className="in" type="number" step="any" value={qty} onChange={(event) => setQty(event.target.value)} placeholder="Qty" />
-      <select className="in" value={unit} onChange={(event) => setUnit(event.target.value as MaterialUnit)}>
-        <option value="">Unit (optional note)</option>
-        {ALLOWED_MATERIAL_UNITS.map((item) => <option key={item} value={item}>{item}</option>)}
-      </select>
-    </div>
-    <button className="btn primary block" disabled={!materialId || !qty || Number(qty) <= 0} onClick={() => resolveTransaction(tx.id, materialId, Number(qty), unit || undefined)}>Resolve</button>
-    <button className="btn line block" onClick={() => dismissTransaction(tx.id)}>Not a material &mdash; remove from this list</button>
+    {splitting
+      ? <SplitEditor tx={tx} onCancel={() => setSplitting(false)} onSplit={(pieces) => { setSplitting(false); splitTransaction(tx.id, pieces); }} />
+      : <>
+        <MaterialPicker state={state} value={materialId} onChange={setMaterialId} />
+        <div className="needs-review-qty-row">
+          <input className="in" type="number" step="any" value={qty} onChange={(event) => setQty(event.target.value)} placeholder="Qty" />
+          <select className="in" value={unit} onChange={(event) => setUnit(event.target.value as MaterialUnit)}>
+            <option value="">Unit (optional note)</option>
+            {ALLOWED_MATERIAL_UNITS.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </div>
+        {companion && <div className="companion-pair">
+          <label className="check">
+            <input type="checkbox" checked={pairCompanion} onChange={(event) => setPairCompanion(event.target.checked)} />
+            Also record {companion.name}
+          </label>
+          {pairCompanion && <input className="in" type="number" step="any" value={companionQty} placeholder={qty ? `Same as above (${qty})` : "Qty"}
+            aria-label={`Quantity of ${companion.name}`} onChange={(event) => setCompanionQty(event.target.value)} />}
+          <p className="tiny muted">These two are fired together, so the shot is recorded on the same job and day.</p>
+        </div>}
+        <button className="btn primary block" disabled={!materialId || !qty || Number(qty) <= 0}
+          onClick={() => resolveTransaction(tx.id, materialId, Number(qty), unit || undefined, sendCompanion ? companionAmount : undefined)}>
+          {sendCompanion ? "Resolve both" : "Resolve"}
+        </button>
+        <button className="btn line block" onClick={() => setSplitting(true)}>This line has more than one product</button>
+        <button className="btn line block" onClick={() => dismissTransaction(tx.id)}>Not a material &mdash; remove from this list</button>
+      </>}
   </div>;
 }
 
@@ -74,7 +166,7 @@ function printReport(state: AppState) {
   }
 }
 
-export default function CfoTabBoundary({ state, role, resolveTransaction, dismissTransaction, focusTarget, onFocusHandled }: { state: AppState; role: Role; resolveTransaction: (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit) => void; dismissTransaction: (transactionId: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
+export default function CfoTabBoundary({ state, role, resolveTransaction, dismissTransaction, splitTransaction, focusTarget, onFocusHandled }: { state: AppState; role: Role; resolveTransaction: (transactionId: string, materialId: string, qty: number, unit?: MaterialUnit, companionQty?: number) => void; dismissTransaction: (transactionId: string) => void; splitTransaction: (transactionId: string, pieces: ReviewSplitPiece[]) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
   const [section, setSection] = useState<"inventory" | "tremco" | "log">("inventory");
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const inMonth = (dateStr: string) => !month || dateStr.slice(0, 7) === month;
@@ -122,7 +214,7 @@ export default function CfoTabBoundary({ state, role, resolveTransaction, dismis
 
     {canSeeEverything(role) && <section className="card wide" id="wz-section-needs-review">
       <div className="sec-h"><div><h3>Needs review</h3><p className="tiny muted">Imported or messy log entries where the item, quantity, or unit wasn't clear. Fix by the 10th of every month.</p></div><Pill tone={needsReview.length ? "warn" : "good"}>{needsReview.length}</Pill></div>
-      {needsReview.length ? needsReview.map((tx) => <NeedsReviewRow key={tx.id} tx={tx} state={state} resolveTransaction={resolveTransaction} dismissTransaction={dismissTransaction} />) : <p className="tiny muted">Nothing needs review.</p>}
+      {needsReview.length ? needsReview.map((tx) => <NeedsReviewRow key={tx.id} tx={tx} state={state} resolveTransaction={resolveTransaction} dismissTransaction={dismissTransaction} splitTransaction={splitTransaction} />) : <p className="tiny muted">Nothing needs review.</p>}
     </section>}
 
     <section className="card" id="wz-section-exports">

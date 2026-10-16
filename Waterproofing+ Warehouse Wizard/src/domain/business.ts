@@ -510,16 +510,153 @@ export function resolveNeedsReviewTransaction(
   materialId: string,
   qty: number,
   unit?: MaterialUnit,
+  companion?: Transaction,
 ): AppState {
   const tx = state.transactions.find((item) => item.id === transactionId);
   const material = state.materials.find((item) => item.id === materialId);
   if (!tx || !tx.needsReview || !material || qty <= 0) return state;
   const resolved: Transaction = { ...tx, materialId, qty, needsReview: false, rawUnitText: unit ?? tx.rawUnitText };
-  const transactions = state.transactions.map((item) => (item.id === transactionId ? resolved : item));
+  const written = companion ? [resolved, companion] : [resolved];
+  const transactions = companion
+    ? [companion, ...state.transactions.map((item) => (item.id === transactionId ? resolved : item))]
+    : state.transactions.map((item) => (item.id === transactionId ? resolved : item));
   // Historical lines are a record, not a movement: the database trigger skips
   // them too, and the screen has to agree or the two drift apart until reload.
-  const materials = tx.skipStock ? state.materials : applyTransactions(state.materials, [resolved]);
+  const materials = tx.skipStock ? state.materials : applyTransactions(state.materials, written);
   return { ...state, transactions, materials };
+}
+
+/**
+ * The second half of a pair, recorded at the same moment as the first.
+ *
+ * It is already resolved - the operator named the pins, and the shot that went
+ * with them is not a separate question - so it carries a material and a
+ * quantity and no review flag. skipStock rides along from the line it came
+ * from, which is what keeps a back-dated pairing out of the stock count.
+ */
+export function buildCompanionTransaction(tx: Transaction, companionId: string, qty: number): Transaction {
+  return {
+    ...tx,
+    id: crypto.randomUUID(),
+    materialId: companionId,
+    qty,
+    needsReview: false,
+    rawUnitText: undefined,
+    reviewDismissedAt: undefined,
+    note: tx.rawItemText ? `Used with ${tx.rawItemText.trim()}` : tx.note,
+  };
+}
+
+/**
+ * Products the crew fire together, so logging one means the other went too.
+ *
+ * A pin is driven with a shot; the crew write "shot and pins" and mean both.
+ * Resolving the pins alone has already left the shot unrecorded twice. Named
+ * in full rather than matched on a pattern - "Ucan" also appears on products
+ * that have nothing to do with shot, and a wrong guess here moves real stock.
+ */
+const COMPANION_MATERIALS: Array<{ material: string; companion: string }> = [
+  { material: 'Ucan pin and washer 25 mm 1-1/2" ( 100 p box)', companion: "UCAN Shot for pins and washers" },
+  { material: 'Ucan pin and washer 25 mm 2" ( 100 p box)', companion: "UCAN Shot for pins and washers" },
+];
+
+/**
+ * The product that is used alongside this one, if the warehouse carries it.
+ * Returns nothing when the pairing is unknown or the companion is not in the
+ * catalogue, so the review screen simply does not offer it.
+ */
+export function companionMaterial(state: AppState, materialId: string): Material | undefined {
+  const material = state.materials.find((item) => item.id === materialId);
+  if (!material) return undefined;
+  const pair = COMPANION_MATERIALS.find((entry) => entry.material === material.name);
+  if (!pair) return undefined;
+  return state.materials.find((item) => item.name === pair.companion);
+}
+
+/** One product pulled out of a log line that named several. */
+export interface ReviewSplitPiece {
+  rawItemText: string;
+  rawQtyText?: string;
+}
+
+/**
+ * A crew member writes the day's materials as one line, and often that line
+ * names more than one product: "42 360 38 950" is 42 pails of Vulkem 360 and
+ * 38 of Vulkem 950. Resolve takes a single material, so whoever cleared the
+ * row had to pick one and let the rest go. Eight rows went through that way
+ * before anyone noticed, including $9,717 of Vulkem 950 at Bear Mountain.
+ *
+ * Splitting first gives each product its own review row, carrying the date,
+ * job, crew member and the back-dated flag across unchanged, so each one then
+ * resolves through the path that already gets stock right. The crew's original
+ * wording is not edited away - it stays on the daily log, and each new row
+ * keeps it in its note.
+ */
+export function splitReviewPieces(tx: Transaction, pieces: ReviewSplitPiece[]): Transaction[] {
+  const original = tx.rawItemText?.trim();
+  return pieces.map((piece) => ({
+    ...tx,
+    id: crypto.randomUUID(),
+    materialId: undefined,
+    qty: 0,
+    needsReview: true,
+    rawItemText: piece.rawItemText.trim(),
+    rawQtyText: piece.rawQtyText?.trim() || undefined,
+    rawUnitText: undefined,
+    reviewDismissedAt: undefined,
+    note: original ? `Split from the log line: ${original}` : tx.note,
+  }));
+}
+
+/**
+ * Narrow the row that was split down to its first product and file the rest
+ * beside it. The siblings are written to the database before this runs, so a
+ * half-finished split leaves the full original line on screen rather than
+ * dropping the products it was about to separate.
+ */
+export function applyReviewSplit(
+  state: AppState,
+  transactionId: string,
+  first: ReviewSplitPiece,
+  siblings: Transaction[],
+): AppState {
+  const tx = state.transactions.find((item) => item.id === transactionId);
+  if (!tx || !tx.needsReview || !siblings.length) return state;
+  const original = tx.rawItemText?.trim();
+  const narrowed: Transaction = {
+    ...tx,
+    rawItemText: first.rawItemText.trim(),
+    rawQtyText: first.rawQtyText?.trim() || undefined,
+    note: original ? `Split from the log line: ${original}` : tx.note,
+  };
+  return {
+    ...state,
+    transactions: [
+      ...siblings,
+      ...state.transactions.map((item) => (item.id === transactionId ? narrowed : item)),
+    ],
+  };
+}
+
+/**
+ * Where one log line reads as several products, guess the boundaries.
+ *
+ * Only the separators the crew actually use: commas, "and", "&", "+" and the
+ * slash in "screws/washers". The guess is a starting point the operator edits
+ * - nothing is split without them confirming the pieces.
+ */
+export function suggestReviewSplit(rawItemText: string): ReviewSplitPiece[] {
+  const parts = rawItemText
+    .split(/\s*(?:,|\band\b|&|\+|\/)\s*/i)
+    .map((part) => part.replace(/^[\s.;-]+|[\s.;-]+$/g, ""))
+    .filter(Boolean);
+  if (parts.length < 2) return [];
+  // "6 pieces of term bar" -> qty 6. A leading count is the one piece of this
+  // the crew write consistently; anything else is left for the operator.
+  return parts.map((part) => {
+    const lead = /^(\d+(?:\.\d+)?)\s+(.*)$/.exec(part);
+    return lead && lead[2] ? { rawItemText: lead[2], rawQtyText: lead[1] } : { rawItemText: part };
+  });
 }
 
 const DAILY_LOG_ENTRY_POINTS = 5;

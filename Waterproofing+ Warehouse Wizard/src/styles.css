@@ -645,8 +645,29 @@ input[disabled], .in[disabled] { opacity: .6; background: var(--bg-3); cursor: n
    run. Let it wrap rather than force the row wider than the phone. */
 .needs-review-row .mid { min-width: 0; }
 .needs-review-row .in { width: 100%; max-width: 100%; }
-.needs-review-qty-row { display: flex; gap: 8px; }
+.needs-review-qty-row { display: flex; gap: 8px; align-items: center; }
 .needs-review-qty-row .in { flex: 1; min-width: 0; }
+.needs-review-qty-row .btn { flex: 0 0 auto; }
+/* Splitting one line into several, and the pairing prompt that follows a
+   product the crew never use on its own. Both sit inside a review row, so
+   they are inset rather than boxed - another card here reads as a new record
+   rather than part of the one being sorted out. */
+.split-editor, .companion-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--primary);
+  background: var(--bg-2, rgba(11,110,168,.05));
+  border-radius: 0 10px 10px 0;
+}
+.split-editor .row-action { display: flex; gap: 8px; }
+.companion-pair .check { font-size: 14px; }
+/* The tool sheet's status and battery sit on a line-item row beside their
+   label, so they size to the control rather than the full width the sheet's
+   other inputs take. */
+.tool-state { width: auto; min-width: 150px; }
+.tool-battery { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 
 /* ── Forms ── */
 .form-stack { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 4px; }
@@ -1073,7 +1094,20 @@ main > *:nth-child(5) { animation-delay: .15s; }
   }
   .fab { width: clamp(140px, 15vw, 220px) !important; flex: 0 0 auto !important; }
   .admin-tab { flex: 0 0 82px !important; width: 82px !important; }
-  .sheet { max-width: 580px; }
+  /* On a phone a sheet rising from the bottom is the right gesture. On a
+     desktop it reads as something that fell off the page - Jordan asked for
+     the add-a-tool form to be centred, and the same is true of every sheet. */
+  .sheet {
+    max-width: 580px;
+    top: 50%;
+    bottom: auto;
+    transform: translate(-50%, calc(-50% + 16px));
+    opacity: 0;
+    max-height: min(86vh, 860px);
+    transition: transform .22s var(--ease), opacity .22s var(--ease);
+  }
+  .sheet.open { transform: translate(-50%, -50%); opacity: 1; }
+  .grip { display: none; }
   .card:hover { box-shadow: var(--shadow-lg); }
 
   /* Mouse users have no visible scrollbar or swipe gesture to reveal the
