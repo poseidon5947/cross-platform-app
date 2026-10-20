@@ -559,11 +559,46 @@ describe("monthly inventory log export", () => {
     const state = createSeedState();
     const csv = monthlyInventoryLogCsv(state, "2026-06");
     const lines = csv.split("\n");
-    expect(lines[0]).toBe('"Date","Material","Quantity","Unit","Action","Job/Site","Service","Crew Member","Unit Cost","Value"');
+    expect(lines[0]).toBe('"Date","Material","Quantity","Unit","Action","Job/Site","Service","Crew Member","Unit Cost","Value","Status"');
     expect(lines).toHaveLength(4);
     expect(csv).toContain('"2026-06-01"');
     expect(csv).toContain('"use"');
+    expect(csv).toContain('"Recorded"');
     expect(csv).not.toContain("2026-07");
+  });
+
+  // The CFO's October report carried eleven September lines with a date, a job
+  // and a crew member and nothing else, because a row whose product was never
+  // named exported an empty Material and a value of zero. A blank line reads as
+  // a hole in the data; the crew's own wording reads as what happened.
+  it("prints the crew's wording and a reason when no product was ever named", () => {
+    const state = createSeedState();
+    const base = state.transactions.find((tx) => tx.type === "use");
+    expect(base).toBeDefined();
+    const withUnnamed = {
+      ...state,
+      transactions: [
+        { ...base!, id: "tx_dismissed", materialId: undefined, qty: 0, rawItemText: "bags mapai patching grout", rawQtyText: "5", needsReview: true, reviewDismissedAt: "2026-10-16T17:42:52Z" },
+        { ...base!, id: "tx_pending", materialId: undefined, qty: 0, rawItemText: "450 shot", rawQtyText: "450", needsReview: true },
+      ],
+    };
+    const csv = monthlyInventoryLogCsv(withUnnamed, base!.ts.slice(0, 7));
+    expect(csv).toContain('"bags mapai patching grout (as written on the log)"');
+    expect(csv).toContain('"Cleared as not a material"');
+    expect(csv).toContain('"450 shot (as written on the log)"');
+    expect(csv).toContain('"Awaiting review"');
+    // The quantity the crew wrote, not the zero the row carries.
+    expect(csv).toContain('"450"');
+  });
+
+  it("names the row rather than leaving it blank when the log said nothing at all", () => {
+    const state = createSeedState();
+    const base = state.transactions.find((tx) => tx.type === "use");
+    const csv = monthlyInventoryLogCsv(
+      { ...state, transactions: [{ ...base!, id: "tx_blank", materialId: undefined, qty: 0, rawItemText: undefined }] },
+      base!.ts.slice(0, 7),
+    );
+    expect(csv).toContain('"No product named on the daily log"');
   });
 });
 
