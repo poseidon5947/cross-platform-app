@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { ALLOWED_MATERIAL_UNITS, canSeeEverything, companionMaterial, formatDate, formatDateTime, money, monthlyInventoryLogCsv, stockStatus, suggestReviewSplit } from "../domain/business";
+import { ALLOWED_MATERIAL_UNITS, canSeeEverything, companionMaterial, formatDate, formatDateTime, money, monthlyInventoryLogCsv, stockStatus, suggestReviewSplit, transactionReportLabel } from "../domain/business";
 import type { ReviewSplitPiece } from "../domain/business";
 import type { AppState, DailyLog, MaterialUnit, Role, Transaction } from "../types";
 import { canManage, Pill, serviceName, siteName, userName } from "../App";
 
 function printTransactionLog(state: AppState, list: Transaction[], title: string, month: string) {
-  const html = `<!doctype html><html><head><title>${title}</title><style>body{font-family:Arial;padding:28px;color:#132135}.top{display:flex;justify-content:space-between;border-bottom:3px solid #0b6ea8;padding-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px}th,td{border-bottom:1px solid #e2e8f1;padding:8px;text-align:left}</style></head><body><div class="top"><div><h1>${title}</h1><p>Waterproofing+ · ${month || "All dates"} · printed ${formatDate(new Date())}</p></div></div><table><thead><tr><th>Date &amp; time</th><th>Item</th><th>Action</th><th>Qty</th><th>Unit cost</th><th>Value</th><th>Job</th><th>Crew</th></tr></thead><tbody>${list.map((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); const label = tx.needsReview ? `${tx.rawItemText ?? "Unresolved item"} (needs review)` : material?.name ?? ""; const qtyLabel = tx.needsReview ? (tx.rawQtyText ?? "") : tx.qty; return `<tr><td>${formatDateTime(tx.ts)}</td><td>${label}</td><td>${tx.type}</td><td>${qtyLabel} ${material?.unit ?? tx.rawUnitText ?? ""}</td><td>${material ? money(material.cost) : ""}</td><td>${material ? money(material.cost * tx.qty) : ""}</td><td>${siteName(state, tx.siteId)}</td><td>${userName(state, tx.userId)}</td></tr>`; }).join("")}</tbody></table><script>window.onload=function(){setTimeout(function(){window.print()},250)}</script></body></html>`;
+  const html = `<!doctype html><html><head><title>${title}</title><style>body{font-family:Arial;padding:28px;color:#132135}.top{display:flex;justify-content:space-between;border-bottom:3px solid #0b6ea8;padding-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px}th,td{border-bottom:1px solid #e2e8f1;padding:8px;text-align:left}</style></head><body><div class="top"><div><h1>${title}</h1><p>Waterproofing+ · ${month || "All dates"} · printed ${formatDate(new Date())}</p></div></div><table><thead><tr><th>Date &amp; time</th><th>Item</th><th>Action</th><th>Qty</th><th>Unit cost</th><th>Value</th><th>Job</th><th>Crew</th></tr></thead><tbody>${list.map((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); const { item, status } = transactionReportLabel(tx, material?.name); const qtyLabel = material ? tx.qty : (tx.rawQtyText ?? ""); return `<tr><td>${formatDateTime(tx.ts)}</td><td>${item}${material ? "" : `<br><span style="color:#8a94a6">${status}</span>`}</td><td>${tx.type}</td><td>${qtyLabel} ${material?.unit ?? tx.rawUnitText ?? ""}</td><td>${material ? money(material.cost) : ""}</td><td>${material ? money(material.cost * tx.qty) : ""}</td><td>${siteName(state, tx.siteId)}</td><td>${userName(state, tx.userId)}</td></tr>`; }).join("")}</tbody></table><script>window.onload=function(){setTimeout(function(){window.print()},250)}</script></body></html>`;
   const w = window.open("", "_blank");
   if (w) {
     w.document.write(html);
@@ -146,10 +146,13 @@ function NeedsReviewRow({ tx, state, resolveTransaction, dismissTransaction, spl
 }
 
 function transactionsCsv(state: AppState) {
-  const head = "Date,Material,Action,Site,Service,Crew,Qty,Unit,UnitCost,Value";
+  // Status is the last column for the same reason the monthly log carries one:
+  // a row with no product used to export as a blank line with a job on it.
+  const head = "Date,Material,Action,Site,Service,Crew,Qty,Unit,UnitCost,Value,Status";
   const rows = state.transactions.map((tx) => {
     const material = state.materials.find((item) => item.id === tx.materialId);
-    return [tx.ts, material?.name, tx.type, siteName(state, tx.siteId), serviceName(state, tx.serviceId), userName(state, tx.userId), tx.qty, material?.unit, material?.cost ?? 0, (material?.cost ?? 0) * tx.qty].map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",");
+    const { item, status } = transactionReportLabel(tx, material?.name);
+    return [tx.ts, item, tx.type, siteName(state, tx.siteId), serviceName(state, tx.serviceId), userName(state, tx.userId), material ? tx.qty : (tx.rawQtyText ?? ""), material?.unit ?? tx.rawUnitText ?? "", material?.cost ?? 0, (material?.cost ?? 0) * tx.qty, status].map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",");
   });
   return [head, ...rows].join("\n");
 }

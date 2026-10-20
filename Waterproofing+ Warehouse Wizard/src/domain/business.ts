@@ -347,27 +347,51 @@ export function evaluateDailyPoints(
   return { events, streak };
 }
 
+/**
+ * What a row without a product should say.
+ *
+ * The CFO's October report had eleven September lines carrying a date, a job
+ * and a crew member, and nothing else - because a row with no product printed
+ * an empty Material, an empty Unit and a value of zero. Those were real
+ * entries somebody had cleared off the review list; the row is kept on purpose
+ * so the crew's wording survives, and the export was throwing that wording
+ * away. A blank line reads as a hole in the data. The crew's own words plus
+ * the reason read as what actually happened.
+ */
+export function transactionReportLabel(tx: Transaction, materialName?: string) {
+  if (materialName) return { item: materialName, status: "Recorded" };
+  const wording = tx.rawItemText?.trim();
+  const status = tx.reviewDismissedAt
+    ? "Cleared as not a material"
+    : tx.needsReview
+      ? "Awaiting review"
+      : "No product on the record";
+  return { item: wording ? `${wording} (as written on the log)` : "No product named on the daily log", status };
+}
+
 export function monthlyInventoryLogCsv(state: Pick<AppState, "transactions" | "materials" | "sites" | "services" | "users">, month: string) {
   const normalizedMonth = month.replace("-M", "-");
   const usageTypes: TxType[] = ["use", "deliver", "loss", "return"];
-  const head = ["Date", "Material", "Quantity", "Unit", "Action", "Job/Site", "Service", "Crew Member", "Unit Cost", "Value"];
+  const head = ["Date", "Material", "Quantity", "Unit", "Action", "Job/Site", "Service", "Crew Member", "Unit Cost", "Value", "Status"];
   const rows = state.transactions
     .filter((tx) => usageTypes.includes(tx.type) && tx.ts.slice(0, 7) === normalizedMonth)
     .sort((a, b) => a.ts.localeCompare(b.ts))
     .map((tx) => {
       const material = state.materials.find((item) => item.id === tx.materialId);
       const unitCost = material?.cost ?? 0;
+      const { item, status } = transactionReportLabel(tx, material?.name);
       return [
         tx.ts.slice(0, 10),
-        material?.name ?? "",
-        tx.qty,
-        material?.unit ?? "",
+        item,
+        material ? tx.qty : (tx.rawQtyText ?? ""),
+        material?.unit ?? tx.rawUnitText ?? "",
         tx.type,
         state.sites.find((site) => site.id === tx.siteId)?.name ?? "No site",
         state.services.find((service) => service.id === tx.serviceId)?.name ?? "Service",
         state.users.find((user) => user.id === tx.userId)?.name ?? "Unassigned",
         unitCost.toFixed(2),
         (tx.qty * unitCost).toFixed(2),
+        status,
       ];
     });
   return [head, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
