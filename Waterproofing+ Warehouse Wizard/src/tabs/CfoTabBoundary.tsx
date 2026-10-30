@@ -5,7 +5,7 @@ import type { AppState, DailyLog, MaterialUnit, Role, Transaction } from "../typ
 import { canManage, Pill, serviceName, siteName, userName } from "../App";
 
 function printTransactionLog(state: AppState, list: Transaction[], title: string, month: string) {
-  const html = `<!doctype html><html><head><title>${title}</title><style>body{font-family:Arial;padding:28px;color:#132135}.top{display:flex;justify-content:space-between;border-bottom:3px solid #0b6ea8;padding-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px}th,td{border-bottom:1px solid #e2e8f1;padding:8px;text-align:left}</style></head><body><div class="top"><div><h1>${title}</h1><p>Waterproofing+ · ${month || "All dates"} · printed ${formatDate(new Date())}</p></div></div><table><thead><tr><th>Date &amp; time</th><th>Item</th><th>Action</th><th>Qty</th><th>Unit cost</th><th>Value</th><th>Job</th><th>Crew</th></tr></thead><tbody>${list.map((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); const { item, status } = transactionReportLabel(tx, material?.name); const qtyLabel = material ? tx.qty : (tx.rawQtyText ?? ""); return `<tr><td>${formatDateTime(tx.ts)}</td><td>${item}${material ? "" : `<br><span style="color:#8a94a6">${status}</span>`}</td><td>${tx.type}</td><td>${qtyLabel} ${material?.unit ?? tx.rawUnitText ?? ""}</td><td>${material ? money(material.cost) : ""}</td><td>${material ? money(material.cost * tx.qty) : ""}</td><td>${siteName(state, tx.siteId)}</td><td>${userName(state, tx.userId)}</td></tr>`; }).join("")}</tbody></table><script>window.onload=function(){setTimeout(function(){window.print()},250)}</script></body></html>`;
+  const html = `<!doctype html><html><head><title>${title}</title><style>body{font-family:Arial;padding:28px;color:#132135}.top{display:flex;justify-content:space-between;border-bottom:3px solid #0b6ea8;padding-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px}th,td{border-bottom:1px solid #e2e8f1;padding:8px;text-align:left}</style></head><body><div class="top"><div><h1>${title}</h1><p>Waterproofing+ · ${month || "All dates"} · printed ${formatDate(new Date())}</p></div></div><table><thead><tr><th>Date &amp; time</th><th>Item</th><th>Action</th><th>Qty</th><th>Unit cost</th><th>Value</th><th>Job</th><th>Crew</th><th>Tremco</th></tr></thead><tbody>${list.map((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); const { item, status } = transactionReportLabel(tx, material?.name); const qtyLabel = material ? tx.qty : (tx.rawQtyText ?? ""); return `<tr><td>${formatDateTime(tx.ts)}</td><td>${item}${material ? "" : `<br><span style="color:#8a94a6">${status}</span>`}</td><td>${tx.type}</td><td>${qtyLabel} ${material?.unit ?? tx.rawUnitText ?? ""}</td><td>${material ? money(material.cost) : ""}</td><td>${material ? money(material.cost * tx.qty) : ""}</td><td>${siteName(state, tx.siteId)}</td><td>${userName(state, tx.userId)}</td><td>${material?.isTremco ? "Yes" : ""}</td></tr>`; }).join("")}</tbody></table><script>window.onload=function(){setTimeout(function(){window.print()},250)}</script></body></html>`;
   const w = window.open("", "_blank");
   if (w) {
     w.document.write(html);
@@ -40,7 +40,16 @@ function MaterialPicker({ state, value, onChange }: { state: AppState; value: st
   const matches = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return sorted;
-    return sorted.filter((material) => material.name.toLowerCase().includes(needle));
+    // Every word has to appear, in any order, so "grip tape" finds "BG Grip
+    // Tape" and "shot ucan" finds the UCAN shot. Trailing s is optional on
+    // both sides: the crew search SHOTS and the product is "UCAN Shot", which
+    // returned nothing at all before.
+    const stem = (word: string) => (word.length > 3 && word.endsWith("s") ? word.slice(0, -1) : word);
+    const words = needle.split(/\s+/).filter(Boolean).map(stem);
+    return sorted.filter((material) => {
+      const hay = material.name.toLowerCase();
+      return words.every((word) => hay.includes(word) || hay.split(/[^a-z0-9]+/).some((part) => stem(part) === word));
+    });
   }, [sorted, query]);
   const chosen = state.materials.find((material) => material.id === value);
   // A filtered list that no longer holds the selection would silently clear it,
@@ -182,6 +191,7 @@ export default function CfoTabBoundary({ state, role, resolveTransaction, dismis
   }, [focusTarget]);
 
   const inventoryTx = state.transactions.filter((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); return (!tx.needsReview ? !material?.isTremco : true) && inMonth(tx.ts); });
+  const monthTx = state.transactions.filter((tx) => inMonth(tx.ts));
   const tremcoTx = state.transactions.filter((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); return material?.isTremco && inMonth(tx.ts); });
   const monthLogs = state.dailyLogs.filter((log) => inMonth(log.date));
   const tremcoOnHand = state.materials.filter((material) => material.isTremco);
@@ -202,6 +212,10 @@ export default function CfoTabBoundary({ state, role, resolveTransaction, dismis
     {section === "inventory" && <>
       <section className="card">{inventoryTx.length ? inventoryTx.map((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); const qtyLabel = tx.needsReview ? (tx.rawQtyText ?? "") : tx.qty; return <div className="line-item" key={tx.id}><div className="mid"><b>{tx.needsReview ? (tx.rawItemText ?? "Unresolved item") : (material?.name ?? "")}</b><div className="tiny muted">{formatDateTime(tx.ts)} · {tx.type} · {siteName(state, tx.siteId)}</div></div><span>{qtyLabel} {material?.unit ?? tx.rawUnitText ?? ""}</span></div>; }) : <p className="tiny muted">No inventory activity for this month.</p>}</section>
       {inventoryTx.length > 0 && <button className="btn line block" onClick={() => printTransactionLog(state, inventoryTx, "Inventory Log", month)}>Export Inventory Log</button>}
+      {/* Inventory Log leaves Tremco out and Tremco Log holds only Tremco, which
+          is how six expensive products looked missing from an October export.
+          This one is everything, with Tremco as a column. */}
+      {monthTx.length > 0 && <button className="btn line block" onClick={() => printTransactionLog(state, monthTx, "Full Inventory Log (all products)", month)}>Export Full Log &mdash; everything, Tremco included</button>}
     </>}
 
     {section === "tremco" && <>

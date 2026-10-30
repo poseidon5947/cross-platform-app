@@ -667,6 +667,15 @@ input[disabled], .in[disabled] { opacity: .6; background: var(--bg-3); cursor: n
    label, so they size to the control rather than the full width the sheet's
    other inputs take. */
 .tool-state { width: auto; min-width: 150px; }
+/* The three inventory actions sit above the list on Materials and Tremco, not
+   below it and never on Daily Log - asked for three rounds running. Stacked on
+   a phone, in a row once there is width for it. */
+.inv-actions { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 12px; }
+.inv-actions .btn { margin: 0; }
+@media (min-width: 760px) {
+  .inv-actions { flex-direction: row; }
+  .inv-actions .btn { flex: 1; }
+}
 .tool-battery { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 
 /* ── Forms ── */
