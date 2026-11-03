@@ -77,6 +77,8 @@ export interface Site {
   siteContactEmail?: string;
   startDate?: string;
   endDate?: string;
+  /** When the job was added. Used to order the list when no start date is set. */
+  createdAt?: string;
 }
 
 export interface Service {

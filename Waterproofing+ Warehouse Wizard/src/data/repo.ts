@@ -121,6 +121,7 @@ const maintenanceFromRow = (row: any): MaintenanceRequest => ({
 
 const siteFromRow = (row: any): Site => ({
   id: row.id,
+  createdAt: row.created_at ?? undefined,
   name: row.name,
   address: row.address ?? "",
   qboCustomerName: row.qbo_customer_name ?? undefined,

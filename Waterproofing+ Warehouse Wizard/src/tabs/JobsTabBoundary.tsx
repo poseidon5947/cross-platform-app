@@ -1,7 +1,11 @@
 import { useState } from "react";
-import { todayKey, id } from "../domain/business";
+import { todayKey } from "../domain/business";
 import type { AppState, Role, Site } from "../types";
 import { canManage } from "../App";
+
+function Chip({ on, children, onClick }: { on: boolean; children: React.ReactNode; onClick: () => void }) {
+  return <button className={on ? "chip on" : "chip"} onClick={onClick}>{children}</button>;
+}
 
 export default function JobsTabBoundary({ state, role, saveSite, openSheet }: {
   state: AppState;
@@ -12,14 +16,28 @@ export default function JobsTabBoundary({ state, role, saveSite, openSheet }: {
   // Vancouver time, not UTC: a job ending today used to drop into Past from 5pm
   // Pacific onward, while the crew were still on it.
   const today = todayKey();
-  const active = state.sites.filter((site) => !site.endDate || site.endDate >= today);
-  const past = state.sites.filter((site) => site.endDate && site.endDate < today);
+  const [sort, setSort] = useState<"az" | "newest" | "oldest">("az");
+  // The list arrived in whatever order the database returned, which is neither
+  // alphabetical nor by age. Newest first uses the start date where a job has
+  // one, falling back to when it was added.
+  const started = (site: Site) => site.startDate ?? site.createdAt ?? "";
+  const order = (list: Site[]) => [...list].sort((a, b) =>
+    sort === "az" ? a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })
+    : sort === "newest" ? started(b).localeCompare(started(a)) || a.name.localeCompare(b.name)
+    : started(a).localeCompare(started(b)) || a.name.localeCompare(b.name));
+  const active = order(state.sites.filter((site) => !site.endDate || site.endDate >= today));
+  const past = order(state.sites.filter((site) => site.endDate && site.endDate < today));
   const canEdit = canManage(role);
 
   return <>
     {canEdit && <button className="btn primary block" onClick={() => openSheet({ title: "New job", content: <JobForm saveSite={saveSite} /> })}>Add new job</button>}
     <section className="card">
-      <div className="sec-h"><h2>Active jobs</h2></div>
+      <div className="sec-h"><h2>Active jobs</h2><span className="tiny muted">{active.length}</span></div>
+      <div className="chips">
+        <Chip on={sort === "az"} onClick={() => setSort("az")}>A\u2013Z</Chip>
+        <Chip on={sort === "newest"} onClick={() => setSort("newest")}>Newest first</Chip>
+        <Chip on={sort === "oldest"} onClick={() => setSort("oldest")}>Oldest first</Chip>
+      </div>
       {active.length ? active.map((site) => <JobRow key={site.id} site={site} canEdit={canEdit} onOpen={() => openSheet({ title: site.name, content: <JobForm site={site} saveSite={saveSite} /> })} />) : <p className="tiny muted">No active jobs.</p>}
     </section>
     {past.length > 0 && <section className="card">
@@ -44,7 +62,10 @@ function JobRow({ site, canEdit, onOpen }: { site: Site; canEdit: boolean; onOpe
 }
 
 function JobForm({ site, saveSite }: { site?: Site; saveSite: (site: Site) => void }) {
-  const [draft, setDraft] = useState<Site>(site ?? { id: id("s"), name: "", address: "", source: "manual" });
+  const [draft, setDraft] = useState<Site>(site ?? { id: crypto.randomUUID(), name: "", address: "", source: "manual" });
+  // Three taps on Save used to file three jobs. The id above fixes the cause;
+  // this stops the second tap reaching it at all.
+  const [saving, setSaving] = useState(false);
   const set = <K extends keyof Site>(key: K, value: Site[K]) => setDraft((current) => ({ ...current, [key]: value }));
   return <div className="form-stack">
     <label className="fld">Job name</label>
@@ -65,6 +86,6 @@ function JobForm({ site, saveSite }: { site?: Site; saveSite: (site: Site) => vo
     </div>
     <label className="fld">Documents &amp; PDFs</label>
     <input className="in" value={draft.driveFolderUrl ?? ""} onChange={(event) => set("driveFolderUrl", event.target.value || undefined)} placeholder="Google Drive folder link (job details / site plans)" />
-    <button className="btn primary block" disabled={!draft.name.trim()} onClick={() => saveSite(draft)}>Save job</button>
+    <button className="btn primary block" disabled={!draft.name.trim() || saving} onClick={() => { setSaving(true); saveSite(draft); }}>{saving ? "Saving\u2026" : "Save job"}</button>
   </div>;
 }
