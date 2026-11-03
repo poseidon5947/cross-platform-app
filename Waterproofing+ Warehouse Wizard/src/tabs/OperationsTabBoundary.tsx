@@ -644,7 +644,7 @@ function MaintenanceRequestRow({ request, state, canResolve, respondMaintenance 
 
 function MaterialDetail({ material, role, setExactCount, saveMaterial }: { material: Material; role: Role; setExactCount: (material: Material, qty: number) => void; saveMaterial: (material: Material, includeQty?: boolean) => void }) {
   const [qty, setQty] = useState(material.qty);
-  return <div><MaterialRow material={material} showPrice={canSeePrices(role)} /><label className="fld">Exact stock count</label><input className="in" type="number" value={qty} onChange={(event) => setQty(Number(event.target.value))} disabled={!canManage(role)} /><button className="btn primary block" disabled={!canManage(role)} onClick={() => setExactCount(material, qty)}>Set exact count</button>{canManage(role) && <MaterialForm material={material} saveMaterial={saveMaterial} />}</div>;
+  return <div><MaterialRow material={material} showPrice={canSeePrices(role)} /><label className="fld">Exact stock count</label>{/* No step meant the browser defaulted to whole numbers and refused 0.5 outright, so a half-full drum could not be counted. */}<input className="in" type="number" step={material.step} min="0" value={qty} onChange={(event) => setQty(Number(event.target.value))} disabled={!canManage(role)} /><p className="tiny muted">Counts in steps of {material.step} {material.unit.toLowerCase()}.</p><button className="btn primary block" disabled={!canManage(role)} onClick={() => setExactCount(material, qty)}>Set exact count</button>{canManage(role) && <MaterialForm material={material} saveMaterial={saveMaterial} />}</div>;
 }
 
 function MaterialForm({ material, saveMaterial }: { material?: Material; saveMaterial: (material: Material, includeQty?: boolean) => void }) {
