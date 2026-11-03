@@ -412,7 +412,9 @@ describe("csv import validation", () => {
     expect(second.materials[0].isTremco).toBe(true);
   });
 
-  it("rejects non-canonical locked units and keeps Roll to whole units", () => {
+  // Quarters apply to every unit now, Roll included: half a roll of drain mat
+  // is an ordinary day's work, and the crew asked for it across the catalogue.
+  it("rejects non-canonical locked units and steps every unit in quarters", () => {
     const csv = [
       "Inventory,Category,Unit (locked),Unit Cost ($),On Hand (current quantity),Reorder At (3 remaining in inventory),Warehouse Location",
       "Roll Item,Waterproofing,Roll,$10.00,4,2,A1",
@@ -420,7 +422,7 @@ describe("csv import validation", () => {
     ].join("\n");
     const report = validateMaterialsCsv(csv);
     expect(report.imported).toBe(1);
-    expect(report.materials[0]).toMatchObject({ unit: "Roll", step: 1 });
+    expect(report.materials[0]).toMatchObject({ unit: "Roll", step: 0.25 });
     expect(report.skipped[0].reason).toContain("Invalid locked unit");
   });
 

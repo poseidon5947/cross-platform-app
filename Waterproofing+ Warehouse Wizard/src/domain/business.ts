@@ -158,8 +158,16 @@ export function remapProvisionalMaterialUnit(value: string): MaterialUnit {
   return "Unit";
 }
 
-export function stepForMaterialUnit(unit: MaterialUnit): 0.25 | 1 {
-  return unit === "Drum" ? 0.25 : 1;
+/**
+ * Everything counts in quarters.
+ *
+ * Only drums used to, so a roll of Tremdrain could be logged as 1 or 2 and
+ * nothing between - and half a roll is an ordinary day's work. The crew asked
+ * for quarters across the whole catalogue, which is also what makes "four
+ * rolls of an eight-roll case" expressible as half a case.
+ */
+export function stepForMaterialUnit(_unit: MaterialUnit): 0.25 {
+  return 0.25;
 }
 
 export function applyCostChangeFlag(existing: Material | undefined, next: Material, now = new Date().toISOString()): Material {
@@ -209,8 +217,11 @@ export function roundUpStep(value: number, step: 0.25 | 0.5 | 1) {
 }
 
 export function reorderLine(material: Material) {
-  const rawNeed = Math.max(material.step, material.reorderPoint - material.qty + material.reorderPoint * 0.2);
-  const suggestedQty = roundUpStep(Math.max(rawNeed, 0), material.step);
+  // Usage is counted in quarters, but purchasing is not: nobody orders a
+  // quarter of a roll from Tremco. Suggested order quantities round up to a
+  // whole unit even though a job can draw down a fraction of one.
+  const rawNeed = Math.max(1, material.reorderPoint - material.qty + material.reorderPoint * 0.2);
+  const suggestedQty = roundUpStep(Math.max(rawNeed, 0), 1);
   const pallets = material.unitsPerPallet ? Math.ceil(suggestedQty / material.unitsPerPallet) : 0;
   return {
     materialId: material.id,
