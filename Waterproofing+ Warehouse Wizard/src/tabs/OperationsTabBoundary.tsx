@@ -74,7 +74,9 @@ function ReceiveStockSheet({ state, userId, submitTransactions, close }: { state
       <div className="mid"><b>{material.name}</b><div className="tiny muted">{material.qty} {material.unit} on hand</div></div>
       <div className="qtybox">
         <button onClick={() => add(material, -1)}>-</button>
-        <input readOnly value={cart[material.id] ?? 0} />
+        <input type="number" inputMode="decimal" min="0" step={material.step} value={cart[material.id] ?? 0}
+          onChange={(event) => { const next = Number(event.target.value); setCart((current) => ({ ...current, [material.id]: Number.isFinite(next) && next > 0 ? next : 0 })); }}
+          aria-label={`Quantity of ${material.name}`} />
         <button onClick={() => add(material, 1)}>+</button>
       </div>
     </div>)}</section>
@@ -260,7 +262,7 @@ function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog,
     <div className="search"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search materials to add" /></div>
     {hiddenByService > 0 && <p className="tiny muted">{showAllMaterials
       ? <>Showing all {trackedMaterials.length} materials. <button type="button" className="link" onClick={() => setShowAllMaterials(false)}>Just {serviceName(state, serviceId)}</button></>
-      : <>Showing the {forService.length} used for {serviceName(state, serviceId)}. <button type="button" className="link" onClick={() => setShowAllMaterials(true)}>Show all {trackedMaterials.length}</button></>}</p>}<section className="card">{materials.map((material) => <div className="line-item" key={material.id}><div className="mid"><b>{material.name}</b><div className="tiny muted">{material.qty} {material.unit} on hand · locked unit</div></div><div className="qtybox"><button onClick={() => add(material, -1)}>-</button><input readOnly value={cart[material.id] ?? 0} /><button onClick={() => add(material, 1)}>+</button></div>{cart[material.id] > 0 && <button className="btn line sm" onClick={() => setCart((current) => ({ ...current, [material.id]: 0 }))}>Remove</button>}</div>)}</section>
+      : <>Showing the {forService.length} used for {serviceName(state, serviceId)}. <button type="button" className="link" onClick={() => setShowAllMaterials(true)}>Show all {trackedMaterials.length}</button></>}</p>}<section className="card">{materials.map((material) => <div className="line-item" key={material.id}><div className="mid"><b>{material.name}</b><div className="tiny muted">{material.qty} {material.unit} on hand · locked unit</div></div><div className="qtybox"><button onClick={() => add(material, -1)}>-</button><input type="number" inputMode="decimal" min="0" step={material.step} value={cart[material.id] ?? 0} onChange={(event) => { const next = Number(event.target.value); setCart((current) => ({ ...current, [material.id]: Number.isFinite(next) && next > 0 ? next : 0 })); }} aria-label={`Quantity of ${material.name}`} /><button onClick={() => add(material, 1)}>+</button></div>{cart[material.id] > 0 && <button className="btn line sm" onClick={() => setCart((current) => ({ ...current, [material.id]: 0 }))}>Remove</button>}</div>)}</section>
     {total > 0 && (
       <div className="cart-summary">
         <div className="cart-summary-info">

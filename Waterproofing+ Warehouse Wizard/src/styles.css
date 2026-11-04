@@ -723,7 +723,9 @@ input[disabled], .in[disabled] { opacity: .6; background: var(--bg-3); cursor: n
   transition: background .1s;
 }
 .qtybox button:hover { background: var(--primary-dim); }
-.qtybox input { width: 48px; height: 38px; text-align: center; font-size: 14px; font-weight: 700; background: transparent; color: var(--ink); }
+.qtybox input { width: 60px; height: 38px; text-align: center; font-size: 14px; font-weight: 700; background: transparent; color: var(--ink); }
+.qtybox input::-webkit-outer-spin-button, .qtybox input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.qtybox input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
 /* ── Tasks ── */
 .task {

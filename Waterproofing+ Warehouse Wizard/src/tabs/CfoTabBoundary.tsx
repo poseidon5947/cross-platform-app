@@ -154,6 +154,25 @@ function NeedsReviewRow({ tx, state, resolveTransaction, dismissTransaction, spl
   </div>;
 }
 
+/**
+ * "What is the purpose of this COPY button? Nothing happens when I click on it."
+ *
+ * It called navigator.clipboard.writeText and ignored the promise, so a refused
+ * permission failed silently - and even when it worked nothing on screen said
+ * so. A CSV is wanted in Excel anyway, so it downloads as a file now, which
+ * announces itself.
+ */
+function downloadCsv(filename: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function transactionsCsv(state: AppState) {
   // Status is the last column for the same reason the monthly log carries one:
   // a row with no product used to export as a blank line with a job on it.
@@ -207,26 +226,34 @@ export default function CfoTabBoundary({ state, role, resolveTransaction, dismis
       <button className={section === "tremco" ? "on" : ""} onClick={() => setSection("tremco")}>Tremco Log</button>
       <button className={section === "log" ? "on" : ""} onClick={() => setSection("log")}>Daily Log</button>
     </div>
+    {/* Asked for at the top of the page, above the month picker, rather than
+        hidden under whichever list happens to be open. */}
+    <div className="inv-actions">
+      {section === "inventory" && inventoryTx.length > 0 && <button className="btn line block" onClick={() => printTransactionLog(state, inventoryTx, "Inventory Log", month)}>Export Inventory Log</button>}
+      {section === "tremco" && tremcoTx.length > 0 && <button className="btn line block" onClick={() => printTransactionLog(state, tremcoTx, "Tremco Log", month)}>Export Tremco Log</button>}
+      {section === "log" && monthLogs.length > 0 && <button className="btn line block" onClick={() => printDailyLogs(state, monthLogs, month)}>Export Daily Log</button>}
+      {monthTx.length > 0 && <button className="btn line block" onClick={() => printTransactionLog(state, monthTx, "Full Inventory Log (all products)", month)}>Export Full Log &mdash; everything, Tremco included</button>}
+    </div>
     <MonthPicker month={month} setMonth={setMonth} />
 
     {section === "inventory" && <>
       <section className="card">{inventoryTx.length ? inventoryTx.map((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); const qtyLabel = tx.needsReview ? (tx.rawQtyText ?? "") : tx.qty; return <div className="line-item" key={tx.id}><div className="mid"><b>{tx.needsReview ? (tx.rawItemText ?? "Unresolved item") : (material?.name ?? "")}</b><div className="tiny muted">{formatDateTime(tx.ts)} · {tx.type} · {siteName(state, tx.siteId)}</div></div><span>{qtyLabel} {material?.unit ?? tx.rawUnitText ?? ""}</span></div>; }) : <p className="tiny muted">No inventory activity for this month.</p>}</section>
-      {inventoryTx.length > 0 && <button className="btn line block" onClick={() => printTransactionLog(state, inventoryTx, "Inventory Log", month)}>Export Inventory Log</button>}
+      
       {/* Inventory Log leaves Tremco out and Tremco Log holds only Tremco, which
           is how six expensive products looked missing from an October export.
           This one is everything, with Tremco as a column. */}
-      {monthTx.length > 0 && <button className="btn line block" onClick={() => printTransactionLog(state, monthTx, "Full Inventory Log (all products)", month)}>Export Full Log &mdash; everything, Tremco included</button>}
+      
     </>}
 
     {section === "tremco" && <>
       <section className="card"><h3>Current on hand</h3>{tremcoOnHand.length ? tremcoOnHand.map((material) => { const status = stockStatus(material); return <div className="line-item" key={material.id}><div className="mid"><b>{material.name}</b><div className="tiny muted">{material.bin} · {material.unit}</div></div><div><span>{material.qty}</span><Pill tone={status.key}>{status.label}</Pill></div></div>; }) : <p className="tiny muted">No Tremco items flagged yet.</p>}</section>
       <section className="card"><h3>Activity this month</h3>{tremcoTx.length ? tremcoTx.map((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); return <div className="line-item" key={tx.id}><div className="mid"><b>{material?.name ?? ""}</b><div className="tiny muted">{formatDateTime(tx.ts)} · {tx.type} · {siteName(state, tx.siteId)}</div></div><span>{tx.qty} {material?.unit}</span></div>; }) : <p className="tiny muted">No Tremco activity for this month.</p>}</section>
-      {tremcoTx.length > 0 && <button className="btn line block" onClick={() => printTransactionLog(state, tremcoTx, "Tremco Log", month)}>Export Tremco Log</button>}
+      
     </>}
 
     {section === "log" && <>
       <section className="card">{monthLogs.length ? monthLogs.map((log) => <div className="line-item" key={log.id}><div className="mid"><b>{siteName(state, log.siteId)}</b><div className="tiny muted">{formatDate(log.date)} · {serviceName(state, log.serviceId)} · {userName(state, log.completedByUserId)}</div><div className="tiny muted">{log.workCompleted}</div></div></div>) : <p className="tiny muted">No daily logs for this month.</p>}</section>
-      {monthLogs.length > 0 && <button className="btn line block" onClick={() => printDailyLogs(state, monthLogs, month)}>Export Daily Log</button>}
+      
     </>}
 
     {canSeeEverything(role) && <section className="card wide" id="wz-section-needs-review">
@@ -236,12 +263,12 @@ export default function CfoTabBoundary({ state, role, resolveTransaction, dismis
 
     <section className="card" id="wz-section-exports">
       <h3>Exports</h3>
-      <p className="tiny muted">Cost report can be printed to PDF by your browser. The transactions CSV opens in Excel or Google Sheets.</p>
+      <p className="tiny muted">The cost report prints to PDF from your browser. The CSVs download as files and open in Excel or Google Sheets.</p>
       <button className="btn line block" onClick={() => printReport(state)}>Print cost report</button>
-      <button className="btn line block" onClick={() => navigator.clipboard?.writeText(csv)}>Copy transactions CSV</button>
+      <button className="btn line block" onClick={() => downloadCsv("transactions.csv", csv)}>Download transactions CSV</button>
       <label className="fld">Monthly Inventory Log</label>
       <input className="in" type="month" value={exportMonth} onChange={(event) => setExportMonth(event.target.value)} />
-      <button className="btn line block" onClick={() => navigator.clipboard?.writeText(monthlyCsv)}>Copy Monthly Inventory Log CSV</button>
+      <button className="btn line block" onClick={() => downloadCsv(`inventory-log-${exportMonth}.csv`, monthlyCsv)}>Download Monthly Inventory Log CSV</button>
     </section>
   </>;
 }

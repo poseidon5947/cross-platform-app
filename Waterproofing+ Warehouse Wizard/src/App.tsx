@@ -817,6 +817,7 @@ export function App() {
   });
 
   const handlePrimaryAction = () => {
+    if (tab === "tools" && !canManage(currentUser.role)) return setTab("home");
     if (tab === "tools") openToolsCheck();
     else setTab("log");
   };
@@ -875,9 +876,12 @@ export function App() {
 
       <nav className="tabs">
         <>
-          {(canManage(currentUser.role) || state.loadIns.some((loadIn) => loadIn.assignedTo === currentUser.id)
+          {/* Tools is still being set up, so the crew do not see it yet. Managers
+              and admins keep it so the list can be built before it goes out. */}
+          {((canManage(currentUser.role) || state.loadIns.some((loadIn) => loadIn.assignedTo === currentUser.id)
             ? (["home", "loadin", "log", "trucks", "tools", "inventory"] as Tab[])
-            : (["home", "log", "trucks", "tools", "inventory"] as Tab[])).map((item) => (
+            : (["home", "log", "trucks", "tools", "inventory"] as Tab[]))
+            .filter((item) => item !== "tools" || canManage(currentUser.role))).map((item) => (
             <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>
               <NavIcon tab={item} />
               {item === "inventory" ? "Inventory" : item === "log" ? "Daily Log" : item === "trucks" ? "Tasks" : item === "loadin" ? "Load-In" : item[0].toUpperCase() + item.slice(1)}
@@ -1041,7 +1045,7 @@ function Home({ state, role, userId, setTab, goToFocus, openGraph, toggleLoadInI
       <Shortcuts items={[
         { label: "Add a daily log", hint: "Work done, materials used, photos", go: () => setTab("log") },
         { label: "Gas station check", hint: "Fuel, odometer and receipt", go: () => setTab("trucks") },
-        { label: "Check out tools", hint: toolsOut ? `${toolsOut} out on a job right now` : "All tools in the warehouse", go: () => setTab("tools") },
+        
         { label: "Jobs", hint: "Site details, plans and documents", go: () => setTab("jobs") },
       ]} />
       <div className="banner"><b>{progress.pct === 100 ? "Daily tasks complete" : "Today's tasks"}</b><span>{progress.done}/{progress.total} complete today.</span></div>
