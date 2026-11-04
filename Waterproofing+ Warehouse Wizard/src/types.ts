@@ -41,7 +41,11 @@ export interface Material {
   name: string;
   category: Category;
   unit: MaterialUnit;
-  step: 0.25 | 0.5 | 1;
+  /**
+   * How much one tap of + or - moves this product. Quarters suit a drum or a
+   * roll; shot and pins are counted in hundreds, so they step in tens.
+   */
+  step: number;
   pack: string;
   unitsPerPallet: number;
   cost: number;

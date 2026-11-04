@@ -23,7 +23,9 @@ const materialFromRow = (row: any): Material => ({
   name: row.name,
   category: row.category,
   unit: row.unit,
-  step: Number(row.step) === 0.25 ? 0.25 : Number(row.step) === 0.5 ? 0.5 : 1,
+  // Any positive step the product carries, not just the three we used to allow -
+  // this is what let shot and pins step in tens.
+  step: Number(row.step) > 0 ? Number(row.step) : 0.25,
   pack: row.pack ?? "",
   unitsPerPallet: Number(row.units_per_pallet ?? 0),
   // Cost is merged in from material_costs after load; the crew cannot read that

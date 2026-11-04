@@ -166,7 +166,7 @@ export function remapProvisionalMaterialUnit(value: string): MaterialUnit {
  * for quarters across the whole catalogue, which is also what makes "four
  * rolls of an eight-roll case" expressible as half a case.
  */
-export function stepForMaterialUnit(_unit: MaterialUnit): 0.25 {
+export function stepForMaterialUnit(_unit: MaterialUnit): number {
   return 0.25;
 }
 
@@ -208,11 +208,11 @@ export function applyTransactions(materials: Material[], txs: Pick<Transaction, 
   });
 }
 
-export function roundStep(value: number, step: 0.25 | 0.5 | 1) {
+export function roundStep(value: number, step: number) {
   return Math.round(value / step) * step;
 }
 
-export function roundUpStep(value: number, step: 0.25 | 0.5 | 1) {
+export function roundUpStep(value: number, step: number) {
   return Math.ceil(value / step) * step;
 }
 
