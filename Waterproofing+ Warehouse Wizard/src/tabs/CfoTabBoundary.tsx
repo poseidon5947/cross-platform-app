@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ALLOWED_MATERIAL_UNITS, canSeeEverything, companionMaterial, formatDate, formatDateTime, money, monthlyInventoryLogCsv, stockStatus, suggestReviewSplit, transactionReportLabel } from "../domain/business";
 import type { ReviewSplitPiece } from "../domain/business";
-import type { AppState, DailyLog, MaterialUnit, Role, Transaction } from "../types";
+import type { AppState, DailyLog, MaterialUnit, Role, Transaction, TxType } from "../types";
 import { canManage, Pill, serviceName, siteName, userName } from "../App";
 
 function printTransactionLog(state: AppState, list: Transaction[], title: string, month: string) {
@@ -209,9 +209,16 @@ export default function CfoTabBoundary({ state, role, resolveTransaction, dismis
     onFocusHandled?.();
   }, [focusTarget]);
 
-  const inventoryTx = state.transactions.filter((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); return (!tx.needsReview ? !material?.isTremco : true) && inMonth(tx.ts); });
-  const monthTx = state.transactions.filter((tx) => inMonth(tx.ts));
-  const tremcoTx = state.transactions.filter((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); return material?.isTremco && inMonth(tx.ts); });
+  // "The reports should show stock USED BY JOB for the specific month. It should
+  // not show current quantities available." A stock count is recorded as an
+  // adjustment and a delivery as a receipt; neither is consumption, and the
+  // October report was mostly those - one line of them was $29,432. The
+  // monthly CSV has always filtered this way; the printed reports did not.
+  const USAGE_TYPES: TxType[] = ["use", "deliver", "loss", "return"];
+  const isUsage = (tx: Transaction) => USAGE_TYPES.includes(tx.type);
+  const inventoryTx = state.transactions.filter((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); return (!tx.needsReview ? !material?.isTremco : true) && isUsage(tx) && inMonth(tx.ts); });
+  const monthTx = state.transactions.filter((tx) => isUsage(tx) && inMonth(tx.ts));
+  const tremcoTx = state.transactions.filter((tx) => { const material = state.materials.find((item) => item.id === tx.materialId); return material?.isTremco && isUsage(tx) && inMonth(tx.ts); });
   const monthLogs = state.dailyLogs.filter((log) => inMonth(log.date));
   const tremcoOnHand = state.materials.filter((material) => material.isTremco);
 
