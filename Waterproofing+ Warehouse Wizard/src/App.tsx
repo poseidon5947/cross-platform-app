@@ -473,7 +473,8 @@ export function App() {
     const dated = txs.map((tx) => ({ ...tx, id: id("tx"), ts: combineDateWithNow(chosenDate) }));
     // Minted here, not at replay time, so the same row ids are used however many
     // times this command is retried.
-    const queueItem = { id: id("oq"), type: "log_materials" as const, transactions: txs, rowIds: txs.map(() => crypto.randomUUID()), queuedAt: new Date().toISOString() };
+    const stamped = txs.map((tx) => ({ ...tx, ts: combineDateWithNow(chosenDate) }));
+    const queueItem = { id: id("oq"), type: "log_materials" as const, transactions: stamped, rowIds: txs.map(() => crypto.randomUUID()), queuedAt: new Date().toISOString() };
     const queueNow = remoteMode && !navigator.onLine;
     patchState((current) => ({
       ...current,
@@ -484,7 +485,7 @@ export function App() {
     if (remoteMode && navigator.onLine) {
       // Sent with the same row ids the queued copy carries, so if this attempt
       // did land before failing, the replay is a no-op rather than a second deduction.
-      insertTransactions(txs, queueItem.rowIds)
+      insertTransactions(stamped, queueItem.rowIds)
         .then(invalidateRemote)
         .catch(() => {
           notify("Saved offline. It will sync when connection returns.");

@@ -81,7 +81,12 @@ const txFromRow = (row: any): Transaction => ({
   skipStock: row.skip_stock ?? false,
 });
 
-const txToRow = (tx: Omit<Transaction, "id" | "ts">) => ({
+const txToRow = (tx: Omit<Transaction, "id" | "ts"> & { ts?: string }) => ({
+  // The date the crew picked on the daily log, not the moment they pressed
+  // save. Leaving this out let Postgres default it to now(), so a log filed in
+  // November for work done in October put the materials in November - the
+  // screen showed the chosen date and the database disagreed on reload.
+  ...(tx.ts ? { ts: tx.ts } : {}),
   material_id: tx.materialId ?? null,
   qty: tx.qty,
   type: tx.type,
@@ -407,7 +412,7 @@ export async function loadProfile(userId: string) {
  * log carries ids generated when it was queued, and a second attempt collides on
  * the primary key and does nothing instead of moving stock again.
  */
-export async function insertTransactions(transactions: Omit<Transaction, "id" | "ts">[], rowIds?: string[]) {
+export async function insertTransactions(transactions: Array<Omit<Transaction, "id" | "ts"> & { ts?: string }>, rowIds?: string[]) {
   const rows = transactions.map((tx, index) => (rowIds?.[index] ? { ...txToRow(tx), id: rowIds[index] } : txToRow(tx)));
   const { error } = rowIds?.length
     ? await requireClient().from("transactions").upsert(rows, { onConflict: "id", ignoreDuplicates: true })
