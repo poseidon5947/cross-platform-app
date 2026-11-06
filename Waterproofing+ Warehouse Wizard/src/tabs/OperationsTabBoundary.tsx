@@ -110,7 +110,7 @@ function ImageFilePicker({ accept, value, onChange }: { accept?: string; value?:
   </div>;
 }
 
-export default function OperationsTabBoundary({ activeTab, state, role, currentUser, userId, toggleTask, openSheet, saveMaterial, setExactCount, setTab, submitTransactions, submitDailyLog, saveSite, saveTool, saveTruck, saveTruckRecord, saveTask, removeTask, submitMaintenance, respondMaintenance, focusTarget, onFocusHandled }: {
+export default function OperationsTabBoundary({ activeTab, state, role, currentUser, userId, toggleTask, openSheet, saveMaterial, setExactCount, setTab, submitTransactions, submitDailyLog, saveSite, saveTool, saveTruck, saveTruckRecord, setTruckInventory, saveTask, removeTask, submitMaintenance, respondMaintenance, focusTarget, onFocusHandled }: {
   activeTab: Tab;
   state: AppState;
   role: Role;
@@ -126,6 +126,7 @@ export default function OperationsTabBoundary({ activeTab, state, role, currentU
   saveSite: (site: Site) => void;
   saveTool: (tool: ToolItem, message?: string) => void;
   saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void;
+  setTruckInventory: (truckId: string, materialId: string, qty: number) => void;
   saveTruckRecord: (truck: Truck, message?: string) => void;
   saveTask: (task: TruckTask) => void;
   removeTask: (id: string) => void;
@@ -138,7 +139,7 @@ export default function OperationsTabBoundary({ activeTab, state, role, currentU
   if (activeTab === "tremco") return <Tremco state={state} role={role} userId={userId} openSheet={openSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} />;
   if (activeTab === "log") return <LogMaterials state={state} role={role} userId={userId} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} setTab={setTab} />;
   if (activeTab === "tools") return <Tools state={state} role={role} userId={userId} openSheet={openSheet} saveTool={saveTool} />;
-  return <Tasks state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
+  return <Tasks state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
 }
 
 function Chip({ on, children, onClick }: { on: boolean; children: React.ReactNode; onClick: () => void }) {
@@ -360,7 +361,8 @@ function ToolForm({ state, tool, saveTool }: { state: AppState; tool?: ToolItem;
   </div>;
 }
 
-function Tasks({ state, role, currentUser, toggleTask, openSheet, saveTruck, saveTruckRecord, saveTask, removeTask, submitMaintenance, respondMaintenance, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; toggleTask: (taskId: string) => void; openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; saveTruckRecord: (truck: Truck, message?: string) => void; saveTask: (task: TruckTask) => void; removeTask: (id: string) => void; submitMaintenance: (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string, deadlineAt?: string, chosenDate?: string) => void; respondMaintenance: (requestId: string, note: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
+function Tasks({ state, role, currentUser, toggleTask, openSheet, saveTruck, saveTruckRecord, setTruckInventory, saveTask, removeTask, submitMaintenance, respondMaintenance, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; toggleTask: (taskId: string) => void; openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; setTruckInventory: (truckId: string, materialId: string, qty: number) => void;
+  saveTruckRecord: (truck: Truck, message?: string) => void; saveTask: (task: TruckTask) => void; removeTask: (id: string) => void; submitMaintenance: (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string, deadlineAt?: string, chosenDate?: string) => void; respondMaintenance: (requestId: string, note: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
   const [section, setSection] = useState<TaskSection>("trucks");
   return <>
     <div className="seg inv-segments">
@@ -368,13 +370,14 @@ function Tasks({ state, role, currentUser, toggleTask, openSheet, saveTruck, sav
       <button className={section === "warehouse" ? "on" : ""} onClick={() => setSection("warehouse")}>Warehouse</button>
       <button className={section === "services" ? "on" : ""} onClick={() => setSection("services")}>Services</button>
     </div>
-    {section === "trucks" && <TrucksSection state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />}
+    {section === "trucks" && <TrucksSection state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />}
     {section === "warehouse" && <WarehouseTasksSection state={state} role={role} toggleTask={toggleTask} openSheet={openSheet} saveTask={saveTask} removeTask={removeTask} />}
     {section === "services" && <ServicesTasksSection state={state} role={role} toggleTask={toggleTask} openSheet={openSheet} saveTask={saveTask} removeTask={removeTask} />}
   </>;
 }
 
-function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTruck, saveTruckRecord, saveTask, removeTask, submitMaintenance, respondMaintenance, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; toggleTask: (taskId: string) => void; openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; saveTruckRecord: (truck: Truck, message?: string) => void; saveTask: (task: TruckTask) => void; removeTask: (id: string) => void; submitMaintenance: (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string, deadlineAt?: string, chosenDate?: string) => void; respondMaintenance: (requestId: string, note: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
+function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTruck, saveTruckRecord, setTruckInventory, saveTask, removeTask, submitMaintenance, respondMaintenance, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; toggleTask: (taskId: string) => void; openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; setTruckInventory: (truckId: string, materialId: string, qty: number) => void;
+  saveTruckRecord: (truck: Truck, message?: string) => void; saveTask: (task: TruckTask) => void; removeTask: (id: string) => void; submitMaintenance: (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string, deadlineAt?: string, chosenDate?: string) => void; respondMaintenance: (requestId: string, note: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
   const canResolve = canResolveMaintenanceRequests(currentUser);
   const openRequests = state.maintenanceRequests.filter((item) => item.status === "open");
   const resolvedRequests = state.maintenanceRequests.filter((item) => item.status === "resolved");
@@ -431,6 +434,11 @@ function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTr
                   <div className="tiny muted">{truck.km ? `${truck.km.toLocaleString()} km` : "No mileage yet"} · last service {formatServiceDate(truck.lastServiced)}</div>
                 </div>
                 {lastLog && <div className="tiny muted">{formatDate(lastLog.ts)}</div>}
+                {/* Every vehicle carries its own list; the crew check the truck
+                    against it before leaving the yard. */}
+                <button className="btn line sm" onClick={(event) => { event.stopPropagation(); openSheet({ title: `${truck.name} — on board`, content: <TruckInventorySheet state={state} role={role} truck={truck} setTruckInventory={setTruckInventory} /> }); }}>
+                  Inventory ({state.truckInventory.filter((line) => line.truckId === truck.id).length})
+                </button>
               </div>
             );
           })}
@@ -678,6 +686,46 @@ function ToolSheet({ state, role, userId, tool, saveTool }: { state: AppState; r
     : saveTool({ ...tool, status: "in", outBy: undefined, outJob: undefined, outService: undefined, outTs: undefined }, "Checked in");
   const chargedOn = tool.lastCharged ? tool.lastCharged.slice(0, 10) : "";
   return <div><label className="fld">Tool name</label><input className="in" value={name} onChange={(event) => setName(event.target.value)} onBlur={renameOnBlur} aria-label="Tool name" /><div className="line-item"><b>Status</b><select className="in tool-state" value={tool.status} onChange={(event) => setStatus(event.target.value)} aria-label="Tool status"><option value="in">in warehouse</option><option value="out">out on a job</option></select></div>{tool.battery && <div className="line-item"><b>Battery</b><div className="tool-battery"><Pill tone={batteryState(tool.lastCharged).key}>{batteryState(tool.lastCharged).label}</Pill><input className="in tool-state" type="date" max={todayKey()} value={chargedOn} aria-label="Last charged" onChange={(event) => saveTool({ ...tool, lastCharged: event.target.value ? new Date(`${event.target.value}T12:00:00`).toISOString() : undefined }, "Charge date updated")} /></div></div>}<p className="tiny muted">Switching to &ldquo;out on a job&rdquo; uses the job and service picked below.</p><label className="fld">Job</label><select className="in" value={siteId} onChange={(event) => setSiteId(event.target.value)}>{state.sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select><label className="fld">Service</label><select className="in" value={serviceId} onChange={(event) => setServiceId(event.target.value as ServiceId)}>{state.services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select><ToolPhotoFields tool={tool} onChange={(patch) => saveTool({ ...tool, ...patch }, "Tool photo saved")} /><label className="fld">Damage / repair note</label><textarea className="in" value={note} onChange={(event) => setNote(event.target.value)} /><button className="btn primary block" onClick={tool.status === "out" ? () => saveTool({ ...tool, status: "in", outBy: undefined, outJob: undefined, outService: undefined, outTs: undefined }, "Checked in") : checkout}>{tool.status === "out" ? "Check in" : "Check out"}</button>{tool.battery && <button className="btn line block" onClick={() => saveTool({ ...tool, lastCharged: new Date().toISOString() }, "Marked charged")}>Mark charged</button>}{canManage(role) && <div className="row-action"><button className="btn line sm" onClick={() => markCondition("damaged")}>Report damage</button><button className="btn line sm" onClick={() => markCondition("repair")}>Send to repair</button><button className="btn line sm" onClick={() => markCondition("good")}>Back in service</button></div>}</div>;
+}
+
+/**
+ * What a vehicle is meant to carry.
+ *
+ * The crew check the truck against this before leaving the yard, so it lists
+ * only what is assigned and lets a manager set the counts. Setting a line to
+ * zero takes it off the truck rather than recording a zero.
+ */
+function TruckInventorySheet({ state, role, truck, setTruckInventory }: { state: AppState; role: Role; truck: Truck; setTruckInventory: (truckId: string, materialId: string, qty: number) => void }) {
+  const [query, setQuery] = useState("");
+  const assigned = state.truckInventory.filter((line) => line.truckId === truck.id);
+  const byMaterial = new Map(assigned.map((line) => [line.materialId, line.qty]));
+  const stocked = state.materials.filter((material) => material.active !== false);
+  const needle = query.trim().toLowerCase();
+  const candidates = needle
+    ? stocked.filter((material) => material.name.toLowerCase().includes(needle))
+    : stocked.filter((material) => byMaterial.has(material.id));
+  const sorted = [...candidates].sort((a, b) => a.name.localeCompare(b.name));
+  return <div>
+    <p className="tiny muted">What this vehicle should be carrying. Search to add something; set a count to zero to take it off.</p>
+    {canManage(role) && <div className="search"><input className="in" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search a product to add" /></div>}
+    <section className="card">
+      {sorted.length ? sorted.map((material) => {
+        const qty = byMaterial.get(material.id) ?? 0;
+        return <div className="line-item" key={material.id}>
+          <div className="mid"><b>{material.name}</b><div className="tiny muted">{material.unit} · steps of {material.step}</div></div>
+          {canManage(role)
+            ? <div className="qtybox">
+                <button onClick={() => setTruckInventory(truck.id, material.id, Math.max(0, qty - material.step))}>-</button>
+                <input type="number" inputMode="decimal" min="0" step={material.step} value={qty}
+                  aria-label={`Quantity of ${material.name} on ${truck.name}`}
+                  onChange={(event) => setTruckInventory(truck.id, material.id, Math.max(0, Number(event.target.value) || 0))} />
+                <button onClick={() => setTruckInventory(truck.id, material.id, qty + material.step)}>+</button>
+              </div>
+            : <span>{qty} {material.unit}</span>}
+        </div>;
+      }) : <p className="tiny muted">{needle ? "Nothing matches that search." : "Nothing assigned to this vehicle yet."}</p>}
+    </section>
+  </div>;
 }
 
 function TruckLogForm({ state, saveTruck }: { state: AppState; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void }) {

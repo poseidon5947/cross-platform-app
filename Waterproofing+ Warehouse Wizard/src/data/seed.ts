@@ -400,6 +400,8 @@ export function createSeedState(): AppState {
     maintenanceRequests: [],
     dailyLogs: [],
     crewPoolPoints: 0,
+  truckInventory: [],
+  truckFiles: [],
   };
 }
 

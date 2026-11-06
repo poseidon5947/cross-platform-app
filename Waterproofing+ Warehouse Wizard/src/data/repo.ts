@@ -1,6 +1,6 @@
 import { supabase } from "../integrations/supabase";
 import { todayKey } from "../domain/business";
-import type { AppState, DailyLog, DailyLogMedia, MaintenanceRequest, ProjectLoadIn, ProjectLoadInItem, ProjectLoadInMedia, Material, OfflineCommand, PointsEvent, Service, Site, Streak, TaskCompletion, ToolItem, Transaction, Truck, TruckLog, TruckTask, User } from "../types";
+import type { AppState, DailyLog, DailyLogMedia, MaintenanceRequest, ProjectLoadIn, ProjectLoadInItem, ProjectLoadInMedia, Material, OfflineCommand, PointsEvent, Service, Site, Streak, TaskCompletion, ToolItem, Transaction, Truck, TruckLog, TruckTask, User, TruckInventoryLine, TruckFile } from "../types";
 
 function requireClient() {
   if (!supabase) throw new Error("Supabase is not configured.");
@@ -26,6 +26,7 @@ const materialFromRow = (row: any): Material => ({
   // Any positive step the product carries, not just the three we used to allow -
   // this is what let shot and pins step in tens.
   step: Number(row.step) > 0 ? Number(row.step) : 0.25,
+  active: row.active ?? true,
   pack: row.pack ?? "",
   unitsPerPallet: Number(row.units_per_pallet ?? 0),
   // Cost is merged in from material_costs after load; the crew cannot read that
@@ -129,6 +130,7 @@ const maintenanceFromRow = (row: any): MaintenanceRequest => ({
 const siteFromRow = (row: any): Site => ({
   id: row.id,
   createdAt: row.created_at ?? undefined,
+  active: row.active ?? true,
   name: row.name,
   address: row.address ?? "",
   qboCustomerName: row.qbo_customer_name ?? undefined,
@@ -159,6 +161,8 @@ const toolFromRow = (row: any): ToolItem => ({
   outJob: row.out_job ?? undefined,
   outService: row.out_service ?? undefined,
   outTs: row.out_ts ?? undefined,
+  active: row.active ?? true,
+  extraPowerBox: row.extra_power_box ?? false,
   photoKey: row.photo_key ?? undefined,
   locationPhotoKey: row.location_photo_key ?? undefined,
 });
@@ -176,11 +180,13 @@ const toolToRow = (tool: ToolItem) => ({
   out_job: tool.outJob ?? null,
   out_service: tool.outService ?? null,
   out_ts: tool.outTs ?? null,
+  active: tool.active ?? true,
+  extra_power_box: tool.extraPowerBox ?? false,
   photo_key: tool.photoKey ?? null,
   location_photo_key: tool.locationPhotoKey ?? null,
 });
 
-const truckFromRow = (row: any): Truck => ({ id: row.id, name: row.name, km: Number(row.km), lastServiced: row.last_serviced, lastOil: Number(row.last_oil), showToCrew: row.show_to_crew ?? true });
+const truckFromRow = (row: any): Truck => ({ id: row.id, name: row.name, km: Number(row.km), lastServiced: row.last_serviced, lastOil: Number(row.last_oil), showToCrew: row.show_to_crew ?? true, active: row.active ?? true, fleetNumber: row.fleet_number ?? undefined, oilChangeDueKm: row.oil_change_due_km == null ? undefined : Number(row.oil_change_due_km), nextServiceDate: row.next_service_date ?? undefined });
 
 /**
  * Registration details come from their own table, which only admin, manager and
@@ -339,7 +345,8 @@ async function read<T>(table: string, mapper: (row: any) => T, order = "created_
 }
 
 export async function loadRemoteState(currentUserId: string): Promise<AppState> {
-  const [materialsRaw, materialCosts, sites, services, users, transactions, tools, trucksRaw, truckDetails, truckLogs, truckTasks, taskCompletions, pointsEvents, streakRows, maintenanceRequests, dailyLogs, dailyLogMedia, loadIns, loadInItems, loadInMedia, crewPoolPoints] =
+  const [materialsRaw, materialCosts, sites, services, users, transactions, tools, trucksRaw, truckDetails, truckLogs, truckTasks, taskCompletions, pointsEvents, streakRows, maintenanceRequests, dailyLogs, dailyLogMedia, loadIns, loadInItems, loadInMedia, crewPoolPoints, truckInventory, truckFiles,
+    ] =
     await Promise.all([
       read("materials", materialFromRow),
       read("material_costs", materialCostFromRow),
@@ -362,6 +369,8 @@ export async function loadRemoteState(currentUserId: string): Promise<AppState> 
       readLoadInItems(),
       readLoadInMedia(),
       readCrewPoolPoints(),
+      read("truck_inventory", truckInventoryFromRow),
+      read("truck_file", truckFileFromRow),
     ]);
   const costByMaterial = new Map(materialCosts.map((entry) => [entry.materialId, entry]));
   const materials = materialsRaw.map((material) => {
@@ -370,7 +379,7 @@ export async function loadRemoteState(currentUserId: string): Promise<AppState> 
   });
   const detailByTruck = new Map(truckDetails.map((detail) => [detail.truckId, detail]));
   const trucks = trucksRaw.map((truck) => ({ ...truck, ...(detailByTruck.get(truck.id) ?? {}) }));
-  return { materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streaks: streakRows, currentUserId, offlineQueue: [], maintenanceRequests, dailyLogs, dailyLogMedia, loadIns, loadInItems, loadInMedia, crewPoolPoints };
+  return { materials, sites, services, users, transactions, tools, trucks, truckLogs, truckTasks, taskCompletions, pointsEvents, streaks: streakRows, currentUserId, offlineQueue: [], maintenanceRequests, dailyLogs, dailyLogMedia, loadIns, loadInItems, loadInMedia, crewPoolPoints, truckInventory, truckFiles };
 }
 
 export async function insertMaintenanceRequest(request: MaintenanceRequest) {
@@ -667,6 +676,14 @@ async function readLoadInTable<T>(table: string, mapper: (row: any) => T, order:
   return (data ?? []).map(mapper);
 }
 
+const truckInventoryFromRow = (row: any): TruckInventoryLine => ({
+  id: row.id, truckId: row.truck_id, materialId: row.material_id, qty: Number(row.qty),
+});
+const truckFileFromRow = (row: any): TruckFile => ({
+  id: row.id, truckId: row.truck_id, storageKey: row.storage_key,
+  label: row.label ?? undefined, kind: row.kind ?? "document", createdAt: row.created_at,
+});
+
 export const readLoadIns = () => readLoadInTable("project_load_in", loadInFromRow, "load_in_date");
 export const readLoadInItems = () => readLoadInTable("project_load_in_item", loadInItemFromRow, "id");
 export const readLoadInMedia = () => readLoadInTable("project_load_in_media", loadInMediaFromRow, "created_at");
@@ -816,10 +833,30 @@ export async function receiptSignedUrl(storageKey: string) {
   return data.signedUrl;
 }
 
+/**
+ * What should be on a given vehicle. Setting a line to zero removes it, so the
+ * crew's list only ever shows what the truck is meant to carry.
+ */
+export async function setTruckInventory(truckId: string, materialId: string, qty: number) {
+  const client = requireClient();
+  if (qty <= 0) {
+    const { error } = await client.from("truck_inventory").delete().eq("truck_id", truckId).eq("material_id", materialId);
+    if (error) throw error;
+    return;
+  }
+  const { error } = await client.from("truck_inventory")
+    .upsert({ truck_id: truckId, material_id: materialId, qty, updated_at: new Date().toISOString() }, { onConflict: "truck_id,material_id" });
+  if (error) throw error;
+}
+
 export async function upsertTruck(truck: Truck) {
   const { data, error } = await requireClient().from("trucks").upsert({
     id: isUuid(truck.id) ? truck.id : undefined,
     name: truck.name,
+    active: truck.active ?? true,
+    fleet_number: truck.fleetNumber ?? null,
+    oil_change_due_km: truck.oilChangeDueKm ?? null,
+    next_service_date: truck.nextServiceDate ?? null,
     km: truck.km,
     last_serviced: truck.lastServiced || null,
     last_oil: truck.lastOil,

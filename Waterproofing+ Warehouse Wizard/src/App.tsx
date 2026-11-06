@@ -31,6 +31,7 @@ import {
   insertLoadIn,
   uploadLoadInFile,
   setLoadInItemDone,
+  setTruckInventory as setTruckInventoryRemote,
   markLoadInComplete,
   reassignLoadIn,
   deleteLoadInItem,
@@ -692,6 +693,21 @@ export function App() {
     if (remoteMode) updateTool(tool).then(invalidateRemote).catch((err) => notify(`Tool sync failed: ${err.message}`));
   };
 
+  /** What a vehicle should be carrying. Zero takes the line off the truck. */
+  const setTruckInventory = (truckId: string, materialId: string, qty: number) => {
+    if (!remoteMode) return notify("Truck inventory needs the live database.");
+    patchState((current) => ({
+      ...current,
+      truckInventory: qty > 0
+        ? current.truckInventory.some((line) => line.truckId === truckId && line.materialId === materialId)
+          ? current.truckInventory.map((line) => (line.truckId === truckId && line.materialId === materialId ? { ...line, qty } : line))
+          : [...current.truckInventory, { id: crypto.randomUUID(), truckId, materialId, qty }]
+        : current.truckInventory.filter((line) => !(line.truckId === truckId && line.materialId === materialId)),
+    }));
+    setTruckInventoryRemote(truckId, materialId, qty).then(invalidateRemote)
+      .catch((err: Error) => notify(`Truck inventory did not save: ${err.message}`));
+  };
+
   const saveTruckRecord = (truck: Truck, message = "Truck updated") => {
     patchState((current) => ({ ...current, trucks: current.trucks.some((item) => item.id === truck.id) ? current.trucks.map((item) => item.id === truck.id ? truck : item) : [...current.trucks, truck] }), message);
     if (remoteMode) upsertTruck(truck).then(invalidateRemote).catch((err) => notify(`Truck sync failed: ${err.message}`));
@@ -867,7 +883,7 @@ export function App() {
         {tab === "loadin" && <LoadInTab state={state} role={currentUser.role} userId={currentUser.id} openSheet={setSheet} saveLoadIn={saveLoadIn} onToggle={toggleLoadInItem} onComplete={completeLoadIn} onReassign={reassignLoadInTo} onRemoveItem={removeLoadInItem} />}
         {tab === "home" && <Home state={state} role={currentUser.role} userId={currentUser.id} setTab={setTab} goToFocus={goToFocus} openGraph={setGraphModal} toggleLoadInItem={toggleLoadInItem} completeLoadIn={completeLoadIn} />}
         <React.Suspense fallback={<TabSkeleton />}>
-          {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
+          {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
           {tab === "jobs" && <LazyJobsTab state={state} role={currentUser.role} saveSite={saveSite} openSheet={setSheet} />}
           {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} setState={setState} openSheet={setSheet} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}

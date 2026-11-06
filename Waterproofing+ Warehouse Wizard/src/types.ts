@@ -46,6 +46,8 @@ export interface Material {
    * roll; shot and pins are counted in hundreds, so they step in tens.
    */
   step: number;
+  /** Retired products stay in every past report but leave every picker. */
+  active?: boolean;
   pack: string;
   unitsPerPallet: number;
   cost: number;
@@ -81,6 +83,7 @@ export interface Site {
   siteContactEmail?: string;
   startDate?: string;
   endDate?: string;
+  active?: boolean;
   /** When the job was added. Used to order the list when no start date is set. */
   createdAt?: string;
 }
@@ -217,6 +220,9 @@ export interface ToolItem {
   outJob?: string;
   outService?: ServiceId;
   outTs?: string;
+  active?: boolean;
+  /** A second battery pack that travels with the tool. */
+  extraPowerBox?: boolean;
   /** A photo of the tool itself. */
   photoKey?: string;
   /**
@@ -226,10 +232,32 @@ export interface ToolItem {
   locationPhotoKey?: string;
 }
 
+export interface TruckInventoryLine {
+  id: string;
+  truckId: string;
+  materialId: string;
+  /** What should be on board, so the crew can check the truck against it. */
+  qty: number;
+}
+
+export interface TruckFile {
+  id: string;
+  truckId: string;
+  storageKey: string;
+  label?: string;
+  kind: string;
+  createdAt: string;
+}
+
 export interface Truck {
   id: string;
   name: string;
   km: number;
+  active?: boolean;
+  fleetNumber?: string;
+  /** Flag the oil change when the odometer passes this reading. */
+  oilChangeDueKm?: number;
+  nextServiceDate?: string;
   lastServiced: string;
   lastOil: number;
   /**
@@ -274,6 +302,7 @@ export interface TruckTask {
   freq: TaskFrequency;
   timeOfDay?: "start" | "end" | "job_start" | "job_completion" | "pack_list";
   requiredForDailyPoints?: boolean;
+  assignedTo?: string;
   section: TaskSection;
   category?: string;
   personResponsible?: string;
@@ -325,6 +354,8 @@ export interface AppState {
   loadIns: ProjectLoadIn[];
   loadInItems: ProjectLoadInItem[];
   loadInMedia: ProjectLoadInMedia[];
+  truckInventory: TruckInventoryLine[];
+  truckFiles: TruckFile[];
   crewPoolPoints: number;
 }
 
