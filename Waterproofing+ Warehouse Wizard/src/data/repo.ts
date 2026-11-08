@@ -837,6 +837,45 @@ export async function receiptSignedUrl(storageKey: string) {
  * What should be on a given vehicle. Setting a line to zero removes it, so the
  * crew's list only ever shows what the truck is meant to carry.
  */
+/**
+ * Retire or restore a record.
+ *
+ * Inactive is the right answer for anything that has been used: it leaves
+ * every past report untouched and takes the item out of every picker. Deleting
+ * is reserved for records nothing points at, and the database refuses the rest
+ * - the delete policies check for history, so a mistake here cannot rewrite a
+ * month the CFO has signed off.
+ */
+export async function setRecordActive(table: "materials" | "tools" | "trucks" | "sites", id: string, active: boolean) {
+  const { data, error } = await requireClient().from(table).update({ active }).eq("id", id).select("id");
+  if (error) throw error;
+  if (!data?.length) throw new Error("That did not save - your account may not have permission.");
+}
+
+export async function deleteRecord(table: "materials" | "tools" | "trucks" | "sites" | "daily_logs" | "transactions" | "maintenance_request", id: string) {
+  const { data, error } = await requireClient().from(table).delete().eq("id", id).select("id");
+  if (error) throw error;
+  if (!data?.length) {
+    throw new Error("Nothing was deleted. This record has history attached, so it can only be made inactive.");
+  }
+}
+
+export async function updateDailyLog(log: DailyLog) {
+  const { data, error } = await requireClient().from("daily_logs").update({
+    date: log.date,
+    site_id: log.siteId,
+    service_id: log.serviceId,
+    materials_installed: log.materialsInstalled ?? null,
+    work_completed: log.workCompleted,
+    challenges: log.challenges ?? null,
+    weather: log.weather ?? null,
+    to_do_next_time: log.toDoNextTime,
+    completed_by_user_id: log.completedByUserId,
+  }).eq("id", log.id).select("id");
+  if (error) throw error;
+  if (!data?.length) throw new Error("That edit did not save - only a manager can change a daily log.");
+}
+
 export async function setTruckInventory(truckId: string, materialId: string, qty: number) {
   const client = requireClient();
   if (qty <= 0) {

@@ -38,18 +38,18 @@ export default function JobsTabBoundary({ state, role, saveSite, openSheet }: {
         <Chip on={sort === "newest"} onClick={() => setSort("newest")}>Newest first</Chip>
         <Chip on={sort === "oldest"} onClick={() => setSort("oldest")}>Oldest first</Chip>
       </div>
-      {active.length ? active.map((site) => <JobRow key={site.id} site={site} canEdit={canEdit} onOpen={() => openSheet({ title: site.name, content: <JobForm site={site} saveSite={saveSite} /> })} />) : <p className="tiny muted">No active jobs.</p>}
+      {active.length ? active.map((site) => <JobRow key={site.id} site={site} canEdit={canEdit} onOpen={() => openSheet({ title: site.name, content: <JobForm site={site} saveSite={saveSite} /> })} onCopy={canEdit ? () => openSheet({ title: `Copy of ${site.name}`, content: <JobForm site={{ ...site, id: crypto.randomUUID(), name: `${site.name} (copy)`, startDate: undefined, endDate: undefined }} saveSite={saveSite} /> }) : undefined} />) : <p className="tiny muted">No active jobs.</p>}
     </section>
     {past.length > 0 && <section className="card">
       <details>
         <summary className="tiny muted">{past.length} past job{past.length === 1 ? "" : "s"}</summary>
-        {past.map((site) => <JobRow key={site.id} site={site} canEdit={canEdit} onOpen={() => openSheet({ title: site.name, content: <JobForm site={site} saveSite={saveSite} /> })} />)}
+        {past.map((site) => <JobRow key={site.id} site={site} canEdit={canEdit} onOpen={() => openSheet({ title: site.name, content: <JobForm site={site} saveSite={saveSite} /> })} onCopy={canEdit ? () => openSheet({ title: `Copy of ${site.name}`, content: <JobForm site={{ ...site, id: crypto.randomUUID(), name: `${site.name} (copy)`, startDate: undefined, endDate: undefined }} saveSite={saveSite} /> }) : undefined} />)}
       </details>
     </section>}
   </>;
 }
 
-function JobRow({ site, canEdit, onOpen }: { site: Site; canEdit: boolean; onOpen: () => void }) {
+function JobRow({ site, canEdit, onOpen, onCopy }: { site: Site; canEdit: boolean; onOpen: () => void; onCopy?: () => void }) {
   const dateRange = site.startDate || site.endDate ? `${site.startDate ?? "—"} → ${site.endDate ?? "ongoing"}` : "";
   return <div className="line-item" onClick={canEdit ? onOpen : undefined} style={canEdit ? { cursor: "pointer" } : undefined}>
     <div className="mid">
@@ -58,6 +58,8 @@ function JobRow({ site, canEdit, onOpen }: { site: Site; canEdit: boolean; onOpe
       {(site.siteContactName || dateRange) && <div className="tiny muted">{[site.siteContactName, dateRange].filter(Boolean).join(" · ")}</div>}
     </div>
     {site.driveFolderUrl && <a className="tiny" href={site.driveFolderUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Docs →</a>}
+    {/* Several jobs often sit at one location with the same site contacts. */}
+    {onCopy && <button className="btn line sm" onClick={(event) => { event.stopPropagation(); onCopy(); }}>Copy</button>}
   </div>;
 }
 

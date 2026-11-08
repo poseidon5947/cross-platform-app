@@ -166,6 +166,23 @@ export function remapProvisionalMaterialUnit(value: string): MaterialUnit {
  * for quarters across the whole catalogue, which is also what makes "four
  * rolls of an eight-roll case" expressible as half a case.
  */
+/**
+ * Whether a vehicle is due attention.
+ *
+ * Two independent triggers, because the crew asked for both: the odometer
+ * passing a set reading, and a date somebody picked for the next check.
+ */
+export function vehicleServiceDue(truck: Truck, today = todayKey()): { due: boolean; reasons: string[] } {
+  const reasons: string[] = [];
+  if (truck.oilChangeDueKm != null && truck.km >= truck.oilChangeDueKm) {
+    reasons.push(`Oil change due - ${truck.km.toLocaleString()} km, flagged at ${truck.oilChangeDueKm.toLocaleString()}`);
+  }
+  if (truck.nextServiceDate && truck.nextServiceDate <= today) {
+    reasons.push(`Service was due ${truck.nextServiceDate}`);
+  }
+  return { due: reasons.length > 0, reasons };
+}
+
 export function stepForMaterialUnit(_unit: MaterialUnit): number {
   return 0.25;
 }

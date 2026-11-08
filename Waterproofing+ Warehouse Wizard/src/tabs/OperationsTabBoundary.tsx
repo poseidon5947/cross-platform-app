@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { categoryLabels, services as seedServices } from "../data/seed";
 import { dailyLogMediaSignedUrl, receiptSignedUrl, toolPhotoSignedUrl, uploadReceiptPhoto, uploadToolPhoto } from "../data/repo";
 import { isSupabaseConfigured } from "../integrations/supabase";
-import { ALLOWED_MATERIAL_UNITS, batteryState, canResolveMaintenanceRequests, canSeeEverything, canSeePrices, dailyProgress, formatDate, materialsForService, id, isKmEntryTask, isTaskDone, money, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
+import { ALLOWED_MATERIAL_UNITS, batteryState, vehicleServiceDue, canResolveMaintenanceRequests, canSeeEverything, canSeePrices, dailyProgress, formatDate, materialsForService, id, isKmEntryTask, isTaskDone, money, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
 import type { AppState, Category, DailyLog, DailyLogMedia, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, TaskSection, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User } from "../types";
 import { BulkToolSheet, canManage, Kpi, Pill, ProgressRing, serviceName, siteName, userName } from "../App";
 import type { Tab as AppTab } from "../App";
@@ -355,7 +355,7 @@ function ToolForm({ state, tool, saveTool }: { state: AppState; tool?: ToolItem;
     <input className="in" value={draft.name} onChange={(event) => set("name", event.target.value)} />
     <label className="fld">Service</label>
     <select className="in" value={draft.serviceId} onChange={(event) => set("serviceId", event.target.value as ServiceId)}>{state.services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select>
-    <label className="check"><input type="checkbox" checked={draft.battery} onChange={(event) => set("battery", event.target.checked)} /> Cordless / battery powered</label>
+    <label className="check"><input type="checkbox" checked={draft.extraPowerBox ?? false} onChange={(event) => set("extraPowerBox", event.target.checked)} /> Has an extra power box</label><p className="tiny muted">Every tool is cordless, so charge is tracked on all of them. Tick this only if a spare battery pack travels with it.</p>
     <ToolPhotoFields tool={draft} onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))} />
     <button className="btn primary block" disabled={!draft.name.trim()} onClick={() => saveTool(draft, tool ? "Tool updated" : "Tool added")}>Save tool</button>
   </div>;
@@ -404,7 +404,7 @@ function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTr
 
   return <>
     <section className="card"><ProgressRing pct={progress.pct} /><button className="btn primary block" onClick={() => openSheet({ title: "Gas Station Check", content: <TruckLogForm state={state} saveTruck={saveTruck} /> })}>Gas Station Check</button></section>
-    <div className="seg">{(["daily", "weekly", "monthly"] as TaskFrequency[]).map((item) => <button key={item} className={freq === item ? "on" : ""} onClick={() => setFreq(item)}>{item}</button>)}</div>
+    <div className="seg">{(["daily", "weekly", "monthly", "quarterly", "yearly", "as_needed"] as TaskFrequency[]).map((item) => <button key={item} className={freq === item ? "on" : ""} onClick={() => setFreq(item)}>{item}</button>)}</div>
     <button className="btn line block" disabled={visibleTasks.length === 0 || allShownDone} onClick={markAllShown}>Mark all shown done</button>
     <div id="wz-section-tasks">
       <TaskGroup title="Start of Day" subtitle="Before 8am - vehicle / general" tasks={startTasks} state={state} toggleTask={toggleTask} currentUser={currentUser} saveTruck={saveTruck} />
@@ -432,6 +432,7 @@ function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTr
                 <div className="mid">
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{truck.name}</div>
                   <div className="tiny muted">{truck.km ? `${truck.km.toLocaleString()} km` : "No mileage yet"} · last service {formatServiceDate(truck.lastServiced)}</div>
+                  {vehicleServiceDue(truck).due && <div className="tiny" style={{ color: "#A82727", fontWeight: 600 }}>{vehicleServiceDue(truck).reasons.join(" · ")}</div>}
                 </div>
                 {lastLog && <div className="tiny muted">{formatDate(lastLog.ts)}</div>}
                 {/* Every vehicle carries its own list; the crew check the truck
@@ -552,7 +553,7 @@ function TruckForm({ state, truck, saveTruckRecord }: { state: AppState; truck?:
     <label className="fld">Insurance policy number</label>
     <input className="in" value={draft.insurancePolicy ?? ""} onChange={(event) => set("insurancePolicy", event.target.value)} />
     <label className="check"><input type="checkbox" checked={draft.showToCrew ?? true} onChange={(event) => set("showToCrew", event.target.checked)} /> Show this vehicle to the crew</label>
-    <button className="btn primary block" disabled={!draft.name.trim()} onClick={() => saveTruckRecord(draft, truck ? "Truck updated" : "Truck added")}>Save truck</button>
+    <div className="row2"><div><label className="fld">Fleet number</label><input className="in" value={draft.fleetNumber ?? ""} onChange={(event) => set("fleetNumber", event.target.value || undefined)} /></div><div><label className="fld">Flag oil change at (km)</label><input className="in" type="number" min="0" value={draft.oilChangeDueKm ?? ""} onChange={(event) => set("oilChangeDueKm", event.target.value ? Number(event.target.value) : undefined)} /></div></div><label className="fld">Next service due</label><input className="in" type="date" value={draft.nextServiceDate ?? ""} onChange={(event) => set("nextServiceDate", event.target.value || undefined)} /><p className="tiny muted">The oil reading flags the vehicle once the odometer passes it. The date is a reminder for the next check.</p><button className="btn primary block" disabled={!draft.name.trim()} onClick={() => saveTruckRecord(draft, truck ? "Truck updated" : "Truck added")}>Save truck</button>
     {truck && <TruckReceipts state={state} truckId={truck.id} />}
   </div>;
 }

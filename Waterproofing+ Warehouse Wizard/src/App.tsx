@@ -32,6 +32,9 @@ import {
   uploadLoadInFile,
   setLoadInItemDone,
   setTruckInventory as setTruckInventoryRemote,
+  setRecordActive,
+  deleteRecord,
+  updateDailyLog,
   markLoadInComplete,
   reassignLoadIn,
   deleteLoadInItem,
@@ -691,6 +694,45 @@ export function App() {
   const saveTool = (tool: ToolItem, message = "Tool updated") => {
     patchState((current) => ({ ...current, tools: current.tools.some((item) => item.id === tool.id) ? current.tools.map((item) => item.id === tool.id ? tool : item) : [...current.tools, tool] }), message);
     if (remoteMode) updateTool(tool).then(invalidateRemote).catch((err) => notify(`Tool sync failed: ${err.message}`));
+  };
+
+  /**
+   * Retire a record, or remove it outright when nothing points at it.
+   *
+   * The database decides which is allowed: the delete policies check for
+   * history, so attempting to delete a product that has been used comes back
+   * as a refusal rather than quietly changing a signed-off month.
+   */
+  const retireRecord = (table: "materials" | "tools" | "trucks" | "sites", id: string, active: boolean) => {
+    if (!remoteMode) return notify("This needs the live database.");
+    const key = ({ materials: "materials", tools: "tools", trucks: "trucks", sites: "sites" } as const)[table];
+    patchState((current) => ({
+      ...current,
+      [key]: (current[key] as Array<{ id: string }>).map((row) => (row.id === id ? { ...row, active } : row)),
+    }) as AppState, active ? "Back in use" : "Marked inactive");
+    setRecordActive(table, id, active).then(invalidateRemote).catch((err: Error) => notify(err.message));
+  };
+
+  const removeRecord = (table: "materials" | "tools" | "trucks" | "sites", id: string) => {
+    if (!remoteMode) return notify("This needs the live database.");
+    deleteRecord(table, id)
+      .then(() => { invalidateRemote(); notify("Deleted"); })
+      .catch((err: Error) => notify(err.message));
+  };
+
+  const editDailyLog = (log: DailyLog) => {
+    if (!remoteMode) return notify("This needs the live database.");
+    patchState((current) => ({
+      ...current,
+      dailyLogs: current.dailyLogs.map((item) => (item.id === log.id ? log : item)),
+    }), "Daily log updated");
+    updateDailyLog(log).then(invalidateRemote).catch((err: Error) => notify(err.message));
+  };
+
+  const removeDailyLog = (logId: string) => {
+    if (!remoteMode) return notify("This needs the live database.");
+    patchState((current) => ({ ...current, dailyLogs: current.dailyLogs.filter((item) => item.id !== logId) }), "Daily log deleted");
+    deleteRecord("daily_logs", logId).then(invalidateRemote).catch((err: Error) => notify(err.message));
   };
 
   /** What a vehicle should be carrying. Zero takes the line off the truck. */
