@@ -397,6 +397,14 @@ export async function insertMaintenanceRequest(request: MaintenanceRequest) {
   if (error) throw error;
 }
 
+/** Correct a request that was typed wrong, rather than only closing it. */
+export async function editMaintenanceRequest(id: string, description: string, deadlineAt?: string) {
+  const { data, error } = await requireClient().from("maintenance_request")
+    .update({ description, deadline_at: deadlineAt ?? null }).eq("id", id).select("id");
+  if (error) throw error;
+  if (!data?.length) throw new Error("That did not save - only a manager can change a maintenance request.");
+}
+
 export async function respondMaintenanceRequest(request: MaintenanceRequest) {
   const { error } = await requireClient().from("maintenance_request").update({
     status: request.status,
@@ -749,6 +757,13 @@ export async function reassignLoadIn(loadInId: string, userId: string) {
     .update({ assigned_to: uuidOrNull(userId) }).eq("id", loadInId).select("id");
   if (error) throw error;
   if (!data?.length) throw new Error("That did not save - only a manager can reassign a load-in.");
+}
+
+export async function renameLoadInItem(itemId: string, label: string) {
+  const { data, error } = await requireClient().from("project_load_in_item")
+    .update({ label }).eq("id", itemId).select("id");
+  if (error) throw error;
+  if (!data?.length) throw new Error("That did not save - only a manager can change a load-in list.");
 }
 
 export async function deleteLoadInItem(itemId: string) {

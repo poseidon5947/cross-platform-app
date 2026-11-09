@@ -38,6 +38,7 @@ import {
   markLoadInComplete,
   reassignLoadIn,
   deleteLoadInItem,
+  renameLoadInItem,
   dismissTransactionReview,
   invokeMaterialsImport,
   invokeQuickBooksConnect,
@@ -47,6 +48,7 @@ import {
   persistPoints,
   replayCommand,
   respondMaintenanceRequest,
+  editMaintenanceRequest,
   saveTruckLog as saveRemoteTruckLog,
   signOut,
   upsertCompletion,
@@ -642,6 +644,15 @@ export function App() {
     reassignLoadIn(loadIn.id, nextUserId).then(invalidateRemote).catch((err: Error) => notify(`Reassign failed: ${err.message}`));
   };
 
+  const editLoadInItem = (item: ProjectLoadInItem, label: string) => {
+    if (!remoteMode) return notify("Load-in lists need the live database.");
+    patchState((current) => ({
+      ...current,
+      loadInItems: current.loadInItems.map((row) => (row.id === item.id ? { ...row, label } : row)),
+    }), "Item updated");
+    renameLoadInItem(item.id, label).then(invalidateRemote).catch((err: Error) => notify(err.message));
+  };
+
   const removeLoadInItem = (item: ProjectLoadInItem) => {
     if (!remoteMode) return notify("Load-in lists need the live database.");
     patchState((current) => ({
@@ -718,6 +729,15 @@ export function App() {
     deleteRecord(table, id)
       .then(() => { invalidateRemote(); notify("Deleted"); })
       .catch((err: Error) => notify(err.message));
+  };
+
+  const editMaintenance = (id: string, description: string, deadlineAt?: string) => {
+    if (!remoteMode) return notify("This needs the live database.");
+    patchState((current) => ({
+      ...current,
+      maintenanceRequests: current.maintenanceRequests.map((row) => (row.id === id ? { ...row, description, deadlineAt } : row)),
+    }), "Request updated");
+    editMaintenanceRequest(id, description, deadlineAt).then(invalidateRemote).catch((err: Error) => notify(err.message));
   };
 
   const editDailyLog = (log: DailyLog) => {
@@ -922,10 +942,10 @@ export function App() {
           </div>)}
           <div className="tiny muted" style={{ padding: "8px 11px" }}>These keep retrying. Discarding one removes it from this phone without saving it to the server.</div>
         </section>}
-        {tab === "loadin" && <LoadInTab state={state} role={currentUser.role} userId={currentUser.id} openSheet={setSheet} saveLoadIn={saveLoadIn} onToggle={toggleLoadInItem} onComplete={completeLoadIn} onReassign={reassignLoadInTo} onRemoveItem={removeLoadInItem} />}
+        {tab === "loadin" && <LoadInTab state={state} role={currentUser.role} userId={currentUser.id} openSheet={setSheet} saveLoadIn={saveLoadIn} onToggle={toggleLoadInItem} onComplete={completeLoadIn} onReassign={reassignLoadInTo} onRemoveItem={removeLoadInItem} onEditItem={editLoadInItem} />}
         {tab === "home" && <Home state={state} role={currentUser.role} userId={currentUser.id} setTab={setTab} goToFocus={goToFocus} openGraph={setGraphModal} toggleLoadInItem={toggleLoadInItem} completeLoadIn={completeLoadIn} />}
         <React.Suspense fallback={<TabSkeleton />}>
-          {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
+          {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
           {tab === "jobs" && <LazyJobsTab state={state} role={currentUser.role} saveSite={saveSite} openSheet={setSheet} />}
           {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} setState={setState} openSheet={setSheet} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}

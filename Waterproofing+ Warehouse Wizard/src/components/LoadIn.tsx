@@ -14,6 +14,9 @@ export interface NewLoadIn {
 }
 
 const sectionLabels: Record<string, string> = {
+  materials: "Materials",
+  tremco: "Tremco",
+  tools: "Tools",
   services: "Service items",
   trucks: "Truck items",
   warehouse: "Warehouse items",
@@ -41,14 +44,20 @@ export function LoadInPlanner({ state, userId, saveLoadIn }: {
   const [query, setQuery] = useState("");
 
   const crew = state.users.filter((user) => user.status !== "Inactive");
-  // The service's own items first, then the truck and warehouse lists, which
-  // apply whatever the job is.
-  const candidates = state.truckTasks.filter((task) => {
-    if (task.section === "services") return !task.serviceId || task.serviceId === serviceId;
-    return true;
-  }).filter((task) => !query || task.text.toLowerCase().includes(query.toLowerCase()));
+  // A load-in is what goes on the truck: materials, Tremco and tools. It used
+  // to be built from the three task checklists, which is why "gas tank at
+  // least 50% full" kept appearing on a list of things to load.
+  const candidates = [
+    ...state.materials
+      .filter((material) => material.active !== false)
+      .filter((material) => !material.serviceIds?.length || material.serviceIds.includes(serviceId))
+      .map((material) => ({ id: material.id, text: material.name, section: material.isTremco ? "tremco" : "materials" })),
+    ...state.tools
+      .filter((tool) => tool.active !== false)
+      .map((tool) => ({ id: tool.id, text: tool.name, section: "tools" })),
+  ].filter((entry) => !query || entry.text.toLowerCase().includes(query.toLowerCase()));
 
-  const chosen = candidates.filter((task) => picked[task.id]);
+  const chosen = candidates.filter((entry) => picked[entry.id]);
   const canSubmit = Boolean(siteId && serviceId && loadInDate && assignedTo && chosen.length);
 
   const submit = () => {
@@ -59,7 +68,7 @@ export function LoadInPlanner({ state, userId, saveLoadIn }: {
       loadInDate,
       notes: notes.trim() || undefined,
       assignedTo,
-      items: chosen.map((task) => ({ taskId: task.id, label: task.text, section: task.section })),
+      items: chosen.map((entry) => ({ taskId: entry.id, label: entry.text, section: entry.section })),
       files,
     });
   };
@@ -126,7 +135,7 @@ export function LoadInPlanner({ state, userId, saveLoadIn }: {
 }
 
 /** What the assigned crew member sees, and ticks off. */
-export function LoadInChecklist({ state, loadIn, items, media, onToggle, onComplete, onReassign, onRemoveItem, readOnly = false }: {
+export function LoadInChecklist({ state, loadIn, items, media, onToggle, onComplete, onReassign, onRemoveItem, onEditItem, readOnly = false }: {
   state: AppState;
   loadIn: ProjectLoadIn;
   items: ProjectLoadInItem[];
@@ -136,6 +145,7 @@ export function LoadInChecklist({ state, loadIn, items, media, onToggle, onCompl
   /** Only passed to whoever may change the list - the planner, not the crew. */
   onReassign?: (loadIn: ProjectLoadIn, userId: string) => void;
   onRemoveItem?: (item: ProjectLoadInItem) => void;
+  onEditItem?: (item: ProjectLoadInItem, label: string) => void;
   readOnly?: boolean;
 }) {
   const [reassigning, setReassigning] = useState(false);
@@ -143,7 +153,7 @@ export function LoadInChecklist({ state, loadIn, items, media, onToggle, onCompl
   const site = state.sites.find((item) => item.id === loadIn.siteId);
   const service = state.services.find((item) => item.id === loadIn.serviceId);
   const assignee = state.users.find((item) => item.id === loadIn.assignedTo);
-  const grouped = ["services", "trucks", "warehouse"].map((section) => ({
+  const grouped = ["materials", "tremco", "tools", "services", "trucks", "warehouse"].map((section) => ({
     section,
     rows: items.filter((item) => (item.section ?? "services") === section),
   })).filter((group) => group.rows.length);
@@ -176,6 +186,10 @@ export function LoadInChecklist({ state, loadIn, items, media, onToggle, onCompl
             onChange={() => onToggle(item.id, !item.doneAt)} />
           <b>{item.label}</b>
         </label>
+        {onEditItem && <button className="btn line sm" aria-label={`Edit ${item.label}`} onClick={() => {
+          const next = window.prompt("Change this item", item.label);
+          if (next && next.trim() && next.trim() !== item.label) onEditItem(item, next.trim());
+        }}>Edit</button>}
         {onRemoveItem && <button className="btn line sm" aria-label={`Remove ${item.label}`} onClick={() => onRemoveItem(item)}>Remove</button>}
       </div>)}
     </div>)}
@@ -222,7 +236,7 @@ function LoadInFiles({ media }: { media: ProjectLoadInMedia[] }) {
  * what they were assigned, per the client's rule that the three crew leads see
  * their own load-in rather than the whole board.
  */
-export function LoadInTab({ state, role, userId, openSheet, saveLoadIn, onToggle, onComplete, onReassign, onRemoveItem }: {
+export function LoadInTab({ state, role, userId, openSheet, saveLoadIn, onToggle, onComplete, onReassign, onRemoveItem, onEditItem }: {
   state: AppState;
   role: string;
   userId: string;
@@ -232,6 +246,7 @@ export function LoadInTab({ state, role, userId, openSheet, saveLoadIn, onToggle
   onComplete: (loadIn: ProjectLoadIn) => void;
   onReassign: (loadIn: ProjectLoadIn, userId: string) => void;
   onRemoveItem: (item: ProjectLoadInItem) => void;
+  onEditItem: (item: ProjectLoadInItem, label: string) => void;
 }) {
   const manages = role === "admin" || role === "manager";
   const mine = state.loadIns
@@ -263,6 +278,7 @@ export function LoadInTab({ state, role, userId, openSheet, saveLoadIn, onToggle
       onComplete={onComplete}
       onReassign={manages ? onReassign : undefined}
       onRemoveItem={manages ? onRemoveItem : undefined}
+      onEditItem={manages ? onEditItem : undefined}
       // Whoever built the list can tick it off too, not only the person it
       // went to - the planner is often loading the truck alongside them.
       readOnly={loadIn.assignedTo !== userId && !manages}
