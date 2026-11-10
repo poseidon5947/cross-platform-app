@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { categoryLabels, services as seedServices } from "../data/seed";
-import { dailyLogMediaSignedUrl, receiptSignedUrl, toolPhotoSignedUrl, uploadReceiptPhoto, uploadToolPhoto } from "../data/repo";
+import { dailyLogMediaSignedUrl, receiptSignedUrl, toolPhotoSignedUrl, truckFileSignedUrl, uploadReceiptPhoto, uploadToolPhoto, uploadTruckFile } from "../data/repo";
 import { isSupabaseConfigured } from "../integrations/supabase";
 import { ALLOWED_MATERIAL_UNITS, batteryState, vehicleServiceDue, canResolveMaintenanceRequests, canSeeEverything, canSeePrices, dailyProgress, formatDate, materialsForService, id, isKmEntryTask, isTaskDone, money, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
-import type { AppState, Category, DailyLog, DailyLogMedia, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, TaskSection, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User } from "../types";
+import type { AppState, Category, DailyLog, DailyLogMedia, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, TaskSection, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User, TruckFile } from "../types";
 import { BulkToolSheet, canManage, Kpi, Pill, ProgressRing, serviceName, siteName, userName } from "../App";
 import type { Tab as AppTab } from "../App";
 
@@ -110,7 +110,7 @@ function ImageFilePicker({ accept, value, onChange }: { accept?: string; value?:
   </div>;
 }
 
-export default function OperationsTabBoundary({ activeTab, state, role, currentUser, userId, toggleTask, openSheet, saveMaterial, setExactCount, setTab, submitTransactions, submitDailyLog, saveSite, saveTool, saveTruck, saveTruckRecord, setTruckInventory, saveTask, removeTask, submitMaintenance, respondMaintenance, editMaintenance, focusTarget, onFocusHandled }: {
+export default function OperationsTabBoundary({ activeTab, state, role, currentUser, userId, toggleTask, openSheet, saveMaterial, setExactCount, setTab, submitTransactions, submitDailyLog, saveSite, saveTool, saveTruck, saveTruckRecord, setTruckInventory, addTruckFile, removeTruckFile, saveTask, removeTask, submitMaintenance, respondMaintenance, editMaintenance, focusTarget, onFocusHandled }: {
   activeTab: Tab;
   state: AppState;
   role: Role;
@@ -126,6 +126,8 @@ export default function OperationsTabBoundary({ activeTab, state, role, currentU
   saveSite: (site: Site) => void;
   saveTool: (tool: ToolItem, message?: string) => void;
   saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void;
+  addTruckFile: (file: TruckFile) => void;
+  removeTruckFile: (id: string) => void;
   setTruckInventory: (truckId: string, materialId: string, qty: number) => void;
   saveTruckRecord: (truck: Truck, message?: string) => void;
   saveTask: (task: TruckTask) => void;
@@ -139,7 +141,7 @@ export default function OperationsTabBoundary({ activeTab, state, role, currentU
   if (activeTab === "tremco") return <Tremco state={state} role={role} userId={userId} openSheet={openSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} />;
   if (activeTab === "log") return <LogMaterials state={state} role={role} userId={userId} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} setTab={setTab} />;
   if (activeTab === "tools") return <Tools state={state} role={role} userId={userId} openSheet={openSheet} saveTool={saveTool} />;
-  return <Tasks state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
+  return <Tasks state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} addTruckFile={addTruckFile} removeTruckFile={removeTruckFile} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
 }
 
 function Chip({ on, children, onClick }: { on: boolean; children: React.ReactNode; onClick: () => void }) {
@@ -363,7 +365,9 @@ function ToolForm({ state, tool, saveTool }: { state: AppState; tool?: ToolItem;
   </div>;
 }
 
-function Tasks({ state, role, currentUser, toggleTask, openSheet, saveTruck, saveTruckRecord, setTruckInventory, saveTask, removeTask, submitMaintenance, respondMaintenance, editMaintenance, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; toggleTask: (taskId: string) => void; openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; setTruckInventory: (truckId: string, materialId: string, qty: number) => void;
+function Tasks({ state, role, currentUser, toggleTask, openSheet, saveTruck, saveTruckRecord, setTruckInventory, addTruckFile, removeTruckFile, saveTask, removeTask, submitMaintenance, respondMaintenance, editMaintenance, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; toggleTask: (taskId: string) => void; openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; addTruckFile: (file: TruckFile) => void;
+  removeTruckFile: (id: string) => void;
+  setTruckInventory: (truckId: string, materialId: string, qty: number) => void;
   saveTruckRecord: (truck: Truck, message?: string) => void; saveTask: (task: TruckTask) => void; removeTask: (id: string) => void; submitMaintenance: (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string, deadlineAt?: string, chosenDate?: string) => void; respondMaintenance: (requestId: string, note: string) => void; editMaintenance: (id: string, description: string, deadlineAt?: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
   const [section, setSection] = useState<TaskSection>("trucks");
   return <>
@@ -372,13 +376,15 @@ function Tasks({ state, role, currentUser, toggleTask, openSheet, saveTruck, sav
       <button className={section === "warehouse" ? "on" : ""} onClick={() => setSection("warehouse")}>Warehouse</button>
       <button className={section === "services" ? "on" : ""} onClick={() => setSection("services")}>Services</button>
     </div>
-    {section === "trucks" && <TrucksSection state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />}
+    {section === "trucks" && <TrucksSection state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} addTruckFile={addTruckFile} removeTruckFile={removeTruckFile} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />}
     {section === "warehouse" && <WarehouseTasksSection state={state} role={role} toggleTask={toggleTask} openSheet={openSheet} saveTask={saveTask} removeTask={removeTask} />}
     {section === "services" && <ServicesTasksSection state={state} role={role} toggleTask={toggleTask} openSheet={openSheet} saveTask={saveTask} removeTask={removeTask} />}
   </>;
 }
 
-function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTruck, saveTruckRecord, setTruckInventory, saveTask, removeTask, submitMaintenance, respondMaintenance, editMaintenance, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; toggleTask: (taskId: string) => void; openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; setTruckInventory: (truckId: string, materialId: string, qty: number) => void;
+function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTruck, saveTruckRecord, setTruckInventory, addTruckFile, removeTruckFile, saveTask, removeTask, submitMaintenance, respondMaintenance, editMaintenance, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; toggleTask: (taskId: string) => void; openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; addTruckFile: (file: TruckFile) => void;
+  removeTruckFile: (id: string) => void;
+  setTruckInventory: (truckId: string, materialId: string, qty: number) => void;
   saveTruckRecord: (truck: Truck, message?: string) => void; saveTask: (task: TruckTask) => void; removeTask: (id: string) => void; submitMaintenance: (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string, deadlineAt?: string, chosenDate?: string) => void; respondMaintenance: (requestId: string, note: string) => void; editMaintenance: (id: string, description: string, deadlineAt?: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
   const canResolve = canResolveMaintenanceRequests(currentUser);
   const openRequests = state.maintenanceRequests.filter((item) => item.status === "open");
@@ -424,7 +430,7 @@ function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTr
                the crew taps through to nothing, because the registration and
                insurance numbers are not theirs to carry around. */
             const open = canManage(role)
-              ? () => openSheet({ title: truck.name, content: <TruckForm state={state} truck={truck} saveTruckRecord={saveTruckRecord} /> })
+              ? () => openSheet({ title: truck.name, content: <><TruckForm state={state} truck={truck} saveTruckRecord={saveTruckRecord} /><TruckFiles state={state} role={role} truck={truck} userId={currentUser.id} onUploaded={addTruckFile} onDeleted={removeTruckFile} /></> })
               : canSeeEverything(role)
                 ? () => openSheet({ title: truck.name, content: <VehicleDetails truck={truck} /> })
                 : undefined;
@@ -586,7 +592,7 @@ function VehicleDetails({ truck }: { truck: Truck }) {
 function TaskGroup({ title, subtitle, tasks, state, toggleTask, currentUser, saveTruck }: { title: string; subtitle: string; tasks: TruckTask[]; state: AppState; toggleTask: (taskId: string) => void; currentUser: User; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void }) {
   return <section className="card"><div className="sec-h"><div><h2>{title}</h2><div className="tiny muted">{subtitle}</div></div><Pill tone={tasks.length ? "neu" : "warn"}>{tasks.length}</Pill></div>{tasks.length ? tasks.map((task) => isKmEntryTask(task)
     ? <KmEntryRow key={task.id} task={task} state={state} currentUser={currentUser} saveTruck={saveTruck} done={isTaskDone(state.taskCompletions, state.currentUserId, task)} />
-    : <TaskRow key={task.id} task={task} done={isTaskDone(state.taskCompletions, state.currentUserId, task)} toggleTask={toggleTask} />) : <p className="tiny muted">No tasks for this filter.</p>}</section>;
+    : <TaskRow key={task.id} task={task} done={isTaskDone(state.taskCompletions, state.currentUserId, task)} toggleTask={toggleTask} meta={task.assignedTo ? userName(state, task.assignedTo) : undefined} />) : <p className="tiny muted">No tasks for this filter.</p>}</section>;
 }
 
 function KmEntryRow({ task, state, currentUser, saveTruck, done }: { task: { id: string; text: string }; state: AppState; currentUser: User; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; done: boolean }) {
@@ -702,6 +708,45 @@ function ToolSheet({ state, role, userId, tool, saveTool }: { state: AppState; r
  * only what is assigned and lets a manager set the counts. Setting a line to
  * zero takes it off the truck rather than recording a zero.
  */
+/**
+ * The paper trail for a vehicle. Mechanic invoices, inspection reports and
+ * photos of whatever failed, kept against the truck so the history travels
+ * with it rather than living in somebody's inbox.
+ */
+function TruckFiles({ state, role, truck, userId, onUploaded, onDeleted }: { state: AppState; role: Role; truck: Truck; userId: string; onUploaded: (file: TruckFile) => void; onDeleted: (id: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState("");
+  const [openingId, setOpeningId] = useState("");
+  const files = state.truckFiles.filter((file) => file.truckId === truck.id);
+  const add = async (picked: FileList | null) => {
+    if (!picked?.length) return;
+    setBusy(true); setFailed("");
+    try {
+      for (const file of Array.from(picked)) onUploaded(await uploadTruckFile(truck.id, file, userId));
+    } catch (error) {
+      setFailed(error instanceof Error ? error.message : "That upload did not work.");
+    } finally { setBusy(false); }
+  };
+  const open = async (file: TruckFile) => {
+    setOpeningId(file.id);
+    try { window.open(await truckFileSignedUrl(file.storageKey), "_blank", "noopener"); }
+    catch { setFailed("Could not open that file."); }
+    finally { setOpeningId(""); }
+  };
+  return <div>
+    <label className="fld">Repair documents and photos</label>
+    <p className="tiny muted">Invoices, inspection reports, photos of the problem. Kept against this vehicle.</p>
+    {canManage(role) && <div className="file-picker"><input className="in" type="file" multiple accept="image/*,application/pdf" onChange={(event) => { void add(event.target.files); event.target.value = ""; }} /></div>}
+    {busy && <p className="tiny muted">Uploading&hellip;</p>}
+    {failed && <p className="tiny error">{failed}</p>}
+    {files.length ? <section className="card">{files.map((file) => <div className="line-item" key={file.id}>
+      <div className="mid"><b>{file.label ?? file.kind}</b><div className="tiny muted">{file.kind} &middot; {formatDate(file.createdAt)}</div></div>
+      <button className="btn line sm" disabled={openingId === file.id} onClick={() => void open(file)}>{openingId === file.id ? "Opening\u2026" : "Open"}</button>
+      {canManage(role) && <button className="btn line sm" onClick={() => onDeleted(file.id)}>Remove</button>}
+    </div>)}</section> : <p className="tiny muted">Nothing filed against this vehicle yet.</p>}
+  </div>;
+}
+
 function TruckInventorySheet({ state, role, truck, setTruckInventory }: { state: AppState; role: Role; truck: Truck; setTruckInventory: (truckId: string, materialId: string, qty: number) => void }) {
   const [query, setQuery] = useState("");
   const assigned = state.truckInventory.filter((line) => line.truckId === truck.id);
@@ -773,7 +818,7 @@ function TaskEditor({ state, section, saveTask, removeTask }: { state: AppState;
   const formRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<TruckTask>({ id: crypto.randomUUID(), text: "", serviceId: "veh", freq: "daily", timeOfDay: "start", requiredForDailyPoints: section === "trucks", section });
   const sectionTasks = state.truckTasks.filter((task) => task.section === section);
-  return <div><section className="card">{sectionTasks.map((task) => <div className="line-item" key={task.id}><span>{task.text}</span><span className="tiny muted">{taskTimeLabel(task)}</span><button className="btn line sm" onClick={() => { setDraft(task); requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })); }}>Edit</button><button className="btn line sm" onClick={() => removeTask(task.id)}>Delete</button></div>)}</section><div ref={formRef}><p className="fld">{state.truckTasks.some((task) => task.id === draft.id) ? `Editing: ${draft.text || "this task"}` : "New task"}</p><label className="fld">Task</label><input className="in" value={draft.text} onChange={(event) => setDraft((current) => ({ ...current, text: event.target.value }))} /><div className="row2">{section !== "warehouse" && <select className="in" value={draft.serviceId} onChange={(event) => setDraft((current) => ({ ...current, serviceId: event.target.value as ServiceId }))}>{state.services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select>}<select className="in" value={draft.freq} onChange={(event) => setDraft((current) => ({ ...current, freq: event.target.value as TaskFrequency }))}>{(["daily", "weekly", "monthly", "quarterly", "yearly", "as_needed"] as TaskFrequency[]).map((item) => <option key={item} value={item}>{freqLabel(item)}</option>)}</select></div>{section === "warehouse" && <><label className="fld">Category</label><input className="in" value={draft.category ?? ""} onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value || undefined }))} /><label className="fld">Person responsible (optional)</label><input className="in" value={draft.personResponsible ?? ""} onChange={(event) => setDraft((current) => ({ ...current, personResponsible: event.target.value || undefined }))} /></>}<div className="row2"><select className="in" value={draft.timeOfDay ?? ""} onChange={(event) => setDraft((current) => ({ ...current, timeOfDay: (event.target.value || undefined) as TruckTask["timeOfDay"] }))}><option value="">No time</option><option value="start">Start of Day</option><option value="end">End of Day</option><option value="pack_list">Service packing list</option><option value="job_start">Job start</option><option value="job_completion">Job completion</option></select><label className="check"><input type="checkbox" checked={draft.requiredForDailyPoints !== false} onChange={(event) => setDraft((current) => ({ ...current, requiredForDailyPoints: event.target.checked }))} /> Counts for daily points</label></div><button className="btn primary block" onClick={() => saveTask(draft)}>Save task</button></div></div>;
+  return <div><section className="card">{sectionTasks.map((task) => <div className="line-item" key={task.id}><span>{task.text}</span><span className="tiny muted">{taskTimeLabel(task)}</span><button className="btn line sm" onClick={() => { setDraft(task); requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })); }}>Edit</button><button className="btn line sm" onClick={() => removeTask(task.id)}>Delete</button></div>)}</section><div ref={formRef}><p className="fld">{state.truckTasks.some((task) => task.id === draft.id) ? `Editing: ${draft.text || "this task"}` : "New task"}</p><label className="fld">Task</label><input className="in" value={draft.text} onChange={(event) => setDraft((current) => ({ ...current, text: event.target.value }))} /><div className="row2">{section !== "warehouse" && <select className="in" value={draft.serviceId} onChange={(event) => setDraft((current) => ({ ...current, serviceId: event.target.value as ServiceId }))}>{state.services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select>}<select className="in" value={draft.freq} onChange={(event) => setDraft((current) => ({ ...current, freq: event.target.value as TaskFrequency }))}>{(["daily", "weekly", "monthly", "quarterly", "yearly", "as_needed"] as TaskFrequency[]).map((item) => <option key={item} value={item}>{freqLabel(item)}</option>)}</select></div>{section === "warehouse" && <><label className="fld">Category</label><input className="in" value={draft.category ?? ""} onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value || undefined }))} /><label className="fld">Person responsible (optional)</label><input className="in" value={draft.personResponsible ?? ""} onChange={(event) => setDraft((current) => ({ ...current, personResponsible: event.target.value || undefined }))} /></>}<div className="row2"><select className="in" value={draft.timeOfDay ?? ""} onChange={(event) => setDraft((current) => ({ ...current, timeOfDay: (event.target.value || undefined) as TruckTask["timeOfDay"] }))}><option value="">No time</option><option value="start">Start of Day</option><option value="end">End of Day</option><option value="pack_list">Service packing list</option><option value="job_start">Job start</option><option value="job_completion">Job completion</option></select><div><label className="fld">Assigned to</label><select className="in" value={draft.assignedTo ?? ""} onChange={(event) => setDraft((current) => ({ ...current, assignedTo: event.target.value || undefined }))}><option value="">Anyone on shift</option>{state.users.filter((user) => user.status !== "Inactive").map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select><p className="tiny muted">Leave as Anyone and the task stays a shared checklist.</p></div><label className="check"><input type="checkbox" checked={draft.requiredForDailyPoints !== false} onChange={(event) => setDraft((current) => ({ ...current, requiredForDailyPoints: event.target.checked }))} /> Counts for daily points</label></div><button className="btn primary block" onClick={() => saveTask(draft)}>Save task</button></div></div>;
 }
 
 function taskTimeLabel(task: TruckTask) {

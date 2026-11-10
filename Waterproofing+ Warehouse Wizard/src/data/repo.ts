@@ -204,6 +204,7 @@ const truckTaskFromRow = (row: any): TruckTask => ({
   section: row.section ?? "trucks",
   category: row.category ?? undefined,
   personResponsible: row.person_responsible ?? undefined,
+  assignedTo: row.assigned_to ?? undefined,
 });
 const completionFromRow = (row: any): TaskCompletion => ({ id: row.id, userId: row.user_id, taskId: row.task_id, periodKey: row.period_key, completedAt: row.completed_at });
 const pointsFromRow = (row: any): PointsEvent => ({ id: row.id, userId: row.user_id, type: row.type, points: row.points, reason: row.reason, ref: row.ref, ts: row.ts });
@@ -840,6 +841,38 @@ export async function uploadToolPhoto(toolId: string, file: File) {
   return storageKey;
 }
 
+/**
+ * Mechanic paperwork against a vehicle: invoices, inspection reports, photos
+ * of what failed. Same private bucket as the tool photos, under its own
+ * prefix, so there is one set of storage rules to keep right rather than two.
+ */
+export async function uploadTruckFile(truckId: string, file: File, userId: string, label?: string) {
+  if (file.size > MAX_MEDIA_BYTES) {
+    throw new Error(`${file.name} is ${(file.size / 1024 / 1024).toFixed(0)}MB. The limit is 50MB.`);
+  }
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+  const storageKey = `trucks/${truckId}/${crypto.randomUUID()}-${safeName}`;
+  const { error } = await requireClient().storage.from("warehouse-receipts").upload(storageKey, file, {
+    cacheControl: "31536000", upsert: false, contentType: file.type || undefined,
+  });
+  if (error) throw error;
+  const kind = file.type.startsWith("image/") ? "photo" : "document";
+  const { data, error: rowError } = await requireClient().from("truck_file").insert({
+    truck_id: truckId, storage_key: storageKey, label: label ?? file.name, kind,
+    uploaded_by: isUuid(userId) ? userId : null,
+  }).select("*").single();
+  if (rowError) throw rowError;
+  return truckFileFromRow(data);
+}
+
+export const truckFileSignedUrl = (storageKey: string) => receiptSignedUrl(storageKey);
+
+export async function deleteTruckFile(id: string) {
+  const { data, error } = await requireClient().from("truck_file").delete().eq("id", id).select("id");
+  if (error) throw error;
+  if (!data?.length) throw new Error("That did not delete - only a manager can remove a vehicle file.");
+}
+
 export const toolPhotoSignedUrl = (storageKey: string) => receiptSignedUrl(storageKey);
 
 export async function receiptSignedUrl(storageKey: string) {
@@ -1089,6 +1122,7 @@ export async function upsertTask(task: TruckTask) {
     section: task.section,
     category: task.category ?? null,
     person_responsible: task.personResponsible ?? null,
+    assigned_to: uuidOrNull(task.assignedTo),
   });
   if (error) throw error;
 }
