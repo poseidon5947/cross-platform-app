@@ -134,6 +134,13 @@ function loadDemoState(): AppState {
   }
 }
 
+/**
+ * Tabs the crew do not see yet. Tools has no real list in it, and Inventory is
+ * being reworked, so for launch the crew get the daily log and their tasks.
+ * Short-term by intent - empty this array to give both back.
+ */
+const CREW_HIDDEN_TABS: Tab[] = ["tools", "inventory"];
+
 function sanitizeStoredState(state: AppState): AppState {
   return {
     ...state,
@@ -905,7 +912,7 @@ export function App() {
   });
 
   const handlePrimaryAction = () => {
-    if (tab === "tools" && !canManage(currentUser.role)) return setTab("home");
+    if (CREW_HIDDEN_TABS.includes(tab) && !canManage(currentUser.role)) return setTab("home");
     if (tab === "tools") openToolsCheck();
     else setTab("log");
   };
@@ -964,12 +971,14 @@ export function App() {
 
       <nav className="tabs">
         <>
-          {/* Tools is still being set up, so the crew do not see it yet. Managers
-              and admins keep it so the list can be built before it goes out. */}
+          {/* The crew see the two things they open the app to do, and nothing
+              else, while Tools and Inventory are still being set up. Both are
+              meant to come back: take the tab out of CREW_HIDDEN_TABS and the
+              crew have it again, with no other change needed. */}
           {((canManage(currentUser.role) || state.loadIns.some((loadIn) => loadIn.assignedTo === currentUser.id)
             ? (["home", "loadin", "log", "trucks", "tools", "inventory"] as Tab[])
             : (["home", "log", "trucks", "tools", "inventory"] as Tab[]))
-            .filter((item) => item !== "tools" || canManage(currentUser.role))).map((item) => (
+            .filter((item) => canManage(currentUser.role) || !CREW_HIDDEN_TABS.includes(item))).map((item) => (
             <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>
               <NavIcon tab={item} />
               {item === "inventory" ? "Inventory" : item === "log" ? "Daily Log" : item === "trucks" ? "Tasks" : item === "loadin" ? "Load-In" : item[0].toUpperCase() + item.slice(1)}
