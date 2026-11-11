@@ -173,14 +173,18 @@ function downloadCsv(filename: string, text: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function transactionsCsv(state: AppState) {
+export function transactionsCsv(state: AppState) {
   // Status is the last column for the same reason the monthly log carries one:
   // a row with no product used to export as a blank line with a job on it.
   const head = "Date,Material,Action,Site,Service,Crew,Qty,Unit,UnitCost,Value,Status";
   const rows = state.transactions.map((tx) => {
     const material = state.materials.find((item) => item.id === tx.materialId);
     const { item, status } = transactionReportLabel(tx, material?.name);
-    return [tx.ts, item, tx.type, siteName(state, tx.siteId), serviceName(state, tx.serviceId), userName(state, tx.userId), material ? tx.qty : (tx.rawQtyText ?? ""), material?.unit ?? tx.rawUnitText ?? "", material?.cost ?? 0, (material?.cost ?? 0) * tx.qty, status].map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",");
+    // The monthly log already trims the date and fixes the money to two
+    // places; this one did neither, so the CFO's file carried a raw ISO
+    // timestamp and values like 4974.2699999999995 for 1658.09 x 3.
+    const unitCost = material?.cost ?? 0;
+    return [tx.ts.slice(0, 10), item, tx.type, siteName(state, tx.siteId), serviceName(state, tx.serviceId), userName(state, tx.userId), material ? tx.qty : (tx.rawQtyText ?? ""), material?.unit ?? tx.rawUnitText ?? "", unitCost.toFixed(2), (unitCost * tx.qty).toFixed(2), status].map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",");
   });
   return [head, ...rows].join("\n");
 }
