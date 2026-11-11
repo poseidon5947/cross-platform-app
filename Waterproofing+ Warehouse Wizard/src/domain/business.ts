@@ -172,6 +172,29 @@ export function remapProvisionalMaterialUnit(value: string): MaterialUnit {
  * Two independent triggers, because the crew asked for both: the odometer
  * passing a set reading, and a date somebody picked for the next check.
  */
+/**
+ * Work that was assigned and has not happened.
+ *
+ * The push plumbing has been logging "load-in due" since September, but with
+ * nobody subscribed nothing has ever actually been sent, so a missed load-in
+ * surfaced to no one. This puts it where a manager already looks instead of
+ * depending on a notification anybody has to opt into.
+ */
+export function overdueWork(
+  state: Pick<AppState, "loadIns" | "loadInItems" | "maintenanceRequests" | "users">,
+  today = todayKey(),
+) {
+  const loadIns = state.loadIns.filter((loadIn) => {
+    if (loadIn.completedAt || loadIn.loadInDate >= today) return false;
+    const items = state.loadInItems.filter((item) => item.loadInId === loadIn.id);
+    return items.length > 0 && items.some((item) => !item.doneAt);
+  });
+  const maintenance = state.maintenanceRequests.filter(
+    (request) => request.status === "open" && request.deadlineAt != null && request.deadlineAt.slice(0, 10) < today,
+  );
+  return { loadIns, maintenance, total: loadIns.length + maintenance.length };
+}
+
 export function vehicleServiceDue(truck: Truck, today = todayKey()): { due: boolean; reasons: string[] } {
   const reasons: string[] = [];
   if (truck.oilChangeDueKm != null && truck.km >= truck.oilChangeDueKm) {

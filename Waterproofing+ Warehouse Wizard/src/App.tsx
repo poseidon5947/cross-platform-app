@@ -76,6 +76,7 @@ import {
   periodKey,
   reorderEstimate,
   remapProvisionalMaterialUnit,
+  overdueWork,
   resolveNeedsReviewTransaction,
   applyReviewSplit,
   type ReviewSplitPiece,
@@ -1113,7 +1114,10 @@ function Home({ state, role, userId, setTab, goToFocus, openGraph, toggleLoadInI
   const loadInWindow = [todayKey(), addDays(todayKey(), 1)];
   const myLoadIns = state.loadIns.filter((loadIn) =>
     loadIn.assignedTo === userId && !loadIn.completedAt && loadInWindow.includes(loadIn.loadInDate));
-  const attention = [{ count: maintenance, label: "Open maintenance requests", tab: "trucks" as Tab, focus: "maintenance" }, { count: incompleteTasks, label: "Truck tasks remaining today", tab: "trucks" as Tab, focus: "tasks" }, { count: lows.length, label: "Items below reorder threshold", tab: "inventory" as Tab, focus: "low-stock" }, ...(canSeeEverything(role) ? [{ count: needsReviewCount, label: "Inventory Log \u2014 Needs Review", tab: "cfo" as Tab, focus: "needs-review" }] : [])].filter((item) => item.count > 0);
+  // Work that was assigned and did not happen. It leads the strip because a
+  // missed load-in is the only item here that somebody is already late for.
+  const missed = overdueWork(state);
+  const attention = [{ count: missed.loadIns.length, label: "Load-ins not completed on time", tab: "loadin" as Tab }, { count: missed.maintenance.length, label: "Maintenance past its deadline", tab: "trucks" as Tab, focus: "maintenance" }, { count: maintenance, label: "Open maintenance requests", tab: "trucks" as Tab, focus: "maintenance" }, { count: incompleteTasks, label: "Truck tasks remaining today", tab: "trucks" as Tab, focus: "tasks" }, { count: lows.length, label: "Items below reorder threshold", tab: "inventory" as Tab, focus: "low-stock" }, ...(canSeeEverything(role) ? [{ count: needsReviewCount, label: "Inventory Log \u2014 Needs Review", tab: "cfo" as Tab, focus: "needs-review" }] : [])].filter((item) => item.count > 0);
 
   // Crew: the four things they open the app to do, and nothing about stock
   // levels or prices. Reorder thresholds and price changes are not their call,

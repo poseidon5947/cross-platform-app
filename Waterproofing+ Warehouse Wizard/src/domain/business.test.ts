@@ -33,6 +33,7 @@ import {
   submitMaintenanceRequest,
   todayKey,
   weekKey,
+  overdueWork,
 } from "./business";
 
 describe("canSeePrices", () => {
@@ -553,6 +554,46 @@ describe("points engine", () => {
     expect(result.events).toHaveLength(1);
     expect(result.events[0]).toMatchObject({ type: "daily_100_reversal", points: -25 });
     expect(result.streak.count).toBe(0);
+  });
+});
+
+describe("work that was assigned and did not happen", () => {
+  const base = {
+    users: [],
+    maintenanceRequests: [],
+    loadIns: [{ id: "li1", siteId: "s1", serviceId: "wp" as const, loadInDate: "2026-11-01", createdAt: "2026-10-31T00:00:00Z", assignedTo: "u1" }],
+    loadInItems: [{ id: "i1", loadInId: "li1", label: "Tremdrain" }, { id: "i2", loadInId: "li1", label: "Grip tape" }],
+  };
+
+  it("flags a load-in whose day has passed with items still unticked", () => {
+    expect(overdueWork(base, "2026-11-05").loadIns).toHaveLength(1);
+  });
+
+  it("leaves today's load-in alone", () => {
+    expect(overdueWork(base, "2026-11-01").loadIns).toHaveLength(0);
+  });
+
+  it("does not flag one that was finished", () => {
+    const done = { ...base, loadIns: [{ ...base.loadIns[0], completedAt: "2026-11-01T10:00:00Z" }] };
+    expect(overdueWork(done, "2026-11-05").loadIns).toHaveLength(0);
+  });
+
+  it("does not flag one where every item was ticked", () => {
+    const ticked = { ...base, loadInItems: base.loadInItems.map((item) => ({ ...item, doneAt: "2026-11-01T09:00:00Z" })) };
+    expect(overdueWork(ticked, "2026-11-05").loadIns).toHaveLength(0);
+  });
+
+  // An empty list is a planning mistake, not a crew member who ignored it.
+  it("ignores a load-in that was sent with no items on it", () => {
+    expect(overdueWork({ ...base, loadInItems: [] }, "2026-11-05").loadIns).toHaveLength(0);
+  });
+
+  it("flags a maintenance request past its deadline, but not an open one without", () => {
+    const withDeadline = { ...base, loadIns: [], maintenanceRequests: [
+      { id: "m1", targetType: "truck" as const, targetId: "t1", targetLabel: "Dodge RAM", description: "heater", requestedBy: "u1", requestedAt: "2026-10-20T00:00:00Z", status: "open" as const, deadlineAt: "2026-10-21T00:00:00Z" },
+      { id: "m2", targetType: "truck" as const, targetId: "t2", targetLabel: "Toyota", description: "tyres", requestedBy: "u1", requestedAt: "2026-10-20T00:00:00Z", status: "open" as const },
+    ] };
+    expect(overdueWork(withDeadline, "2026-11-05").maintenance.map((row) => row.id)).toEqual(["m1"]);
   });
 });
 
