@@ -204,7 +204,14 @@ function TimeOffUserCard({ state, viewer, user, year, setState }: { state: CrewS
   const [days, setDays] = useState(1);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState("");
-  const canManageAllowance = viewer.role === "admin" || viewer.role === "manager";
+  // Admin only, to match profile_private's policy. The allowance lives in that
+  // table now, alongside discipline dates and termination reasons, and the
+  // policy is is_admin() - so offering this field to a manager would show them
+  // a control whose save the database rejects. There are no managers on the
+  // roster today, so nothing changes in practice. To give managers the
+  // allowance back, widen the policy and this line together, and decide first
+  // whether they should also read the rest of that table.
+  const canManageAllowance = viewer.role === "admin";
   const eligible = Boolean(summary.eligibleFrom && date >= summary.eligibleFrom);
   const entries = state.timeOffEntries.filter((item) => item.userId === user.id && item.date.startsWith(String(year)));
   const setVacationAllowance = (value: number | undefined) => setState((next) => ({ ...next, users: next.users.map((item) => item.id === user.id ? { ...item, vacationDaysAnnual: value } : item) }));
