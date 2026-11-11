@@ -43,15 +43,18 @@ export function IntroVideo() {
     setDismissed(true);
   };
 
-  if (dismissed || errored) return null;
+  // SOP+ has never shipped an intro.mp4 - the Wizard and Crew+ do, this app
+  // does not - so the fetch above 404s on every load. The overlay used to go
+  // up before the video arrived, which meant every visit flashed a full-screen
+  // spinner for a file that was never coming, and nothing recorded the failure
+  // so it happened again on the next load. Waiting for the video means a
+  // missing one is a silent no-op, and dropping an intro.mp4 into public/
+  // still works with no code change.
+  if (dismissed || errored || !videoUrl) return null;
 
   return (
     <div className="intro-overlay" role="dialog" aria-modal="true" aria-label="SOP+ introduction">
-      {videoUrl ? (
-        <video className="intro-video" src={videoUrl} autoPlay muted playsInline controls onEnded={close} onError={() => setErrored(true)} />
-      ) : (
-        <div className="intro-loading" aria-hidden="true"><i /></div>
-      )}
+      <video className="intro-video" src={videoUrl} autoPlay muted playsInline controls onEnded={close} onError={() => setErrored(true)} />
       <button className="intro-skip" onClick={close}>Skip intro</button>
     </div>
   );
