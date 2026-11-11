@@ -239,6 +239,16 @@ function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog,
   const selectedSite = state.sites.find((item) => item.id === siteId);
   const sortedSites = [...state.sites].sort((a, b) => a.name.localeCompare(b.name));
   const canSubmit = serviceRequired(siteId, serviceId) && total > 0 && workCompleted.trim() && toDoNextTime.trim() && completedByUserId;
+  // A disabled Submit says nothing on a phone - there is no cursor to go
+  // not-allowed - so name what is still missing rather than leaving the crew
+  // tapping a button that never responds.
+  const missingForSubmit = [
+    !serviceRequired(siteId, serviceId) && "a service",
+    total <= 0 && "at least one material",
+    !workCompleted.trim() && "Work completed",
+    !toDoNextTime.trim() && "To do next time",
+    !completedByUserId && "who completed it",
+  ].filter((item): item is string => Boolean(item));
   const add = (material: Material, sign = 1) => setCart((current) => ({ ...current, [material.id]: Math.max(0, (current[material.id] ?? 0) + sign * material.step) }));
   const submit = () => {
     if (!canSubmit || !siteId) return;
@@ -280,7 +290,8 @@ function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog,
         <button className="cart-clear-btn" onClick={() => setCart({})}>Clear</button>
       </div>
     )}
-    <button className="btn good block" disabled={!canSubmit} onClick={submit}>Submit daily log ({total} units)</button>
+    <button className="btn good block" disabled={!canSubmit} onClick={submit}>Submit daily log ({total} {total === 1 ? "unit" : "units"})</button>
+    {!canSubmit && missingForSubmit.length > 0 && <p className="tiny muted">Still needed: {missingForSubmit.join(", ")}.</p>}
   </>;
   return <><InventorySegments activeTab="log" setTab={setTab} />{canManage(role) && <a className="tiny muted" href="#wz-daily-log-history">Jump to all daily logs ↓</a>}{entryForm}{historySection}</>;
 }
