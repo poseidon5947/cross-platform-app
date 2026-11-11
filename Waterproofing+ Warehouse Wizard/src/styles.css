@@ -2183,3 +2183,27 @@ main > *:nth-child(5) { animation-delay: .15s; }
 .vehicle-details>div{display:grid;grid-template-columns:minmax(0,1fr);gap:2px}
 .vehicle-details dt{font-size:12px;font-weight:700;color:var(--muted)}
 .vehicle-details dd{margin:0;font-size:14px;font-weight:600;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+
+/* ── Touch targets ───────────────────────────────────────────────────────
+   Measured in headless Chrome at 360px and 390px: the section-header
+   actions (.link - "Open", "Manage", "Add truck") came out ~28px tall and
+   the admin-only "Jump to all daily logs" anchor 15px. Both are well under
+   the 44px a thumb expects. These are manager controls rather than crew
+   ones, so this is ergonomics and not a launch blocker, but a miss on a
+   phone is still a miss.
+
+   Scoped to coarse pointers so the mouse-driven layout keeps its compact
+   header rows and only touch devices pay the extra height. */
+@media (pointer: coarse) {
+  .link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding-inline: 10px;
+  }
+  /* The underline is positioned from the bottom edge, so centre it on the
+     text now that the button is taller than the text it contains. */
+  .link::after { bottom: 50%; margin-bottom: -0.7em; }
+
+  a.tiny { display: inline-flex; align-items: center; min-height: 44px; }
+}
