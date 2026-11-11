@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { categoryLabels, services as seedServices } from "../data/seed";
 import { dailyLogMediaSignedUrl, receiptSignedUrl, toolPhotoSignedUrl, truckFileSignedUrl, uploadReceiptPhoto, uploadToolPhoto, uploadTruckFile } from "../data/repo";
 import { isSupabaseConfigured } from "../integrations/supabase";
-import { ALLOWED_MATERIAL_UNITS, batteryState, vehicleServiceDue, canResolveMaintenanceRequests, canSeeEverything, canSeePrices, dailyProgress, formatDate, materialsForService, id, isKmEntryTask, isTaskDone, money, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
+import { ALLOWED_MATERIAL_UNITS, batteryState, vehicleServiceDue, canResolveMaintenanceRequests, canSeeEverything, canSeePrices, dailyProgress, formatDate, materialsForService, id, isKmEntryTask, isTaskDone, money, roundStep, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
 import type { AppState, Category, DailyLog, DailyLogMedia, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, TaskSection, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User, TruckFile } from "../types";
 import { BulkToolSheet, canManage, Kpi, Pill, ProgressRing, serviceName, siteName, userName } from "../App";
 import type { Tab as AppTab } from "../App";
@@ -747,10 +747,23 @@ function TruckFiles({ state, role, truck, userId, onUploaded, onDeleted }: { sta
   </div>;
 }
 
-function TruckInventorySheet({ state, role, truck, setTruckInventory }: { state: AppState; role: Role; truck: Truck; setTruckInventory: (truckId: string, materialId: string, qty: number) => void }) {
+export function TruckInventorySheet({ state, role, truck, setTruckInventory }: { state: AppState; role: Role; truck: Truck; setTruckInventory: (truckId: string, materialId: string, qty: number) => void }) {
   const [query, setQuery] = useState("");
-  const assigned = state.truckInventory.filter((line) => line.truckId === truck.id);
-  const byMaterial = new Map(assigned.map((line) => [line.materialId, line.qty]));
+  // openSheet is handed an already-rendered element, so the state prop below is
+  // frozen at the moment the sheet opened and never refreshes while it is up.
+  // Reading the counts straight off it meant every quantity displayed as its
+  // opening value and every "+" added a step to that same stale number: tapping
+  // five times still saved one step. The sheet keeps its own copy of the counts
+  // and is the one that moves; the save still goes through to the server.
+  const [counts, setCounts] = useState<Record<string, number>>(() =>
+    Object.fromEntries(state.truckInventory.filter((line) => line.truckId === truck.id).map((line) => [line.materialId, line.qty])));
+  const applyCount = (materialId: string, step: number, next: number) => {
+    // Steps of 0.25 accumulate float noise (0.1 + 0.2), so land on the step.
+    const qty = Math.max(0, roundStep(next, step));
+    setCounts((current) => ({ ...current, [materialId]: qty }));
+    setTruckInventory(truck.id, materialId, qty);
+  };
+  const byMaterial = new Map(Object.entries(counts).filter(([, qty]) => qty > 0));
   const stocked = state.materials.filter((material) => material.active !== false);
   const needle = query.trim().toLowerCase();
   const candidates = needle
@@ -762,16 +775,16 @@ function TruckInventorySheet({ state, role, truck, setTruckInventory }: { state:
     {canManage(role) && <div className="search"><input className="in" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search a product to add" /></div>}
     <section className="card">
       {sorted.length ? sorted.map((material) => {
-        const qty = byMaterial.get(material.id) ?? 0;
+        const qty = counts[material.id] ?? 0;
         return <div className="line-item" key={material.id}>
           <div className="mid"><b>{material.name}</b><div className="tiny muted">{material.unit} · steps of {material.step}</div></div>
           {canManage(role)
             ? <div className="qtybox">
-                <button onClick={() => setTruckInventory(truck.id, material.id, Math.max(0, qty - material.step))}>-</button>
+                <button onClick={() => applyCount(material.id, material.step, qty - material.step)}>-</button>
                 <input type="number" inputMode="decimal" min="0" step={material.step} value={qty}
                   aria-label={`Quantity of ${material.name} on ${truck.name}`}
-                  onChange={(event) => setTruckInventory(truck.id, material.id, Math.max(0, Number(event.target.value) || 0))} />
-                <button onClick={() => setTruckInventory(truck.id, material.id, qty + material.step)}>+</button>
+                  onChange={(event) => applyCount(material.id, material.step, Number(event.target.value) || 0)} />
+                <button onClick={() => applyCount(material.id, material.step, qty + material.step)}>+</button>
               </div>
             : <span>{qty} {material.unit}</span>}
         </div>;
