@@ -1393,3 +1393,20 @@ textarea:disabled {
   background: #fff;
   animation: loading-line 1.25s ease-in-out infinite;
 }
+
+/* ── Touch targets ───────────────────────────────────────────────────────
+   Measured in headless Chrome at 390px: these are unstyled native
+   checkboxes, 13x13 as the browser draws them, on the tick-to-agree fields
+   - "I have read the complete policy.", "I understand that vacation pay
+   ...", "Police notified". The wrapping label is clickable, so the real
+   target is the 20px row rather than the box, but both are under the 44px
+   a thumb expects, and these are the fields where a missed tap matters.
+
+   Scoped to coarse pointers, so the mouse layout is untouched. */
+@media (pointer: coarse) {
+  input[type="checkbox"], input[type="radio"] {
+    width: 22px;
+    height: 22px;
+    flex: none;
+  }
+}
