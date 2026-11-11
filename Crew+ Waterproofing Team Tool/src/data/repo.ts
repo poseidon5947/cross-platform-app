@@ -30,8 +30,13 @@ export async function getCurrentSession() {
 }
 
 export async function loadRemoteState(currentUserId: string): Promise<Partial<CrewState>> {
-  const [profiles, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusConfigs, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, rolePermissions, jobDescriptions, configs, incidentReports, onboarding, compensation, feedbackEntries] = await Promise.all([
+  const [profiles, profilePrivates, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusConfigs, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, rolePermissions, jobDescriptions, configs, incidentReports, onboarding, compensation, feedbackEntries] = await Promise.all([
     read("profiles", profileFromRow, "name"),
+    // readOptional, not read: this table arrives with its own migration, and a
+    // rejection here fails the whole Promise.all and the app will not start.
+    // Deploying this bundle before the SQL has run leaves the HR fields blank
+    // for a moment rather than taking Crew+ down.
+    readOptional("profile_private", profilePrivateFromRow, "user_id"),
     read("points_events", pointsFromRow, "ts"),
     read("crew_reward", (row) => ({ id: row.id, name: row.name, points: Number(row.points), approxValue: row.approx_value ?? undefined, limitStock: row.limit_stock ?? undefined, active: row.active, note: row.note ?? undefined }), "points"),
     read("crew_reward_redemption", (row) => ({ id: row.id, userId: row.user_id, rewardId: row.reward_id, points: Number(row.points), status: row.status, requestedAt: row.requested_at, approvedAt: row.approved_at ?? undefined, approvedBy: row.approved_by ?? undefined, externalRef: row.external_ref ?? undefined }), "requested_at"),
@@ -75,7 +80,14 @@ export async function loadRemoteState(currentUserId: string): Promise<Partial<Cr
     ...(configs[0] ? { config: configs[0] } : {}),
     ...(bonusConfigs[0] ? { bonusConfig: bonusConfigs[0] } : {}),
   };
-  return { currentUserId, ...singletons, users: profiles, rolePermissions, jobDescriptions, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, incidentReports, onboarding, compensation, feedbackEntries };
+  // Merge the admin-only half back over each profile, so everything past this
+  // point works with one flat Profile and the split stays inside this file.
+  // A crew member reading this gets only their own row, which is why the
+  // fields are blank for colleagues rather than wrong.
+  const privateByUser = new Map(profilePrivates.map((entry) => [entry.userId, entry.fields]));
+  const users = profiles.map((profile) => ({ ...profile, ...(privateByUser.get(profile.id) ?? {}) }));
+
+  return { currentUserId, ...singletons, users, rolePermissions, jobDescriptions, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, incidentReports, onboarding, compensation, feedbackEntries };
 }
 
 /**
@@ -162,19 +174,18 @@ async function syncPointsEvent(event: PointsEvent) {
   return awardPoints({ userId: event.userId, ruleKey, ref: event.ref });
 }
 
-const profileToRow = (item: Profile) => ({
+// Only the columns still on profiles. The HR half goes through
+// profilePrivateToRow - naming a dropped column here would fail every profile
+// save with "column does not exist", across all three apps.
+export const profileToRow = (item: Profile) => ({
   id: item.id, name: item.name, email: item.email, role: item.role, org_role: item.orgRole, branch: item.branch,
   employee_id: item.employeeId ?? null, first_name: item.firstName ?? null, last_name: item.lastName ?? null,
-  department: item.department ?? null, employment_status: item.status ?? null, termination_reason: item.terminationReason ?? null, manager_id: item.managerId ?? null,
-  reports_to: item.reportsTo ?? null, hire_date: item.hireDate ?? null, probation_end_date: item.probationEndDate ?? null,
-  agreement_signed_date: item.agreementSignedDate ?? null, birthday: item.birthday ?? null, phone: item.phone ?? null,
+  department: item.department ?? null, employment_status: item.status ?? null, manager_id: item.managerId ?? null,
+  reports_to: item.reportsTo ?? null, hire_date: item.hireDate ?? null,
+  birthday: item.birthday ?? null, phone: item.phone ?? null,
   address: item.address ?? null, emergency_contact_name: item.emergencyContactName ?? null,
   emergency_contact_email: item.emergencyContactEmail ?? null, emergency_contact_phone: item.emergencyContactPhone ?? null,
-  bonus_role_weight: item.bonusRoleWeight ?? null,
-  under_notice: item.underNotice ?? false, disciplinary_action_at: item.disciplinaryActionAt ?? null,
-  next_quarterly_review_date: item.nextQuarterlyReviewDate ?? null, review_eligibility: item.reviewEligibility ?? null,
-  vacation_days_annual: item.vacationDaysAnnual ?? null, color: item.color,
-  employment_type: item.employmentType ?? null, new_hire_until: item.newHireUntil ?? null, access_upgraded_at: item.accessUpgradedAt ?? null,
+  color: item.color,
 });
 
 const compensationToRow = (item: any) => ({
@@ -318,6 +329,30 @@ export async function syncCrewState(prev: CrewState, next: CrewState) {
     }
   }
 
+  // profiles is the one entity written to two tables. The generic loop above
+  // updates by .eq("id", ...), and profile_private is keyed by user_id, so it
+  // gets handled here the way pointsEvents does. Only write when the HR half
+  // actually changed - a crew member saving their phone number should not
+  // touch a table they cannot write to.
+  const prevUsersById = new Map((prev.users ?? []).map((user) => [user.id, user]));
+  for (const user of next.users ?? []) {
+    const before = prevUsersById.get(user.id);
+    const row = profilePrivateToRow(user);
+    if (before && JSON.stringify(profilePrivateToRow(before)) === JSON.stringify(row)) continue;
+    // A crew member only ever loads their OWN private row, so every colleague
+    // reads back as empty. Without this, a colleague appearing in their state
+    // for the first time has no `before`, we would try to upsert an empty row
+    // they have no permission to write, and the rejection would fail the whole
+    // sync. An empty row is also nothing worth saving - the insert trigger on
+    // profiles already creates one per person.
+    const empty = Object.entries(row).every(([key, value]) =>
+      key === "user_id" || value === null || value === false);
+    if (!before && empty) continue;
+    tasks.push((async () => throwIfError(
+      await client.from("profile_private").upsert(row, { onConflict: "user_id" }),
+    ))());
+  }
+
   const prevEventIds = new Set(prev.pointsEvents.map((event) => event.id));
   for (const event of next.pointsEvents) {
     if (!prevEventIds.has(event.id)) tasks.push(syncPointsEvent(event));
@@ -367,28 +402,64 @@ const profileFromRow = (row: any): Profile => ({
   role: row.role,
   orgRole: row.org_role ?? (row.role === "manager" ? "Crew Lead" : row.role === "admin" ? "Operations" : "Technician"),
   department: row.department ?? undefined,
+  // employment_status stays on profiles: the Wizard filters its crew pickers
+  // on it (user.status !== "Inactive"). The reason behind a termination does
+  // not - that moved to profile_private.
   status: row.employment_status ?? undefined,
-  terminationReason: row.termination_reason ?? undefined,
   branch: row.branch ?? (row.role === "crew" ? "field" : "office"),
   managerId: row.manager_id ?? undefined,
   reportsTo: row.reports_to ?? undefined,
   color: row.color ?? "#14A2A4",
   hireDate: row.hire_date ?? undefined,
-  probationEndDate: row.probation_end_date ?? undefined,
-  agreementSignedDate: row.agreement_signed_date ?? undefined,
   birthday: row.birthday ?? undefined,
   emergencyContactName: row.emergency_contact_name ?? undefined,
   emergencyContactEmail: row.emergency_contact_email ?? undefined,
   emergencyContactPhone: row.emergency_contact_phone ?? undefined,
-  bonusRoleWeight: row.bonus_role_weight == null ? undefined : Number(row.bonus_role_weight),
-  underNotice: row.under_notice ?? false,
-  disciplinaryActionAt: row.disciplinary_action_at ?? undefined,
-  nextQuarterlyReviewDate: row.next_quarterly_review_date ?? undefined,
-  reviewEligibility: row.review_eligibility ?? undefined,
-  vacationDaysAnnual: row.vacation_days_annual == null ? undefined : Number(row.vacation_days_annual),
-  employmentType: row.employment_type ?? undefined,
-  newHireUntil: row.new_hire_until ?? undefined,
-  accessUpgradedAt: row.access_upgraded_at ?? undefined,
+  // The HR fields - pay weighting, discipline, review and lifecycle dates -
+  // are not here any more. "authenticated read profiles" is `using (true)`, so
+  // anything on this table is readable by every signed-in colleague, and RLS
+  // cannot hide a column. They come from profile_private below instead, which
+  // is admin-only plus your own row. See profilePrivateFromRow.
+  underNotice: false,
+});
+
+/**
+ * The admin-only half of a profile. Merged over the profile on load, so the
+ * rest of the app keeps working with one flat Profile and nothing outside this
+ * file needs to know the row is split.
+ */
+export const profilePrivateFromRow = (row: any) => ({
+  userId: row.user_id as string,
+  fields: {
+    bonusRoleWeight: row.bonus_role_weight == null ? undefined : Number(row.bonus_role_weight),
+    underNotice: row.under_notice ?? false,
+    disciplinaryActionAt: row.disciplinary_action_at ?? undefined,
+    terminationReason: row.termination_reason ?? undefined,
+    nextQuarterlyReviewDate: row.next_quarterly_review_date ?? undefined,
+    reviewEligibility: row.review_eligibility ?? undefined,
+    probationEndDate: row.probation_end_date ?? undefined,
+    vacationDaysAnnual: row.vacation_days_annual == null ? undefined : Number(row.vacation_days_annual),
+    employmentType: row.employment_type ?? undefined,
+    agreementSignedDate: row.agreement_signed_date ?? undefined,
+    newHireUntil: row.new_hire_until ?? undefined,
+    accessUpgradedAt: row.access_upgraded_at ?? undefined,
+  },
+});
+
+export const profilePrivateToRow = (item: Profile) => ({
+  user_id: item.id,
+  bonus_role_weight: item.bonusRoleWeight ?? null,
+  under_notice: item.underNotice ?? false,
+  disciplinary_action_at: item.disciplinaryActionAt ?? null,
+  termination_reason: item.terminationReason ?? null,
+  next_quarterly_review_date: item.nextQuarterlyReviewDate ?? null,
+  review_eligibility: item.reviewEligibility ?? null,
+  probation_end_date: item.probationEndDate ?? null,
+  vacation_days_annual: item.vacationDaysAnnual ?? null,
+  employment_type: item.employmentType ?? null,
+  agreement_signed_date: item.agreementSignedDate ?? null,
+  new_hire_until: item.newHireUntil ?? null,
+  access_upgraded_at: item.accessUpgradedAt ?? null,
 });
 
 const compensationFromRow = (row: any): CompensationRecord => ({
