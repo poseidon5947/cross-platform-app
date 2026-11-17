@@ -977,7 +977,7 @@ export function App() {
             </button>
           </div>
         </div>
-        <SuiteSwitcher current="warehouse" />
+        <SuiteSwitcher current="warehouse" showOtherApps={canManage(currentUser.role)} />
         <div className="htitle">{title}</div>
         <div className="hsub">{[pendingCount ? `${pendingCount} pending sync` : "", usingSnapshot ? "Offline · showing last synced data" : "", sub].filter(Boolean).join(" · ")}</div>
       </header>
