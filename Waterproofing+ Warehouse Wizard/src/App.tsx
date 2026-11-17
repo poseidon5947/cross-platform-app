@@ -226,6 +226,20 @@ export function canAdmin(role: Role | string) {
   return role === "admin";
 }
 
+/**
+ * Who is signed in, or null when that is not yet known.
+ *
+ * Never guess. The only two sources that actually identify the person are the
+ * profile fetched for this session and a users row whose id IS the session id;
+ * anything else is somebody else. Returning null is what lets the caller hold
+ * the screen instead of drawing a stranger's account - see the call site.
+ */
+export function signedInUser(profile: User | null, users: User[], sessionUserId: string | null) {
+  if (profile) return profile;
+  if (!sessionUserId) return null;
+  return users.find((user) => user.id === sessionUserId) ?? null;
+}
+
 export function App() {
   const queryClient = useQueryClient();
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
@@ -361,8 +375,23 @@ export function App() {
 
   const notify = (message: string) => showToast(message, /failed|could not|delete failed|sync failed/i.test(message) ? "bad" : /offline|queued|pending/i.test(message) ? "warn" : "good");
 
+  // Signed in, the only honest answers are "this is you" and "I do not know yet".
+  //
+  // This used to end in `?? state.users[0]`, which is neither. `profile` is null
+  // for the first render after any sign-in - it is fetched in an effect - and the
+  // users list still belongs to whoever was signed in before, so on a shared
+  // phone or the office machine `find` missed and the app drew the FIRST ROW OF
+  // profiles as the person at the keyboard. That row has no ORDER BY behind it,
+  // so it is whatever Postgres hands back first and it changes as rows are
+  // updated: today Ray, when the client hit this J. Thorpe. Jordan Rogers signed
+  // in as an admin and got a crew member's account, with that crew member's role
+  // deciding what he was allowed to see.
+  //
+  // So remote mode resolves to null instead, and the guard below holds the screen
+  // rather than guessing. Demo mode keeps the fallback - there is no session
+  // there, users[0] IS the intended default, and nobody's identity is at stake.
   const currentUser = remoteMode
-    ? profile ?? state.users.find((user) => user.id === sessionUserId) ?? state.users[0]
+    ? signedInUser(profile, state.users, sessionUserId)
     : state.users.find((user) => user.id === state.currentUserId) ?? state.users[0];
   const pendingCount = state.offlineQueue.length;
   // A command the server keeps refusing used to sit in "pending sync" forever with
@@ -418,6 +447,9 @@ export function App() {
   if (remoteMode && unreachable && !remoteState && !usingSnapshot) {
     return <ShellMessage title="Could not load data" detail={error ? String((error as Error).message) : "No connection, and nothing has been synced on this device yet."} />;
   }
+  // Signed in, but we cannot yet say who. Waiting is the only safe answer: the
+  // alternative is drawing somebody else's account, which is what used to happen.
+  if (!currentUser) return <ShellMessage title="Signing you in" detail="Checking your account." />;
 
   const invalidateRemote = () => {
     if (remoteMode) queryClient.invalidateQueries({ queryKey: ["app-state"] });
