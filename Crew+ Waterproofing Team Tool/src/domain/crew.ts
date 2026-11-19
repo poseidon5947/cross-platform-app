@@ -644,18 +644,44 @@ export function setEmploymentStatus(state: CrewState, adminId: string, userId: s
   const admin = state.users.find((item) => item.id === adminId);
   if (!admin || admin.role !== "admin") return state;
   const withStatus = { ...state, users: state.users.map((item) => item.id === userId ? { ...item, status, terminationReason: status === "Inactive" ? terminationReason : undefined } : item) };
-  if (status === "Inactive" && terminationReason === "voluntary") return triggerDepartureCashout(withStatus, userId, now);
+  if (status === "Inactive") return moveBalanceToCrewPool(withStatus, userId, now);
   return withStatus;
 }
 
-function triggerDepartureCashout(state: CrewState, userId: string, now: string) {
-  const reward = cashoutReward(state);
+export const DEPARTURE_POOL_REASON = "Balance moved to the crew pool on leaving";
+
+/**
+ * What happens to the points someone has not spent when they leave.
+ *
+ * This used to file a cash-out redemption in the leaver's name, so a departure
+ * put their whole balance in the payroll queue to be paid out - and only on a
+ * voluntary departure, which left an involuntary one with the balance sitting
+ * on a wallet nobody can reach. The client's rule is the opposite and has no
+ * exceptions: the points always go to the crew pool, whatever the reason for
+ * leaving. Warehouse Wizard already sends a departed person's *later* credits
+ * there (`creditOrPool`); this is the balance they had on the day.
+ *
+ * The balance is not deleted. It leaves as one `manual_adjust` of -balance, so
+ * the wallet reads zero and the ledger still says where the points went, and
+ * the ref makes it idempotent: marking someone Inactive twice moves nothing
+ * the second time.
+ */
+export function moveBalanceToCrewPool(state: CrewState, userId: string, now = new Date().toISOString()) {
   const balance = walletBalance(state.pointsEvents, userId);
-  if (!reward || balance <= 0) return state;
-  if (state.redemptions.some((item) => item.userId === userId && item.rewardId === reward.id && item.status === "requested")) return state;
+  const ref = `departure:${userId}`;
+  if (balance <= 0 || state.pointsEvents.some((event) => event.ref === ref)) return state;
+  const event: PointsEvent = { id: uid("pe"), userId, type: "manual_adjust", points: -balance, reason: DEPARTURE_POOL_REASON, ref, ts: now, source: "crew" };
   return {
     ...state,
-    redemptions: [{ id: uid("redeem"), userId, rewardId: reward.id, points: balance, status: "requested" as RedemptionStatus, requestedAt: now }, ...state.redemptions],
+    pointsEvents: [event, ...state.pointsEvents],
+    crewPoolPoints: (state.crewPoolPoints ?? 0) + balance,
+    // A cash-out the leaver asked for but nobody approved yet is a claim on the
+    // same points. Leaving it in the payroll queue would pay the balance out
+    // AND pool it, so the request is turned down as the points move.
+    redemptions: state.redemptions.map((item) =>
+      item.userId === userId && item.status === "requested"
+        ? { ...item, status: "rejected" as RedemptionStatus }
+        : item),
   };
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createSeedState } from "../data/seed";
 import type { CrewState, Profile } from "../types";
-import { localDayKey, canAwardManagerRule, kpiHitFor, awardKpiHit, submitFeedback, isoWeekKey, quarterKey, quarterMonths, quarterlyLeaderboard, ritualPeriodKey, acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount, loginEmailFor,
+import { DEPARTURE_POOL_REASON, localDayKey, canAwardManagerRule, kpiHitFor, awardKpiHit, submitFeedback, isoWeekKey, quarterKey, quarterMonths, quarterlyLeaderboard, ritualPeriodKey, acknowledgePolicy, approveRedemption, awardCertDetail, bonusPercentForAverage, bonusTrajectory, canSeeBonusDollars, cashoutPromptActive, cashoutReward, certAlertLevel, certAlertLevelFromType, completeReview, completeRitual, confirmIncidentReceipt, habitAwardPoints, hasRolePermission, impliedRewardValue, isRedemptionWindowOpen, newHirePolicySignDue, nextQuarterDeadline, nextRedemptionWindow, onboardingComplete, pendingPayrollCashouts, policyAdminUpdateReminderActive, recordTimeOff, requestCashout, requestRedemption, reviewDueDates, setCompensation, setEmploymentStatus, submitIncidentReport, submitOnboarding, submitQuarterlySwot, timeOffEligibilityDate, timeOffSummary, vacationReminderText, walletBalance, wordCount, loginEmailFor,
   canSeeCompensation,
   canEditCompensation,
 } from "./crew";
@@ -55,29 +55,57 @@ describe("Crew+ wallet", () => {
     expect(state.redemptions).toHaveLength(1);
   });
 
-  it("auto-cashes-out a full balance when someone quits voluntarily, even outside the quarterly window", () => {
+  /**
+   * These four cover the client's rule, given on 19 November 2026: when someone
+   * leaves, their unspent points ALWAYS go to the crew pool. Until then this
+   * code filed a cash-out redemption in the leaver's name - so leaving put the
+   * balance in the payroll queue to be paid to the person who had gone - and it
+   * only did anything at all on a voluntary departure, so a termination left
+   * the balance sitting on a wallet nobody could reach.
+   */
+  it("moves a leaver's balance into the crew pool, whatever the reason for leaving", () => {
+    for (const reason of ["voluntary", "terminated"] as const) {
+      let state = createSeedState();
+      const balance = walletBalance(state.pointsEvents, "u3");
+      expect(balance).toBeGreaterThan(0);
+      const poolBefore = state.crewPoolPoints;
+      state = setEmploymentStatus(state, "u8", "u3", "Inactive", reason, "2026-08-15T09:00:00Z");
+      expect(state.users.find((item) => item.id === "u3")).toMatchObject({ status: "Inactive", terminationReason: reason });
+      expect(state.crewPoolPoints).toBe(poolBefore + balance);
+      expect(walletBalance(state.pointsEvents, "u3")).toBe(0);
+      expect(state.redemptions.filter((item) => item.status === "requested")).toHaveLength(0);
+    }
+  });
+
+  it("leaves the history intact - the balance goes out as one adjustment that says where", () => {
+    let state = createSeedState();
+    const before = state.pointsEvents.filter((item) => item.userId === "u3").length;
+    const balance = walletBalance(state.pointsEvents, "u3");
+    state = setEmploymentStatus(state, "u8", "u3", "Inactive", "voluntary", "2026-08-15T09:00:00Z");
+    const events = state.pointsEvents.filter((item) => item.userId === "u3");
+    expect(events).toHaveLength(before + 1);
+    expect(events[0]).toMatchObject({ type: "manual_adjust", points: -balance, reason: DEPARTURE_POOL_REASON, ref: "departure:u3" });
+  });
+
+  it("turns down a cash-out the leaver had pending, so the points are not paid out AND pooled", () => {
     let state = createSeedState();
     const balance = walletBalance(state.pointsEvents, "u3");
-    expect(isRedemptionWindowOpen("2026-08-15T09:00:00Z")).toBe(false);
-    state = setEmploymentStatus(state, "u8", "u3", "Inactive", "voluntary", "2026-08-15T09:00:00Z");
-    expect(state.users.find((item) => item.id === "u3")).toMatchObject({ status: "Inactive", terminationReason: "voluntary" });
-    expect(state.redemptions).toHaveLength(1);
-    expect(state.redemptions[0]).toMatchObject({ userId: "u3", points: balance, status: "requested", rewardId: cashoutReward(state)!.id });
-  });
-
-  it("does not auto-cash-out someone who was terminated", () => {
-    let state = createSeedState();
-    state = setEmploymentStatus(state, "u8", "u3", "Inactive", "terminated", "2026-08-15T09:00:00Z");
-    expect(state.users.find((item) => item.id === "u3")).toMatchObject({ status: "Inactive", terminationReason: "terminated" });
-    expect(state.redemptions).toHaveLength(0);
-  });
-
-  it("does not double up if a cash-out is already pending when someone quits", () => {
-    let state = createSeedState();
     state = requestCashout(state, "u3", "2026-07-31T09:00:00Z");
-    expect(state.redemptions).toHaveLength(1);
+    expect(pendingPayrollCashouts(state)).toHaveLength(1);
     state = setEmploymentStatus(state, "u8", "u3", "Inactive", "voluntary", "2026-08-15T09:00:00Z");
-    expect(state.redemptions).toHaveLength(1);
+    expect(pendingPayrollCashouts(state)).toHaveLength(0);
+    expect(state.redemptions[0]).toMatchObject({ userId: "u3", status: "rejected" });
+    expect(state.crewPoolPoints).toBe(balance);
+  });
+
+  it("moves the balance once, however many times someone is marked inactive", () => {
+    let state = createSeedState();
+    const balance = walletBalance(state.pointsEvents, "u3");
+    state = setEmploymentStatus(state, "u8", "u3", "Inactive", "voluntary", "2026-08-15T09:00:00Z");
+    state = setEmploymentStatus(state, "u8", "u3", "Active", undefined, "2026-08-16T09:00:00Z");
+    state = setEmploymentStatus(state, "u8", "u3", "Inactive", "terminated", "2026-08-17T09:00:00Z");
+    expect(state.crewPoolPoints).toBe(balance);
+    expect(state.pointsEvents.filter((item) => item.ref === "departure:u3")).toHaveLength(1);
   });
 
   it("records starting wage and last-increase history alongside existing compensation fields", () => {

@@ -424,6 +424,7 @@ export function createSeedState(): CrewState {
     certifications: certs,
     recognitions: [{ id: "rec-u3-1", fromUserId: "u1", toUserId: "u3", message: "Helped coach traffic coating prep.", ts: "2026-07-24T10:00:00-07:00", pointsEventRef: "pe3" }],
     feedbackEntries: [],
+    crewPoolPoints: 0,
     nudges: nudgeTemplates,
     forms,
     formQuestions,

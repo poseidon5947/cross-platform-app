@@ -30,7 +30,7 @@ export async function getCurrentSession() {
 }
 
 export async function loadRemoteState(currentUserId: string): Promise<Partial<CrewState>> {
-  const [profiles, profilePrivates, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusConfigs, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, rolePermissions, jobDescriptions, configs, incidentReports, onboarding, compensation, feedbackEntries] = await Promise.all([
+  const [profiles, profilePrivates, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusConfigs, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, rolePermissions, jobDescriptions, configs, incidentReports, onboarding, compensation, feedbackEntries, crewPoolRows] = await Promise.all([
     read("profiles", profileFromRow, "name"),
     // readOptional, not read: this table arrives with its own migration, and a
     // rejection here fails the whole Promise.all and the app will not start.
@@ -70,6 +70,9 @@ export async function loadRemoteState(currentUserId: string): Promise<Partial<Cr
     read("crew_onboarding", (row) => ({ id: row.id, userId: row.user_id, dateOfBirth: row.date_of_birth, address: row.address, city: row.city, postalCode: row.postal_code, sin: row.sin, driversLicenseNumber: row.drivers_license_number, allergiesMedical: row.allergies_medical ?? undefined, hourlyWage: Number(row.hourly_wage), startDate: row.start_date, vacationPayAcknowledged: row.vacation_pay_acknowledged, directDepositSignedName: row.direct_deposit_signed_name, directDepositSignedAt: row.direct_deposit_signed_at, hoursTrackingSignedName: row.hours_tracking_signed_name, hoursTrackingSignedAt: row.hours_tracking_signed_at, directDepositFileName: row.direct_deposit_file_name ?? undefined, driversLicenseFrontFileName: row.drivers_license_front_file_name ?? undefined, driversLicenseBackFileName: row.drivers_license_back_file_name ?? undefined, emergencyContactName: row.emergency_contact_name, emergencyContactRelationship: row.emergency_contact_relationship ?? undefined, emergencyContactPhone: row.emergency_contact_phone, emergencyContactEmail: row.emergency_contact_email ?? undefined, completedAt: row.completed_at }), "created_at"),
     read("crew_compensation", compensationFromRow, "updated_at"),
     readOptional("crew_feedback", (row: any) => ({ id: row.id, userId: row.user_id, message: row.message, ts: row.ts, pointsEventRef: row.points_event_ref ?? undefined }), "ts"),
+    // The pool a leaver's balance moves into. Warehouse Wizard owns the write
+    // path for daily logs; this app writes it on a departure.
+    readOptional("crew_point_pool", (row: any) => Number(row.points ?? 0), "id"),
   ]);
   // crew_config and crew_bonus_config are single-row tables behind narrow RLS
   // policies, so a user who cannot read one gets an empty array here. Spreading
@@ -87,7 +90,7 @@ export async function loadRemoteState(currentUserId: string): Promise<Partial<Cr
   const privateByUser = new Map(profilePrivates.map((entry) => [entry.userId, entry.fields]));
   const users = profiles.map((profile) => ({ ...profile, ...(privateByUser.get(profile.id) ?? {}) }));
 
-  return { currentUserId, ...singletons, users, rolePermissions, jobDescriptions, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, incidentReports, onboarding, compensation, feedbackEntries };
+  return { currentUserId, ...singletons, users, rolePermissions, jobDescriptions, pointsEvents, rewards, redemptions, values, valueRituals, earningRules, reviews, reviewTypes, ratingScale, reviewCompetencies, kpis, kpiResults, bonusRoleWeights, certifications, certificationTypes, recognitions, nudges, forms, formQuestions, formSubmissions, policyDocuments, policyAcknowledgments, timeOffPolicies, timeOffEntries, integrations, incidentReports, onboarding, compensation, feedbackEntries, crewPoolPoints: crewPoolRows[0] ?? 0 };
 }
 
 /**
@@ -120,6 +123,29 @@ export async function awardPoints(payload: { userId: string; ruleKey: string; re
 
 export async function redeemPoints(payload: { userId: string; points: number; reason: string; ref: string }) {
   return awardPoints({ userId: payload.userId, ruleKey: "redeem", ref: payload.ref });
+}
+
+/**
+ * A signed adjustment of any size, admin only, idempotent on `ref`.
+ *
+ * Rule-key awards carry the points from crew_earning_rule, so they cannot
+ * express "take off exactly what this person is holding". award-points has had
+ * a manual_adjust kind for that all along; nothing in this app was calling it,
+ * so a locally created manual_adjust event fell through syncPointsEvent with a
+ * console warning and never reached the server.
+ */
+export async function adjustPoints(payload: { userId: string; points: number; reason: string; ref: string }) {
+  const { data, error } = await requireClient().functions.invoke("award-points", {
+    body: { kind: "manual_adjust", user: payload.userId, points: payload.points, reason: payload.reason, ref: payload.ref },
+  });
+  if (error) throw new Error(await __functionErrorMessage(error, "That points adjustment could not be saved."));
+  return data as { eventId: string; awardedAt: string; alreadyAwarded: boolean };
+}
+
+async function writeCrewPool(points: number) {
+  const { error } = await requireClient().from("crew_point_pool")
+    .upsert({ id: "default", points, updated_at: new Date().toISOString() });
+  if (error) throw new Error(error.message);
 }
 
 export async function savePushSubscription(userId: string, subscription: PushSubscription) {
@@ -162,6 +188,7 @@ const TYPE_TO_RULE_KEY: Record<string, string> = {
 
 async function syncPointsEvent(event: PointsEvent) {
   if (event.type === "redeem") return awardPoints({ userId: event.userId, ruleKey: "redeem", ref: event.ref });
+  if (event.type === "manual_adjust") return adjustPoints({ userId: event.userId, points: event.points, reason: event.reason, ref: event.ref });
   if (event.type === "crew_habit_ritual") {
     const cadence = event.ref.split(":")[3];
     return awardPoints({ userId: event.userId, ruleKey: `earn-${cadence}`, ref: event.ref });
@@ -356,6 +383,12 @@ export async function syncCrewState(prev: CrewState, next: CrewState) {
   const prevEventIds = new Set(prev.pointsEvents.map((event) => event.id));
   for (const event of next.pointsEvents) {
     if (!prevEventIds.has(event.id)) tasks.push(syncPointsEvent(event));
+  }
+
+  // The pool is one shared counter, not a diffable list, so it is written from
+  // the new total whenever a departure has moved points into it.
+  if ((next.crewPoolPoints ?? 0) !== (prev.crewPoolPoints ?? 0)) {
+    tasks.push(writeCrewPool(next.crewPoolPoints ?? 0));
   }
 
   await Promise.all(tasks);

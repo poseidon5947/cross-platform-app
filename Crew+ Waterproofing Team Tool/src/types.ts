@@ -551,4 +551,10 @@ export interface CrewState {
   compensation: CompensationRecord[];
   integrations: IntegrationDecision[];
   permissions: PermissionConfig;
+  /**
+   * The shared crew pool, the same `crew_point_pool` row Warehouse Wizard
+   * reads. A leaver's balance is moved into it, so the number has to be here
+   * rather than only in the other app.
+   */
+  crewPoolPoints: number;
 }
