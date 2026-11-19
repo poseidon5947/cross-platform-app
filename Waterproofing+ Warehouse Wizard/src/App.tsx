@@ -118,7 +118,8 @@ const tabTitles = {
   loadin: ["Project Load-In", "Tomorrow's list, loaded 6-7am"],
   log: ["Daily inventory log", "Fast crew flow with offline sync"],
   tools: ["Tools & equipment", "Check in/out, damage and battery charge"],
-  trucks: ["Tasks", "Trucks, warehouse and job-site checklists"],
+  trucks: ["Trucks", "Fleet, on-board inventory, maintenance and gas-station checks"],
+  tasks: ["Tasks", "Truck, warehouse and job-site checklists"],
   crew: ["Crew & points", "100% daily tasks earns points"],
   jobs: ["Jobs", "Active jobs, contacts, and site documents"],
   admin: ["Admin", "Crew, imports, and integrations"],
@@ -995,7 +996,7 @@ export function App() {
         {tab === "loadin" && <LoadInTab state={state} role={currentUser.role} userId={currentUser.id} openSheet={setSheet} saveLoadIn={saveLoadIn} onToggle={toggleLoadInItem} onComplete={completeLoadIn} onReassign={reassignLoadInTo} onRemoveItem={removeLoadInItem} onEditItem={editLoadInItem} />}
         {tab === "home" && <Home state={state} role={currentUser.role} userId={currentUser.id} setTab={setTab} goToFocus={goToFocus} openGraph={setGraphModal} toggleLoadInItem={toggleLoadInItem} completeLoadIn={completeLoadIn} />}
         <React.Suspense fallback={<TabSkeleton />}>
-          {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} addTruckFile={addTruckFile} removeTruckFile={removeTruckFile} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
+          {(["inventory", "tremco", "log", "tools", "trucks", "tasks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks" | "tasks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} addTruckFile={addTruckFile} removeTruckFile={removeTruckFile} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
           {tab === "jobs" && <LazyJobsTab state={state} role={currentUser.role} saveSite={saveSite} setJobArchived={(id, archived) => retireRecord("sites", id, !archived, { on: "Job brought back", off: "Job archived" })} openSheet={setSheet} />}
           {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} setState={setState} openSheet={setSheet} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
@@ -1010,12 +1011,12 @@ export function App() {
               meant to come back: take the tab out of CREW_HIDDEN_TABS and the
               crew have it again, with no other change needed. */}
           {((canManage(currentUser.role) || state.loadIns.some((loadIn) => loadIn.assignedTo === currentUser.id)
-            ? (["home", "loadin", "log", "trucks", "tools", "inventory"] as Tab[])
-            : (["home", "log", "trucks", "tools", "inventory"] as Tab[]))
+            ? (["home", "loadin", "log", "trucks", "tasks", "tools", "inventory"] as Tab[])
+            : (["home", "log", "trucks", "tasks", "tools", "inventory"] as Tab[]))
             .filter((item) => canManage(currentUser.role) || !CREW_HIDDEN_TABS.includes(item))).map((item) => (
             <button key={item} className={tab === item ? "on" : ""} onClick={() => setTab(item)}>
               <NavIcon tab={item} />
-              {item === "inventory" ? "Inventory" : item === "log" ? "Daily Log" : item === "trucks" ? "Tasks" : item === "loadin" ? "Load-In" : item[0].toUpperCase() + item.slice(1)}
+              {item === "inventory" ? "Inventory" : item === "log" ? "Daily Log" : item === "loadin" ? "Load-In" : item[0].toUpperCase() + item.slice(1)}
             </button>
           ))}
           {canSeeEverything(currentUser.role) && (
@@ -1150,7 +1151,7 @@ function Home({ state, role, userId, setTab, goToFocus, openGraph, toggleLoadInI
   // Work that was assigned and did not happen. It leads the strip because a
   // missed load-in is the only item here that somebody is already late for.
   const missed = overdueWork(state);
-  const attention = [{ count: missed.loadIns.length, label: "Load-ins not completed on time", tab: "loadin" as Tab }, { count: missed.maintenance.length, label: "Maintenance past its deadline", tab: "trucks" as Tab, focus: "maintenance" }, { count: maintenance, label: "Open maintenance requests", tab: "trucks" as Tab, focus: "maintenance" }, { count: incompleteTasks, label: "Truck tasks remaining today", tab: "trucks" as Tab, focus: "tasks" }, { count: lows.length, label: "Items below reorder threshold", tab: "inventory" as Tab, focus: "low-stock" }, ...(canSeeEverything(role) ? [{ count: needsReviewCount, label: "Inventory Log \u2014 Needs Review", tab: "cfo" as Tab, focus: "needs-review" }] : [])].filter((item) => item.count > 0);
+  const attention = [{ count: missed.loadIns.length, label: "Load-ins not completed on time", tab: "loadin" as Tab }, { count: missed.maintenance.length, label: "Maintenance past its deadline", tab: "trucks" as Tab, focus: "maintenance" }, { count: maintenance, label: "Open maintenance requests", tab: "trucks" as Tab, focus: "maintenance" }, { count: incompleteTasks, label: "Truck tasks remaining today", tab: "tasks" as Tab, focus: "tasks" }, { count: lows.length, label: "Items below reorder threshold", tab: "inventory" as Tab, focus: "low-stock" }, ...(canSeeEverything(role) ? [{ count: needsReviewCount, label: "Inventory Log \u2014 Needs Review", tab: "cfo" as Tab, focus: "needs-review" }] : [])].filter((item) => item.count > 0);
 
   // Crew: the four things they open the app to do, and nothing about stock
   // levels or prices. Reorder thresholds and price changes are not their call,
@@ -1172,7 +1173,7 @@ function Home({ state, role, userId, setTab, goToFocus, openGraph, toggleLoadInI
       />)}
       {incompleteTasks > 0 && <section className="attention-strip" aria-label="Needs attention">
         <div className="attention-title"><span aria-hidden="true">!</span><b>Needs attention</b></div>
-        <div className="attention-rows"><button onClick={() => goToFocus("trucks", "tasks")}>
+        <div className="attention-rows"><button onClick={() => goToFocus("tasks", "tasks")}>
           <span>Your tasks remaining today</span><b>{incompleteTasks}</b><span aria-hidden="true">→</span>
         </button></div>
       </section>}
@@ -1183,7 +1184,7 @@ function Home({ state, role, userId, setTab, goToFocus, openGraph, toggleLoadInI
         { label: "Jobs", hint: "Site details, plans and documents", go: () => setTab("jobs") },
       ]} />
       <div className="banner"><b>{progress.pct === 100 ? "Daily tasks complete" : "Today's tasks"}</b><span>{progress.done}/{progress.total} complete today.</span></div>
-      <section className="card card-interactive"><div className="sec-h"><h2>Today's truck tasks</h2><button className="link" onClick={() => setTab("trucks")}>Open</button></div><ProgressRing pct={progress.pct} /></section>
+      <section className="card card-interactive"><div className="sec-h"><h2>Today's truck tasks</h2><button className="link" onClick={() => setTab("tasks")}>Open</button></div><ProgressRing pct={progress.pct} /></section>
       <section className="card"><div className="sec-h"><div><h2>Your recent daily logs</h2><p className="tiny muted">The last three you sent</p></div><button className="link" onClick={() => setTab("log")}>View all →</button></div>{mine.length ? mine.map((log) => <div className="line-item" key={log.id}><div className="mid"><b>{siteName(state, log.siteId)}</b><div className="tiny muted">{formatDate(log.date)} · {serviceName(state, log.serviceId)}</div></div></div>) : <div className="empty-state"><span className="empty-icon">📋</span><div className="empty-msg">No daily logs from you yet</div></div>}</section>
     </>;
   }
@@ -1220,7 +1221,7 @@ function Home({ state, role, userId, setTab, goToFocus, openGraph, toggleLoadInI
         flagged yet; the first CSV import that changes a cost would have shown
         crew the price list on the home screen. */}
     {canManage(role) && <section className="card"><div className="sec-h"><h2>Price changes</h2><button className="link" onClick={() => goToFocus("admin", "csv")}>Report</button></div>{priceChanges.slice(0, 4).map((material) => <div className="line-item" key={material.id}><b>{material.name}</b><span className={`pill ${material.cost > (material.previousCost ?? material.cost) ? "warn" : "good"}`}>{money(material.previousCost ?? 0)} to {money(material.cost)}</span></div>)}{priceChanges.length === 0 && <div className="empty-state"><span className="empty-icon">OK</span><div className="empty-msg">No material price changes flagged</div></div>}</section>}
-    <section className="card card-interactive"><div className="sec-h"><h2>Today's truck tasks</h2><button className="link" onClick={() => setTab("trucks")}>Open</button></div><ProgressRing pct={progress.pct} /></section>
+    <section className="card card-interactive"><div className="sec-h"><h2>Today's truck tasks</h2><button className="link" onClick={() => setTab("tasks")}>Open</button></div><ProgressRing pct={progress.pct} /></section>
     <section className="card card-interactive" onClick={() => openGraph("activity_trend")}><div className="sec-h"><div><h2>Recent activity</h2><p className="tiny muted">Last 6 only — full history is in Daily Log</p></div><button className="link" onClick={(e) => { e.stopPropagation(); setTab("log"); }}>View all →</button></div>{state.transactions.slice(0, 6).map((tx) => <Activity key={tx.id} state={state} tx={tx} />)}{state.transactions.length === 0 && <div className="empty-state"><span className="empty-icon">📋</span><div className="empty-msg">No activity logged yet</div></div>}</section>
   </>;
 }
@@ -1320,6 +1321,7 @@ function NavIcon({ tab }: { tab: Tab | "admin" }) {
     inventory: <svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4Z" /><path d="M3 7v10l9 4 9-4V7" /><path d="M12 11v10" /></svg>,
     tools: <svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6 6a1.5 1.5 0 0 0 2 2l6-6a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3Z" /></svg>,
     trucks: <svg viewBox="0 0 24 24"><path d="M3 6h11v9H3z" /><path d="M14 9h4l3 3v3h-7z" /><circle cx="7" cy="18" r="1.6" /><circle cx="17" cy="18" r="1.6" /></svg>,
+    tasks: <svg viewBox="0 0 24 24"><path d="M9 11l2 2 4-4" /><path d="M5 4h14v17H5z" /><path d="M9 16h6" /></svg>,
     crew: <svg viewBox="0 0 24 24"><path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /><path d="M2 21a6 6 0 0 1 12 0" /><path d="M16 4a4 4 0 0 1 0 8M22 21a6 6 0 0 0-6-6" /></svg>,
     log: <svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z" /><path d="M14 3v4h4" /><path d="M9 13h6M9 17h6M9 9h2" /></svg>,
     loadin: <svg viewBox="0 0 24 24"><path d="M4 7h16v12H4z" /><path d="M4 11h16" /><path d="M9 3v4M15 3v4" /><path d="M8 15h3" /></svg>,

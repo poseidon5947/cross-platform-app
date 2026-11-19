@@ -7,7 +7,7 @@ import type { AppState, Category, DailyLog, DailyLogMedia, MaintenanceRequest, M
 import { BulkToolSheet, canManage, Kpi, Pill, ProgressRing, serviceName, siteName, userName } from "../App";
 import type { Tab as AppTab } from "../App";
 
-type Tab = "inventory" | "tremco" | "log" | "tools" | "trucks";
+type Tab = "inventory" | "tremco" | "log" | "tools" | "trucks" | "tasks";
 
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true" || !isSupabaseConfigured();
 
@@ -141,7 +141,8 @@ export default function OperationsTabBoundary({ activeTab, state, role, currentU
   if (activeTab === "tremco") return <Tremco state={state} role={role} userId={userId} openSheet={openSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} />;
   if (activeTab === "log") return <LogMaterials state={state} role={role} userId={userId} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} setTab={setTab} />;
   if (activeTab === "tools") return <Tools state={state} role={role} userId={userId} openSheet={openSheet} saveTool={saveTool} />;
-  return <Tasks state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} addTruckFile={addTruckFile} removeTruckFile={removeTruckFile} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
+  if (activeTab === "trucks") return <FleetSection state={state} role={role} currentUser={currentUser} openSheet={openSheet} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} addTruckFile={addTruckFile} removeTruckFile={removeTruckFile} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
+  return <Tasks state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTask={saveTask} removeTask={removeTask} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
 }
 
 function Chip({ on, children, onClick }: { on: boolean; children: React.ReactNode; onClick: () => void }) {
@@ -376,10 +377,11 @@ function ToolForm({ state, tool, saveTool }: { state: AppState; tool?: ToolItem;
   </div>;
 }
 
-function Tasks({ state, role, currentUser, toggleTask, openSheet, saveTruck, saveTruckRecord, setTruckInventory, addTruckFile, removeTruckFile, saveTask, removeTask, submitMaintenance, respondMaintenance, editMaintenance, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; toggleTask: (taskId: string) => void; openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; addTruckFile: (file: TruckFile) => void;
-  removeTruckFile: (id: string) => void;
-  setTruckInventory: (truckId: string, materialId: string, qty: number) => void;
-  saveTruckRecord: (truck: Truck, message?: string) => void; saveTask: (task: TruckTask) => void; removeTask: (id: string) => void; submitMaintenance: (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string, deadlineAt?: string, chosenDate?: string) => void; respondMaintenance: (requestId: string, note: string) => void; editMaintenance: (id: string, description: string, deadlineAt?: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
+/**
+ * The checklists: truck, warehouse and job-site. The fleet used to live under
+ * here too and now has its own tab - see FleetSection for why.
+ */
+function Tasks({ state, role, currentUser, toggleTask, openSheet, saveTruck, saveTask, removeTask, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; toggleTask: (taskId: string) => void; openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; saveTask: (task: TruckTask) => void; removeTask: (id: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
   const [section, setSection] = useState<TaskSection>("trucks");
   return <>
     <div className="seg inv-segments">
@@ -387,22 +389,31 @@ function Tasks({ state, role, currentUser, toggleTask, openSheet, saveTruck, sav
       <button className={section === "warehouse" ? "on" : ""} onClick={() => setSection("warehouse")}>Warehouse</button>
       <button className={section === "services" ? "on" : ""} onClick={() => setSection("services")}>Services</button>
     </div>
-    {section === "trucks" && <TrucksSection state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} addTruckFile={addTruckFile} removeTruckFile={removeTruckFile} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />}
+    {section === "trucks" && <TruckTasksSection state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTask={saveTask} removeTask={removeTask} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />}
     {section === "warehouse" && <WarehouseTasksSection state={state} role={role} toggleTask={toggleTask} openSheet={openSheet} saveTask={saveTask} removeTask={removeTask} />}
     {section === "services" && <ServicesTasksSection state={state} role={role} toggleTask={toggleTask} openSheet={openSheet} saveTask={saveTask} removeTask={removeTask} />}
   </>;
 }
 
-function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTruck, saveTruckRecord, setTruckInventory, addTruckFile, removeTruckFile, saveTask, removeTask, submitMaintenance, respondMaintenance, editMaintenance, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; toggleTask: (taskId: string) => void; openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; addTruckFile: (file: TruckFile) => void;
+/**
+ * The vehicles, on their own tab. The client asked for "a separate section
+ * just for trucks" twice, and reported on 19 November that Trucks was missing
+ * from the admin login altogether.
+ *
+ * It was not missing and it was not a permission: the fleet rendered at the
+ * bottom of the tab labelled "Tasks", below a progress ring, a six-way
+ * frequency switcher, a "mark all done" button and up to 32 task checkboxes.
+ * On a phone nobody scrolls that far looking for a truck. The checklists kept
+ * the Tasks tab; the fleet, its on-board inventory, the gas-station check and
+ * maintenance live here, where someone looking for a truck will find them.
+ */
+function FleetSection({ state, role, currentUser, openSheet, saveTruck, saveTruckRecord, setTruckInventory, addTruckFile, removeTruckFile, submitMaintenance, respondMaintenance, editMaintenance, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; addTruckFile: (file: TruckFile) => void;
   removeTruckFile: (id: string) => void;
   setTruckInventory: (truckId: string, materialId: string, qty: number) => void;
-  saveTruckRecord: (truck: Truck, message?: string) => void; saveTask: (task: TruckTask) => void; removeTask: (id: string) => void; submitMaintenance: (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string, deadlineAt?: string, chosenDate?: string) => void; respondMaintenance: (requestId: string, note: string) => void; editMaintenance: (id: string, description: string, deadlineAt?: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
+  saveTruckRecord: (truck: Truck, message?: string) => void; submitMaintenance: (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string, deadlineAt?: string, chosenDate?: string) => void; respondMaintenance: (requestId: string, note: string) => void; editMaintenance: (id: string, description: string, deadlineAt?: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
   const canResolve = canResolveMaintenanceRequests(currentUser);
   const openRequests = state.maintenanceRequests.filter((item) => item.status === "open");
   const resolvedRequests = state.maintenanceRequests.filter((item) => item.status === "resolved");
-  const [freq, setFreq] = useState<TaskFrequency>("daily");
-  const progress = dailyProgress(state.truckTasks, state.taskCompletions, state.currentUserId);
-  const visibleTasks = state.truckTasks.filter((task) => task.section === "trucks" && task.freq === freq);
   // The company car is on the fleet sheet but marked "show to crew: N", so it
   // stays out of the list the crew books trucks from.
   // A retired vehicle is off the list too - see onFleet.
@@ -410,30 +421,14 @@ function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTr
   const fleet = canSeeEverything(role) ? current : current.filter((truck) => truck.showToCrew !== false);
 
   useEffect(() => {
-    if (!focusTarget) return;
-    const targetId = focusTarget === "maintenance" ? "wz-section-maintenance" : focusTarget === "tasks" ? "wz-section-tasks" : null;
-    if (targetId) requestAnimationFrame(() => document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    if (focusTarget !== "maintenance") return;
+    requestAnimationFrame(() => document.getElementById("wz-section-maintenance")?.scrollIntoView({ behavior: "smooth", block: "start" }));
     onFocusHandled?.();
   }, [focusTarget]);
 
-  const allShownDone = visibleTasks.length > 0 && visibleTasks.every((task) => isTaskDone(state.taskCompletions, state.currentUserId, task));
-  const markAllShown = () => visibleTasks.filter((task) => !isTaskDone(state.taskCompletions, state.currentUserId, task)).forEach((task) => toggleTask(task.id));
-
-  const startTasks = visibleTasks.filter((task) => task.timeOfDay === "start");
-  const endTasks = visibleTasks.filter((task) => task.timeOfDay === "end");
-  const otherTasks = visibleTasks.filter((task) => !task.timeOfDay);
-
   return <>
-    <section className="card"><ProgressRing pct={progress.pct} /><button className="btn primary block" onClick={() => openSheet({ title: "Gas Station Check", content: <TruckLogForm state={state} saveTruck={saveTruck} /> })}>Gas Station Check</button></section>
-    <div className="seg">{(["daily", "weekly", "monthly", "quarterly", "yearly", "as_needed"] as TaskFrequency[]).map((item) => <button key={item} className={freq === item ? "on" : ""} onClick={() => setFreq(item)}>{item}</button>)}</div>
-    <button className="btn line block" disabled={visibleTasks.length === 0 || allShownDone} onClick={markAllShown}>Mark all shown done</button>
-    <div id="wz-section-tasks">
-      <TaskGroup title="Start of Day" subtitle="Before 8am - vehicle / general" tasks={startTasks} state={state} toggleTask={toggleTask} currentUser={currentUser} saveTruck={saveTruck} />
-      <TaskGroup title="End of Day" subtitle="Before 4pm - vehicle / general" tasks={endTasks} state={state} toggleTask={toggleTask} currentUser={currentUser} saveTruck={saveTruck} />
-      {otherTasks.length > 0 && <TaskGroup title="Vehicle / General" subtitle="No time assigned" tasks={otherTasks} state={state} toggleTask={toggleTask} currentUser={currentUser} saveTruck={saveTruck} />}
-    </div>
-    {canManage(role) && <button className="btn line block" onClick={() => openSheet({ title: "Edit Trucks tasks", content: <TaskEditor state={state} section="trucks" saveTask={saveTask} removeTask={removeTask} /> })}>Edit task list</button>}
-    {fleet.length > 0 && (
+    <section className="card"><button className="btn primary block" onClick={() => openSheet({ title: "Gas Station Check", content: <TruckLogForm state={state} saveTruck={saveTruck} /> })}>Gas Station Check</button></section>
+    {fleet.length > 0 ? (
       <section className="card">
         <div className="sec-h"><h2>Fleet</h2>{canManage(role) && <button className="link" onClick={() => openSheet({ title: "Add truck", content: <TruckForm state={state} saveTruckRecord={saveTruckRecord} /> })}>Add truck</button>}</div>
         <div className="truck-list">
@@ -466,8 +461,42 @@ function TrucksSection({ state, role, currentUser, toggleTask, openSheet, saveTr
           })}
         </div>
       </section>
+    ) : (
+      <section className="card"><div className="sec-h"><h2>Fleet</h2>{canManage(role) && <button className="link" onClick={() => openSheet({ title: "Add truck", content: <TruckForm state={state} saveTruckRecord={saveTruckRecord} /> })}>Add truck</button>}</div><p className="tiny muted">No vehicles on the fleet list yet.</p></section>
     )}
     <section className="card" id="wz-section-maintenance"><div className="sec-h"><h2>Maintenance requests</h2><Pill tone={openRequests.length ? "warn" : "good"}>{openRequests.length} open</Pill></div><button className="btn line block" onClick={() => openSheet({ title: "Request maintenance", content: <MaintenanceRequestForm state={state} submitMaintenance={submitMaintenance} /> })}>Request maintenance</button>{openRequests.length ? openRequests.map((item) => <MaintenanceRequestRow key={item.id} request={item} state={state} canResolve={canResolve} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} />) : <p className="tiny muted">No open maintenance requests.</p>}{resolvedRequests.length > 0 && <details><summary className="tiny muted">{resolvedRequests.length} resolved</summary>{resolvedRequests.map((item) => <MaintenanceRequestRow key={item.id} request={item} state={state} canResolve={false} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} />)}</details>}</section>
+  </>;
+}
+
+/** The truck checklist, one of the three sections on the Tasks tab. */
+function TruckTasksSection({ state, role, currentUser, toggleTask, openSheet, saveTruck, saveTask, removeTask, focusTarget, onFocusHandled }: { state: AppState; role: Role; currentUser: User; toggleTask: (taskId: string) => void; openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void; saveTruck: (log: Omit<TruckLog, "id" | "ts">, chosenDate?: string) => void; saveTask: (task: TruckTask) => void; removeTask: (id: string) => void; focusTarget?: string | null; onFocusHandled?: () => void }) {
+  const [freq, setFreq] = useState<TaskFrequency>("daily");
+  const progress = dailyProgress(state.truckTasks, state.taskCompletions, state.currentUserId);
+  const visibleTasks = state.truckTasks.filter((task) => task.section === "trucks" && task.freq === freq);
+
+  useEffect(() => {
+    if (focusTarget !== "tasks") return;
+    requestAnimationFrame(() => document.getElementById("wz-section-tasks")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    onFocusHandled?.();
+  }, [focusTarget]);
+
+  const allShownDone = visibleTasks.length > 0 && visibleTasks.every((task) => isTaskDone(state.taskCompletions, state.currentUserId, task));
+  const markAllShown = () => visibleTasks.filter((task) => !isTaskDone(state.taskCompletions, state.currentUserId, task)).forEach((task) => toggleTask(task.id));
+
+  const startTasks = visibleTasks.filter((task) => task.timeOfDay === "start");
+  const endTasks = visibleTasks.filter((task) => task.timeOfDay === "end");
+  const otherTasks = visibleTasks.filter((task) => !task.timeOfDay);
+
+  return <>
+    <section className="card"><ProgressRing pct={progress.pct} /></section>
+    <div className="seg">{(["daily", "weekly", "monthly", "quarterly", "yearly", "as_needed"] as TaskFrequency[]).map((item) => <button key={item} className={freq === item ? "on" : ""} onClick={() => setFreq(item)}>{item}</button>)}</div>
+    <button className="btn line block" disabled={visibleTasks.length === 0 || allShownDone} onClick={markAllShown}>Mark all shown done</button>
+    <div id="wz-section-tasks">
+      <TaskGroup title="Start of Day" subtitle="Before 8am - vehicle / general" tasks={startTasks} state={state} toggleTask={toggleTask} currentUser={currentUser} saveTruck={saveTruck} />
+      <TaskGroup title="End of Day" subtitle="Before 4pm - vehicle / general" tasks={endTasks} state={state} toggleTask={toggleTask} currentUser={currentUser} saveTruck={saveTruck} />
+      {otherTasks.length > 0 && <TaskGroup title="Vehicle / General" subtitle="No time assigned" tasks={otherTasks} state={state} toggleTask={toggleTask} currentUser={currentUser} saveTruck={saveTruck} />}
+    </div>
+    {canManage(role) && <button className="btn line block" onClick={() => openSheet({ title: "Edit Trucks tasks", content: <TaskEditor state={state} section="trucks" saveTask={saveTask} removeTask={removeTask} /> })}>Edit task list</button>}
   </>;
 }
 
