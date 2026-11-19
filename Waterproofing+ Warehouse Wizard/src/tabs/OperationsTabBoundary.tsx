@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { categoryLabels, services as seedServices } from "../data/seed";
 import { dailyLogMediaSignedUrl, receiptSignedUrl, toolPhotoSignedUrl, truckFileSignedUrl, uploadReceiptPhoto, uploadToolPhoto, uploadTruckFile } from "../data/repo";
 import { isSupabaseConfigured } from "../integrations/supabase";
-import { ALLOWED_MATERIAL_UNITS, batteryState, vehicleServiceDue, canResolveMaintenanceRequests, canSeeEverything, canSeePrices, countedInWarehouse, dailyProgress, formatDate, jobChoices, materialsForService, id, isKmEntryTask, isTaskDone, money, onFleet, roundStep, serviceRequired, stepForMaterialUnit, stockStatus, todayKey, unarchivedJobs } from "../domain/business";
+import { ALLOWED_MATERIAL_UNITS, batteryState, vehicleServiceDue, canResolveMaintenanceRequests, canSeeEverything, canSeePrices, countedInWarehouse, dailyProgress, formatDate, jobChoices, materialsForService, materialsUsedOnLog, id, isKmEntryTask, isTaskDone, money, onFleet, roundStep, serviceRequired, stepForMaterialUnit, stockStatus, todayKey, unarchivedJobs } from "../domain/business";
 import type { AppState, Category, DailyLog, DailyLogMedia, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, TaskSection, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User, TruckFile } from "../types";
 import { BulkToolSheet, canManage, Kpi, Pill, ProgressRing, serviceName, siteName, userName } from "../App";
 import type { Tab as AppTab } from "../App";
@@ -139,7 +139,7 @@ export default function OperationsTabBoundary({ activeTab, state, role, currentU
 }) {
   if (activeTab === "inventory") return <Inventory state={state} role={role} userId={userId} submitTransactions={submitTransactions} openSheet={openSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
   if (activeTab === "tremco") return <Tremco state={state} role={role} userId={userId} openSheet={openSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} />;
-  if (activeTab === "log") return <LogMaterials state={state} role={role} userId={userId} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} setTab={setTab} />;
+  if (activeTab === "log") return <LogMaterials state={state} role={role} userId={userId} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} setTab={setTab} openSheet={openSheet} />;
   if (activeTab === "tools") return <Tools state={state} role={role} userId={userId} openSheet={openSheet} saveTool={saveTool} />;
   if (activeTab === "trucks") return <FleetSection state={state} role={role} currentUser={currentUser} openSheet={openSheet} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} addTruckFile={addTruckFile} removeTruckFile={removeTruckFile} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
   return <Tasks state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTask={saveTask} removeTask={removeTask} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
@@ -203,7 +203,60 @@ function printDailyLogs(state: AppState, list: DailyLog[]) {
   }
 }
 
-function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog, saveSite, setTab }: { state: AppState; role: Role; userId: string; submitTransactions: (txs: Omit<Transaction, "id" | "ts">[], chosenDate?: string) => void; submitDailyLog: (input: Omit<DailyLog, "id" | "createdAt">, files?: File[]) => void; saveSite: (site: Site) => void; setTab: (tab: AppTab) => void }) {
+/**
+ * One submitted daily log, in full.
+ *
+ * The client could see on 20 November that a log existed but not what was in
+ * it: the list showed the job, the date, who did it and one line of "work
+ * completed", and nothing else - not the materials, not "to do next time",
+ * which the crew are required to fill in.
+ *
+ * Every field the form asks for is shown here, and a field the crew left
+ * blank says so rather than disappearing. That distinction is the whole
+ * complaint: she could not tell whether he had not written it or the app was
+ * not showing it.
+ */
+export function DailyLogDetail({ state, log, role }: { state: AppState; log: DailyLog; role: Role }) {
+  const media = state.dailyLogMedia.filter((item) => item.dailyLogId === log.id);
+  const lines = materialsUsedOnLog(state.transactions, log);
+  const field = (label: string, value?: string) => (
+    <div key={label}>
+      <label className="fld">{label}</label>
+      {value?.trim()
+        ? <p style={{ whiteSpace: "pre-wrap", margin: "0 0 4px" }}>{value}</p>
+        : <p className="tiny muted" style={{ margin: "0 0 4px" }}>Not entered</p>}
+    </div>
+  );
+  return <>
+    <section className="card">
+      <div className="tiny muted">{formatDate(log.date)} · {serviceName(state, log.serviceId)}</div>
+      <div className="tiny muted">Completed by {userName(state, log.completedByUserId)}{log.submittedByUserId !== log.completedByUserId ? `, submitted by ${userName(state, log.submittedByUserId)}` : ""}</div>
+    </section>
+    <section className="card">
+      <div className="sec-h"><h3>Materials recorded</h3><Pill tone={lines.length ? "neu" : "warn"}>{lines.length}</Pill></div>
+      {lines.length
+        ? lines.map((tx) => {
+            const material = state.materials.find((item) => item.id === tx.materialId);
+            return <div className="line-item" key={tx.id}><div className="mid"><b>{material?.name ?? tx.rawItemText ?? "Unnamed item"}</b><div className="tiny muted">{tx.type}{material ? ` · ${material.unit}` : ""}</div></div><div className="qty">{tx.qty}</div></div>;
+          })
+        : <p className="tiny muted">No material lines were recorded against this log.</p>}
+      {canSeeEverything(role) && <p className="tiny muted">Matched to this log by job, service and date.</p>}
+    </section>
+    <section className="card">
+      {field("Quantity of materials installed", log.materialsInstalled)}
+      {field("Work completed", log.workCompleted)}
+      {field("Challenges", log.challenges)}
+      {field("Weather", log.weather)}
+      {field("To do next time", log.toDoNextTime)}
+    </section>
+    <section className="card">
+      <div className="sec-h"><h3>Photos &amp; video</h3><Pill tone={media.length ? "neu" : "warn"}>{media.length}</Pill></div>
+      {media.length ? <DailyLogMediaLinks media={media} /> : <p className="tiny muted">Nothing attached to this log.</p>}
+    </section>
+  </>;
+}
+
+function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog, saveSite, setTab, openSheet }: { state: AppState; role: Role; userId: string; openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void; submitTransactions: (txs: Omit<Transaction, "id" | "ts">[], chosenDate?: string) => void; submitDailyLog: (input: Omit<DailyLog, "id" | "createdAt">, files?: File[]) => void; saveSite: (site: Site) => void; setTab: (tab: AppTab) => void }) {
   const [siteId, setSiteId] = useState(unarchivedJobs(state.sites)[0]?.id);
   const [serviceId, setServiceId] = useState<ServiceId>("wp");
   const [type, setType] = useState<TxType>("use");
@@ -270,10 +323,10 @@ function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog,
     setSiteId(site.id);
     setNewSite("");
   };
-  const historySection = <section className="card" id="wz-daily-log-history"><div className="sec-h"><h3>{canManage(role) ? "All daily logs" : "Your recent daily logs"}</h3>{recentLogs.length > 0 && <button className="link" onClick={() => printDailyLogs(state, recentLogs)}>Export</button>}</div>{canManage(role) && <><label className="fld">{logMonth ? "Month" : "Month (showing all)"}</label><input className="in" type="month" value={logMonth} onChange={(event) => setLogMonth(event.target.value)} /></>}{recentLogs.length ? recentLogs.map((log) => <div className="line-item" key={log.id}><div className="mid"><b>{siteName(state, log.siteId)}</b><div className="tiny muted">{formatDate(log.date)} · {serviceName(state, log.serviceId)} · {userName(state, log.completedByUserId)}</div><div className="tiny muted">{log.workCompleted}</div><DailyLogMediaLinks media={state.dailyLogMedia.filter((item) => item.dailyLogId === log.id)} /></div></div>) : <p className="tiny muted">{logMonth ? "Nothing logged for this month." : "No daily logs yet."}</p>}</section>;
+  const historySection = <section className="card" id="wz-daily-log-history"><div className="sec-h"><h3>{canManage(role) ? "All daily logs" : "Your recent daily logs"}</h3>{recentLogs.length > 0 && <button className="link" onClick={() => printDailyLogs(state, recentLogs)}>Export</button>}</div>{canManage(role) && <><label className="fld">{logMonth ? "Month" : "Month (showing all)"}</label><input className="in" type="month" value={logMonth} onChange={(event) => setLogMonth(event.target.value)} /></>}{recentLogs.length ? recentLogs.map((log) => <div className="line-item" key={log.id} style={{ cursor: "pointer" }} onClick={() => openSheet({ title: siteName(state, log.siteId), content: <DailyLogDetail state={state} log={log} role={role} /> })}><div className="mid"><b>{siteName(state, log.siteId)}</b><div className="tiny muted">{formatDate(log.date)} · {serviceName(state, log.serviceId)} · {userName(state, log.completedByUserId)}</div><div className="tiny muted">{log.workCompleted}</div><DailyLogMediaLinks media={state.dailyLogMedia.filter((item) => item.dailyLogId === log.id)} /></div><button className="btn line sm" onClick={(event) => { event.stopPropagation(); openSheet({ title: siteName(state, log.siteId), content: <DailyLogDetail state={state} log={log} role={role} /> }); }}>Open</button></div>) : <p className="tiny muted">{logMonth ? "Nothing logged for this month." : "No daily logs yet."}</p>}</section>;
   const entryForm = <>
     <section className="card"><label className="fld">Date</label><input className="in" type="date" value={logDate} max={todayKey()} onChange={(event) => setLogDate(event.target.value)} /><label className="fld">Job site</label><select className="in" value={siteId ?? ""} onChange={(event) => setSiteId(event.target.value)}>{!siteId && <option value="">Choose a job site</option>}{sortedSites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select><div className="row-action"><input className="in" value={newSite} onChange={(event) => setNewSite(event.target.value)} placeholder="+ Add job site" /><button className="btn line sm" onClick={addSite}>Add</button></div>{selectedSite?.driveFolderUrl && <a className="tiny" href={selectedSite.driveFolderUrl} target="_blank" rel="noreferrer">Job details / site plans →</a>}<label className="fld">Service</label><div className="selrow">{[...state.services].sort((a, b) => a.name.localeCompare(b.name)).map((service) => <button key={service.id} className={`sopt ${serviceId === service.id ? "on" : ""}`} onClick={() => setServiceId(service.id)}>{service.name}</button>)}</div></section>
-    <section className="card"><h3>Daily log</h3><label className="fld">Quantity of materials installed</label><textarea className="in" value={materialsInstalled} onChange={(event) => setMaterialsInstalled(event.target.value)} placeholder="Square feet / linear feet, optional" /><label className="fld">Work completed*</label><textarea className="in" value={workCompleted} onChange={(event) => setWorkCompleted(event.target.value)} /><label className="fld">Challenges</label><textarea className="in" value={challenges} onChange={(event) => setChallenges(event.target.value)} placeholder="Optional" /><label className="fld">Weather</label><input className="in" value={weather} onChange={(event) => setWeather(event.target.value)} placeholder="Optional — e.g. rain all afternoon" /><label className="fld">To do next time*</label><textarea className="in" value={toDoNextTime} onChange={(event) => setToDoNextTime(event.target.value)} /><label className="fld">Completed by</label><select className="in" value={completedByUserId} onChange={(event) => setCompletedByUserId(event.target.value)}>{activeUsers.map((item) => <option key={item.id} value={item.id}>{item.name}{item.orgRole ? ` — ${item.orgRole}` : ""}</option>)}</select><label className="fld">Photos &amp; video</label><div className="file-picker"><input className="in" type="file" accept="image/*,video/*" multiple onChange={(event) => { setPhotos((current) => [...current, ...Array.from(event.target.files ?? [])]); event.target.value = ""; }} /><p className="tiny muted">Optional. Add as many as you like, up to 50MB each.</p>{photos.map((file, index) => <div className="line-item" key={`${file.name}-${index}`}><div className="mid"><b>{file.name}</b><div className="tiny muted">{(file.size / 1024 / 1024).toFixed(1)} MB</div></div><button className="btn line sm" onClick={() => setPhotos((current) => current.filter((_, i) => i !== index))}>Remove</button></div>)}</div></section>
+    <section className="card"><h3>Daily log</h3><label className="fld">Quantity of materials installed</label><textarea className="in" value={materialsInstalled} onChange={(event) => setMaterialsInstalled(event.target.value)} placeholder="Square feet / linear feet, optional" /><label className="fld">Work completed*</label><textarea className="in" value={workCompleted} onChange={(event) => setWorkCompleted(event.target.value)} /><label className="fld">Challenges</label><textarea className="in" value={challenges} onChange={(event) => setChallenges(event.target.value)} placeholder="Optional" /><label className="fld">Weather</label><input className="in" value={weather} onChange={(event) => setWeather(event.target.value)} placeholder="Optional — e.g. rain all afternoon" /><label className="fld">To do next time*</label><textarea className="in" value={toDoNextTime} onChange={(event) => setToDoNextTime(event.target.value)} /><label className="fld">Completed by</label><select className="in" value={completedByUserId} onChange={(event) => setCompletedByUserId(event.target.value)}>{activeUsers.map((item) => <option key={item.id} value={item.id}>{item.name}{item.orgRole ? ` — ${item.orgRole}` : ""}</option>)}</select><label className="fld">Photos &amp; video</label><div className="file-picker"><input className="in" type="file" accept="image/*,video/*" multiple onChange={(event) => { setPhotos((current) => [...current, ...Array.from(event.target.files ?? [])]); event.target.value = ""; }} /><p className="tiny muted">Optional. Add as many as you like, up to 50MB each. They upload after you submit — stay on this screen until the banner at the top clears, or they will not be attached.</p>{photos.map((file, index) => <div className="line-item" key={`${file.name}-${index}`}><div className="mid"><b>{file.name}</b><div className="tiny muted">{(file.size / 1024 / 1024).toFixed(1)} MB</div></div><button className="btn line sm" onClick={() => setPhotos((current) => current.filter((_, i) => i !== index))}>Remove</button></div>)}</div></section>
     <div className="seg">{(["use", "deliver", "return", "receive", "loss"] as TxType[]).map((item) => <button key={item} className={type === item ? "on" : ""} onClick={() => setType(item)}>{item}</button>)}</div>
     <div className="search"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search materials to add" /></div>
     {hiddenByService > 0 && <p className="tiny muted">{showAllMaterials

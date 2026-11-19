@@ -281,6 +281,32 @@ export function onFleet<T extends Pick<Truck, "id" | "active">>(trucks: T[], kee
  * the Inventory tab they all read "Out", which is not true and buries the
  * dozen products that genuinely need ordering.
  */
+/**
+ * The material lines that belong to a daily log.
+ *
+ * The client asked on 20 November to open a submitted log and see what was
+ * entered, including the materials - she could see "some of the materials
+ * under Recent Activity on the home screen, but not the rest".
+ *
+ * There is no foreign key to follow. The log row and its material lines are
+ * written by the same click, so they agree on job, service and date, and the
+ * line's timestamp is built from the date the person picked rather than the
+ * moment they pressed submit (see combineDateWithNow) - which is why this can
+ * compare calendar days at all, and why it still works on a log back-dated to
+ * last week. Day, job and service together, because one crew can log two
+ * services on one job on one day and the lines must not cross over.
+ */
+export function materialsUsedOnLog<T extends Pick<Transaction, "siteId" | "serviceId" | "ts">>(
+  transactions: T[],
+  log: Pick<DailyLog, "siteId" | "serviceId" | "date">,
+) {
+  return transactions.filter((tx) =>
+    tx.siteId === log.siteId
+    && tx.serviceId === log.serviceId
+    && typeof tx.ts === "string"
+    && tx.ts.slice(0, 10) === log.date);
+}
+
 export function countedInWarehouse(material: Pick<Material, "strictTracking">) {
   return material.strictTracking !== false;
 }

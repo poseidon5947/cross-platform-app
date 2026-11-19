@@ -100,6 +100,7 @@ import {
   loginEmailFor,
   unarchivedJobs,
 } from "./domain/business";
+import { mediaUploadSummary, uploadAllMedia, type MediaUploadProgress } from "./domain/mediaUpload";
 import { isSupabaseConfigured, supabase } from "./integrations/supabase";
 import type { AppState, Category, DailyLog, ProjectLoadIn, ProjectLoadInItem, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, PointsEvent, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User, OfflineCommand, TruckFile } from "./types";
 
@@ -258,6 +259,8 @@ export function App() {
   });
   const [tab, setTab] = useState<Tab>("home");
   const [focusTarget, setFocusTarget] = useState<string | null>(null);
+  // Non-null exactly while photos are going up, so the screen can say so.
+  const [mediaUpload, setMediaUpload] = useState<MediaUploadProgress | null>(null);
   const goToFocus = (nextTab: Tab, focus: string) => { setTab(nextTab); setFocusTarget(focus); };
   const { showToast } = useToast();
   const [confetti, setConfetti] = useState(false);
@@ -374,6 +377,15 @@ export function App() {
       return updated;
     });
   };
+
+  useEffect(() => {
+    if (!mediaUpload) return;
+    // Closing the app was what lost his ten photos: the browser suspends the
+    // tab and every upload still queued dies without a word.
+    const hold = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", hold);
+    return () => window.removeEventListener("beforeunload", hold);
+  }, [mediaUpload]);
 
   const notify = (message: string) => showToast(message, /failed|could not|delete failed|sync failed/i.test(message) ? "bad" : /offline|queued|pending/i.test(message) ? "warn" : "good");
 
@@ -866,16 +878,18 @@ export function App() {
    * still need adding.
    */
   const attachDailyLogFiles = async (dailyLogId: string, files: File[]) => {
-    const failed: string[] = [];
-    for (const file of files) {
-      try {
-        await uploadDailyLogMedia(dailyLogId, file, currentUser.id);
-      } catch (err) {
-        failed.push((err as Error).message);
-      }
+    try {
+      const { failures } = await uploadAllMedia(
+        files,
+        (file) => uploadDailyLogMedia(dailyLogId, file, currentUser.id),
+        { onProgress: setMediaUpload },
+      );
+      notify(mediaUploadSummary(files.length, failures));
+    } finally {
+      // Clears on the way out whatever happened, or the banner would tell the
+      // crew their photos are still going up for the rest of the session.
+      setMediaUpload(null);
     }
-    if (failed.length) notify(failed[0]);
-    else notify(`${files.length} ${files.length === 1 ? "file" : "files"} attached to the daily log.`);
     invalidateRemote();
   };
 
@@ -985,6 +999,10 @@ export function App() {
       </header>
 
       <main>
+        {mediaUpload && mediaUpload.total > 0 && <section className="attention-strip" aria-live="polite" aria-label="Photos uploading">
+          <div className="attention-title"><span aria-hidden="true">↑</span><b>Attaching photos — {mediaUpload.done} of {mediaUpload.total}</b></div>
+          <div className="tiny muted" style={{ padding: "8px 11px" }}>Keep this screen open until it finishes. {mediaUpload.failed > 0 ? `${mediaUpload.failed} did not go up and will be named when this ends.` : "A photo takes a few seconds on site."}</div>
+        </section>}
         {stuckWork.length > 0 && <section className="attention-strip" aria-label="Work that could not be sent">
           <div className="attention-title"><span aria-hidden="true">!</span><b>{stuckWork.length === 1 ? "One item could not be sent" : `${stuckWork.length} items could not be sent`}</b></div>
           {stuckWork.map((command) => <div className="line-item" key={command.id}>
