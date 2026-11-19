@@ -7,6 +7,7 @@ import type {
   OfflineCommand,
   PointsEvent,
   ServiceId,
+  Site,
   Streak,
   TaskCompletion,
   TaskFrequency,
@@ -219,6 +220,55 @@ export function applyCostChangeFlag(existing: Material | undefined, next: Materi
 
 export function priceChangeMaterials(materials: Material[]) {
   return materials.filter((material) => material.previousCost != null && material.cost !== material.previousCost);
+}
+
+/**
+ * Whether a job is finished and put away.
+ *
+ * The Jobs tab already split Active from Past on the end date, which only
+ * works for a job somebody remembered to date: 39 of the client's 43 jobs have
+ * no end date at all, so the "Active jobs" list is really every job ever
+ * opened, and so is every Job dropdown the crew use - including "a. Travel
+ * Time" and "z. Crew Time Off", which are not jobs in the first place.
+ *
+ * Archiving is the client's word for it and `active` is the column that was
+ * already there for it, unused. Archived is deliberately not deletion: the
+ * daily logs, transactions and tool check-outs that point at a job still have
+ * to resolve its name, so an archived job stays in state and only drops out of
+ * the lists people pick from.
+ */
+export function jobIsArchived(site: Pick<Site, "active">) {
+  return site.active === false;
+}
+
+/** The jobs worth putting in front of someone - every picker uses this. */
+export function unarchivedJobs<T extends Pick<Site, "active">>(sites: T[]) {
+  return sites.filter((site) => !jobIsArchived(site));
+}
+
+/**
+ * The options for a Job dropdown that already has something chosen.
+ *
+ * A tool signed out to a job, or a half-filled log, can be pointing at a job
+ * that was archived since. Dropping it from the options would leave the select
+ * showing an empty box over a value that is still set, so the job that is
+ * already chosen stays on the list - and only that one.
+ */
+export function jobChoices<T extends Pick<Site, "id" | "active">>(sites: T[], selectedId?: string) {
+  return sites.filter((site) => !jobIsArchived(site) || site.id === selectedId);
+}
+
+/**
+ * The vehicles still in the fleet, plus whatever is already selected.
+ *
+ * `active: false` is a vehicle that has gone - the 2011 F150 whose plate moved
+ * to the new Maverick in November. Nothing filtered on it, so retiring a truck
+ * changed nothing anyone could see and the F150 stayed in the Fleet list for
+ * every role, next to the truck now carrying its plate. Its fuel receipts and
+ * logs still name it, so it is removed from the lists, never from the data.
+ */
+export function onFleet<T extends Pick<Truck, "id" | "active">>(trucks: T[], keepId?: string) {
+  return trucks.filter((truck) => truck.active !== false || truck.id === keepId);
 }
 
 /**

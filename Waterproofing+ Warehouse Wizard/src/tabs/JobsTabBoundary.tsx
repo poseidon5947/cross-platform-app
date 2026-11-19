@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { todayKey } from "../domain/business";
+import { jobIsArchived, todayKey, unarchivedJobs } from "../domain/business";
 import type { AppState, Role, Site } from "../types";
 import { canManage } from "../App";
 
@@ -7,10 +7,12 @@ function Chip({ on, children, onClick }: { on: boolean; children: React.ReactNod
   return <button className={on ? "chip on" : "chip"} onClick={onClick}>{children}</button>;
 }
 
-export default function JobsTabBoundary({ state, role, saveSite, openSheet }: {
+export default function JobsTabBoundary({ state, role, saveSite, setJobArchived, openSheet }: {
   state: AppState;
   role: Role;
   saveSite: (site: Site) => void;
+  /** Archive a job or bring it back. Left out and the Archive button is simply not offered. */
+  setJobArchived?: (id: string, archived: boolean) => void;
   openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void;
 }) {
   // Vancouver time, not UTC: a job ending today used to drop into Past from 5pm
@@ -25,9 +27,24 @@ export default function JobsTabBoundary({ state, role, saveSite, openSheet }: {
     sort === "az" ? a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })
     : sort === "newest" ? started(b).localeCompare(started(a)) || a.name.localeCompare(b.name)
     : started(a).localeCompare(started(b)) || a.name.localeCompare(b.name));
-  const active = order(state.sites.filter((site) => !site.endDate || site.endDate >= today));
-  const past = order(state.sites.filter((site) => site.endDate && site.endDate < today));
+  // Archived jobs leave both of the date-driven lists. An end date in the past
+  // still files a job under Past on its own, as before - archiving is for the
+  // finished job nobody dated, which is most of them.
+  const onTheBooks = unarchivedJobs(state.sites);
+  const active = order(onTheBooks.filter((site) => !site.endDate || site.endDate >= today));
+  const past = order(onTheBooks.filter((site) => site.endDate && site.endDate < today));
+  const archived = order(state.sites.filter(jobIsArchived));
   const canEdit = canManage(role);
+
+  const row = (site: Site) => <JobRow
+    key={site.id}
+    site={site}
+    canEdit={canEdit}
+    onOpen={() => openSheet({ title: site.name, content: <JobForm site={site} saveSite={saveSite} /> })}
+    // A copy of a job that has been put away starts live, not archived.
+    onCopy={canEdit ? () => openSheet({ title: `Copy of ${site.name}`, content: <JobForm site={{ ...site, id: crypto.randomUUID(), name: `${site.name} (copy)`, startDate: undefined, endDate: undefined, active: true }} saveSite={saveSite} /> }) : undefined}
+    onArchive={canEdit && setJobArchived ? () => setJobArchived(site.id, !jobIsArchived(site)) : undefined}
+  />;
 
   return <>
     {canEdit && <button className="btn primary block" onClick={() => openSheet({ title: "New job", content: <JobForm saveSite={saveSite} /> })}>Add new job</button>}
@@ -38,19 +55,27 @@ export default function JobsTabBoundary({ state, role, saveSite, openSheet }: {
         <Chip on={sort === "newest"} onClick={() => setSort("newest")}>Newest first</Chip>
         <Chip on={sort === "oldest"} onClick={() => setSort("oldest")}>Oldest first</Chip>
       </div>
-      {active.length ? active.map((site) => <JobRow key={site.id} site={site} canEdit={canEdit} onOpen={() => openSheet({ title: site.name, content: <JobForm site={site} saveSite={saveSite} /> })} onCopy={canEdit ? () => openSheet({ title: `Copy of ${site.name}`, content: <JobForm site={{ ...site, id: crypto.randomUUID(), name: `${site.name} (copy)`, startDate: undefined, endDate: undefined }} saveSite={saveSite} /> }) : undefined} />) : <p className="tiny muted">No active jobs.</p>}
+      {active.length ? active.map(row) : <p className="tiny muted">No active jobs.</p>}
     </section>
     {past.length > 0 && <section className="card">
       <details>
         <summary className="tiny muted">{past.length} past job{past.length === 1 ? "" : "s"}</summary>
-        {past.map((site) => <JobRow key={site.id} site={site} canEdit={canEdit} onOpen={() => openSheet({ title: site.name, content: <JobForm site={site} saveSite={saveSite} /> })} onCopy={canEdit ? () => openSheet({ title: `Copy of ${site.name}`, content: <JobForm site={{ ...site, id: crypto.randomUUID(), name: `${site.name} (copy)`, startDate: undefined, endDate: undefined }} saveSite={saveSite} /> }) : undefined} />)}
+        {past.map(row)}
+      </details>
+    </section>}
+    {archived.length > 0 && <section className="card">
+      <details>
+        <summary className="tiny muted">{archived.length} archived job{archived.length === 1 ? "" : "s"}</summary>
+        <p className="tiny muted">Archived jobs stay on every past daily log and receipt. They just drop out of the Job lists people pick from.</p>
+        {archived.map(row)}
       </details>
     </section>}
   </>;
 }
 
-function JobRow({ site, canEdit, onOpen, onCopy }: { site: Site; canEdit: boolean; onOpen: () => void; onCopy?: () => void }) {
+function JobRow({ site, canEdit, onOpen, onCopy, onArchive }: { site: Site; canEdit: boolean; onOpen: () => void; onCopy?: () => void; onArchive?: () => void }) {
   const dateRange = site.startDate || site.endDate ? `${site.startDate ?? "—"} → ${site.endDate ?? "ongoing"}` : "";
+  const archived = jobIsArchived(site);
   return <div className="line-item" onClick={canEdit ? onOpen : undefined} style={canEdit ? { cursor: "pointer" } : undefined}>
     <div className="mid">
       <b>{site.name}</b>
@@ -60,6 +85,7 @@ function JobRow({ site, canEdit, onOpen, onCopy }: { site: Site; canEdit: boolea
     {site.driveFolderUrl && <a className="tiny" href={site.driveFolderUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Docs →</a>}
     {/* Several jobs often sit at one location with the same site contacts. */}
     {onCopy && <button className="btn line sm" onClick={(event) => { event.stopPropagation(); onCopy(); }}>Copy</button>}
+    {onArchive && <button className="btn line sm" onClick={(event) => { event.stopPropagation(); onArchive(); }}>{archived ? "Bring back" : "Archive"}</button>}
   </div>;
 }
 

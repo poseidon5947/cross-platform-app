@@ -571,6 +571,11 @@ export async function upsertSite(site: Site) {
     site_contact_email: site.siteContactEmail ?? null,
     start_date: site.startDate ?? null,
     end_date: site.endDate ?? null,
+    // Copying a job clones the row it was copied from, archived flag included,
+    // and an insert that leaves the column out takes the database default
+    // instead - so the copy read back as live while the screen called it
+    // archived. The row the app is holding is the row it writes.
+    active: site.active ?? true,
   });
   if (error) throw error;
 }

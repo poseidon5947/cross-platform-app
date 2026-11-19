@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { loadInProgress, isCrewWorkDay, nextLoadInDate, todayKey, formatDate } from "../domain/business";
+import { loadInProgress, isCrewWorkDay, jobChoices, nextLoadInDate, todayKey, formatDate, unarchivedJobs } from "../domain/business";
 import { loadInFileSignedUrl } from "../data/repo";
 import type { AppState, ProjectLoadIn, ProjectLoadInItem, ProjectLoadInMedia, ServiceId } from "../types";
 
@@ -34,7 +34,7 @@ export function LoadInPlanner({ state, userId, saveLoadIn }: {
   saveLoadIn: (input: NewLoadIn) => void;
 }) {
   const today = todayKey();
-  const [siteId, setSiteId] = useState(state.sites[0]?.id ?? "");
+  const [siteId, setSiteId] = useState(unarchivedJobs(state.sites)[0]?.id ?? "");
   const [serviceId, setServiceId] = useState<ServiceId>("wp");
   const [loadInDate, setLoadInDate] = useState(nextLoadInDate(today));
   const [picked, setPicked] = useState<Record<string, boolean>>({});
@@ -76,7 +76,7 @@ export function LoadInPlanner({ state, userId, saveLoadIn }: {
   return <div>
     <label className="fld">Job</label>
     <select className="in" value={siteId} onChange={(event) => setSiteId(event.target.value)}>
-      {[...state.sites].sort((a, b) => a.name.localeCompare(b.name)).map((site) =>
+      {jobChoices(state.sites, siteId).sort((a, b) => a.name.localeCompare(b.name)).map((site) =>
         <option key={site.id} value={site.id}>{site.name}</option>)}
     </select>
 

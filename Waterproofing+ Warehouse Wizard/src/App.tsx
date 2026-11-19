@@ -98,6 +98,7 @@ import {
   canSeePrices,
   formatDate,
   loginEmailFor,
+  unarchivedJobs,
 } from "./domain/business";
 import { isSupabaseConfigured, supabase } from "./integrations/supabase";
 import type { AppState, Category, DailyLog, ProjectLoadIn, ProjectLoadInItem, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, PointsEvent, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User, OfflineCommand, TruckFile } from "./types";
@@ -755,13 +756,13 @@ export function App() {
    * history, so attempting to delete a product that has been used comes back
    * as a refusal rather than quietly changing a signed-off month.
    */
-  const retireRecord = (table: "materials" | "tools" | "trucks" | "sites", id: string, active: boolean) => {
+  const retireRecord = (table: "materials" | "tools" | "trucks" | "sites", id: string, active: boolean, labels?: { on: string; off: string }) => {
     if (!remoteMode) return notify("This needs the live database.");
     const key = ({ materials: "materials", tools: "tools", trucks: "trucks", sites: "sites" } as const)[table];
     patchState((current) => ({
       ...current,
       [key]: (current[key] as Array<{ id: string }>).map((row) => (row.id === id ? { ...row, active } : row)),
-    }) as AppState, active ? "Back in use" : "Marked inactive");
+    }) as AppState, active ? (labels?.on ?? "Back in use") : (labels?.off ?? "Marked inactive"));
     setRecordActive(table, id, active).then(invalidateRemote).catch((err: Error) => notify(err.message));
   };
 
@@ -996,7 +997,7 @@ export function App() {
         <React.Suspense fallback={<TabSkeleton />}>
           {(["inventory", "tremco", "log", "tools", "trucks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} addTruckFile={addTruckFile} removeTruckFile={removeTruckFile} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
-          {tab === "jobs" && <LazyJobsTab state={state} role={currentUser.role} saveSite={saveSite} openSheet={setSheet} />}
+          {tab === "jobs" && <LazyJobsTab state={state} role={currentUser.role} saveSite={saveSite} setJobArchived={(id, archived) => retireRecord("sites", id, !archived, { on: "Job brought back", off: "Job archived" })} openSheet={setSheet} />}
           {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} setState={setState} openSheet={setSheet} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "cfo" && <LazyCfoTab state={state} role={currentUser.role} resolveTransaction={resolveTransaction} dismissTransaction={dismissTransaction} splitTransaction={splitTransaction} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
         </React.Suspense>
@@ -1225,12 +1226,13 @@ function Home({ state, role, userId, setTab, goToFocus, openGraph, toggleLoadInI
 }
 
 export function BulkToolSheet({ state, userId, saveTool }: { state: AppState; userId: string; saveTool: (tool: ToolItem, message?: string) => void }) {
-  const [siteId, setSiteId] = useState(state.sites[0]?.id ?? "");
+  const jobs = unarchivedJobs(state.sites);
+  const [siteId, setSiteId] = useState(jobs[0]?.id ?? "");
   const [serviceId, setServiceId] = useState<ServiceId>("wp");
   const tools = state.tools.filter((tool) => tool.serviceId === serviceId || tool.serviceId === "veh");
   const checkout = (tool: ToolItem) => saveTool({ ...tool, status: "out", outBy: userId, outJob: siteId, outService: serviceId, outTs: new Date().toISOString() }, "Checked out");
   const checkin = (tool: ToolItem) => saveTool({ ...tool, status: "in", outBy: undefined, outJob: undefined, outService: undefined, outTs: undefined }, "Checked in");
-  return <div><label className="fld">Job</label><select className="in" value={siteId} onChange={(event) => setSiteId(event.target.value)}>{state.sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select><label className="fld">Service</label><select className="in" value={serviceId} onChange={(event) => setServiceId(event.target.value as ServiceId)}>{state.services.filter((service) => service.id !== "veh").map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select><section className="card compact-card">{tools.map((tool) => <div className="tool-row" key={tool.id}><div><b>{tool.name}</b><div className="tiny muted">{tool.status === "out" ? `${userName(state, tool.outBy)} - ${siteName(state, tool.outJob)}` : "Available in warehouse"}</div></div><button className={`btn sm ${tool.status === "out" ? "line" : "primary"}`} disabled={!siteId && tool.status === "in"} onClick={() => tool.status === "out" ? checkin(tool) : checkout(tool)}>{tool.status === "out" ? "Check in" : "Check out"}</button></div>)}</section></div>;
+  return <div><label className="fld">Job</label><select className="in" value={siteId} onChange={(event) => setSiteId(event.target.value)}>{jobs.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select><label className="fld">Service</label><select className="in" value={serviceId} onChange={(event) => setServiceId(event.target.value as ServiceId)}>{state.services.filter((service) => service.id !== "veh").map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select><section className="card compact-card">{tools.map((tool) => <div className="tool-row" key={tool.id}><div><b>{tool.name}</b><div className="tiny muted">{tool.status === "out" ? `${userName(state, tool.outBy)} - ${siteName(state, tool.outJob)}` : "Available in warehouse"}</div></div><button className={`btn sm ${tool.status === "out" ? "line" : "primary"}`} disabled={!siteId && tool.status === "in"} onClick={() => tool.status === "out" ? checkin(tool) : checkout(tool)}>{tool.status === "out" ? "Check in" : "Check out"}</button></div>)}</section></div>;
 }
 
 export function Kpi({ label, value, sub, alert, onClick }: { label: string; value: string | number; sub: string; alert?: boolean; onClick?: () => void }) {
