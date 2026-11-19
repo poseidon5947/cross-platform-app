@@ -221,6 +221,20 @@ export function priceChangeMaterials(materials: Material[]) {
   return materials.filter((material) => material.previousCost != null && material.cost !== material.previousCost);
 }
 
+/**
+ * Whether this product is part of the warehouse count.
+ *
+ * `strictTracking: false` means nobody counts it on the shelf, so it has no
+ * meaningful on-hand number. That matters more since the client's truck load-in
+ * lists went in: 79 of those items are kit that lives on a vehicle - brooms,
+ * a fire extinguisher, wrenches - with no warehouse stock behind them. Left in
+ * the Inventory tab they all read "Out", which is not true and buries the
+ * dozen products that genuinely need ordering.
+ */
+export function countedInWarehouse(material: Pick<Material, "strictTracking">) {
+  return material.strictTracking !== false;
+}
+
 export function stockStatus(material: Pick<Material, "qty" | "reorderPoint">) {
   if (material.qty <= 0) return { key: "bad" as const, label: "Out" };
   if (material.qty < material.reorderPoint) return { key: "bad" as const, label: "Reorder" };
@@ -272,7 +286,7 @@ export function reorderLine(material: Material) {
 }
 
 export function reorderEstimate(materials: Material[], freight = 175) {
-  const lines = materials.filter((material) => material.strictTracking !== false && stockStatus(material).key !== "good").map(reorderLine);
+  const lines = materials.filter((material) => countedInWarehouse(material) && stockStatus(material).key !== "good").map(reorderLine);
   const subtotal = lines.reduce((sum, line) => sum + line.lineCost, 0);
   const gst = subtotal * 0.05;
   return { lines, subtotal, gst, freight, total: subtotal + gst + freight };

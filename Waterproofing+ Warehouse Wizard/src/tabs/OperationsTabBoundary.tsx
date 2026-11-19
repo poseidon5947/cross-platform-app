@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { categoryLabels, services as seedServices } from "../data/seed";
 import { dailyLogMediaSignedUrl, receiptSignedUrl, toolPhotoSignedUrl, truckFileSignedUrl, uploadReceiptPhoto, uploadToolPhoto, uploadTruckFile } from "../data/repo";
 import { isSupabaseConfigured } from "../integrations/supabase";
-import { ALLOWED_MATERIAL_UNITS, batteryState, vehicleServiceDue, canResolveMaintenanceRequests, canSeeEverything, canSeePrices, dailyProgress, formatDate, materialsForService, id, isKmEntryTask, isTaskDone, money, roundStep, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
+import { ALLOWED_MATERIAL_UNITS, batteryState, vehicleServiceDue, canResolveMaintenanceRequests, canSeeEverything, canSeePrices, countedInWarehouse, dailyProgress, formatDate, materialsForService, id, isKmEntryTask, isTaskDone, money, roundStep, serviceRequired, stepForMaterialUnit, stockStatus, todayKey } from "../domain/business";
 import type { AppState, Category, DailyLog, DailyLogMedia, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, TaskSection, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User, TruckFile } from "../types";
 import { BulkToolSheet, canManage, Kpi, Pill, ProgressRing, serviceName, siteName, userName } from "../App";
 import type { Tab as AppTab } from "../App";
@@ -182,7 +182,7 @@ function Inventory({ state, role, userId, openSheet, saveMaterial, setExactCount
       onFocusHandled?.();
     }
   }, [focusTarget]);
-  const list = state.materials.filter((material) => !material.isTremco && (category === "all" || category === material.category || (category === "low" && stockStatus(material).key !== "good")) && (!query || `${material.name} ${material.bin}`.toLowerCase().includes(query.toLowerCase())));
+  const list = state.materials.filter((material) => !material.isTremco && countedInWarehouse(material) && (category === "all" || category === material.category || (category === "low" && stockStatus(material).key !== "good")) && (!query || `${material.name} ${material.bin}`.toLowerCase().includes(query.toLowerCase())));
   const categoryLabel = category === "all" ? "All materials" : category === "low" ? "Reorder list" : categoryLabels[category as Category];
   return <><InventorySegments activeTab="inventory" setTab={setTab} /><div className="inv-actions"><button className="btn line block" onClick={() => printInventoryLog(state, list, categoryLabel)}>Print inventory log</button>{canManage(role) && <button className="btn primary block" onClick={() => openSheet({ title: "Receive stock", content: <ReceiveStockSheet state={state} userId={userId} submitTransactions={submitTransactions} close={() => openSheet(null)} /> })}>Receive stock</button>}{canManage(role) && <button className="btn line block" onClick={() => openSheet({ title: "New material", content: <MaterialForm saveMaterial={saveMaterial} /> })}>Add new material</button>}</div><div className="search"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search material or bin" /></div><div className="chips"><Chip on={category === "all"} onClick={() => setCategory("all")}>All {state.materials.filter((material) => !material.isTremco).length}</Chip><Chip on={category === "low"} onClick={() => setCategory("low")}>Reorder</Chip>{Object.entries(categoryLabels).map(([key, label]) => <Chip key={key} on={category === key} onClick={() => setCategory(key)}>{label}</Chip>)}</div><section className="card inv-card">{(showAllRows ? list : list.slice(0, 25)).map((material) => <MaterialRow key={material.id} material={material} showPrice={canSeePrices(role)} onClick={() => openSheet({ title: material.name, content: <MaterialDetail material={material} role={role} setExactCount={setExactCount} saveMaterial={saveMaterial} /> })} />)}</section>{list.length > 25 && <button className="btn line block" onClick={() => setShowAllRows((value) => !value)}>{showAllRows ? `Show fewer — ${list.length} products` : `Show all ${list.length} products`}</button>}</>;
 }
@@ -222,7 +222,7 @@ function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog,
   // Alphabetical, because this list is 121 items long and the order the
   // database hands back is meaningless to someone hunting for one tube.
   const trackedMaterials = state.materials
-    .filter((material) => material.strictTracking !== false)
+    .filter(countedInWarehouse)
     .sort((a, b) => a.name.localeCompare(b.name));
   // Narrowed to the service they picked, so a waterproofing crew is not
   // scrolling past insulation and traffic coatings to find their own items.
