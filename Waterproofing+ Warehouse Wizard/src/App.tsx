@@ -101,6 +101,7 @@ import {
   unarchivedJobs,
 } from "./domain/business";
 import { mediaUploadSummary, uploadAllMedia, type MediaUploadProgress } from "./domain/mediaUpload";
+import { removeDailyLogEntry } from "./domain/business";
 import { isSupabaseConfigured, supabase } from "./integrations/supabase";
 import type { AppState, Category, DailyLog, ProjectLoadIn, ProjectLoadInItem, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, PointsEvent, Role, ServiceId, Site, TaskFrequency, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User, OfflineCommand, TruckFile } from "./types";
 
@@ -812,10 +813,22 @@ export function App() {
     updateDailyLog(log).then(invalidateRemote).catch((err: Error) => notify(err.message));
   };
 
+  /**
+   * Deleting a log has to take its 5 points back with it, or a duplicate stays
+   * paid for after the duplicate is gone - see removeDailyLogEntry. The photos
+   * go too: daily_log_media cascades on the row.
+   */
   const removeDailyLog = (logId: string) => {
     if (!remoteMode) return notify("This needs the live database.");
-    patchState((current) => ({ ...current, dailyLogs: current.dailyLogs.filter((item) => item.id !== logId) }), "Daily log deleted");
-    deleteRecord("daily_logs", logId).then(invalidateRemote).catch((err: Error) => notify(err.message));
+    const applied = removeDailyLogEntry(state, logId);
+    if (applied === state) return notify("That daily log is no longer here.");
+    const reversal = applied.pointsEvents.find((event) => event.ref === `dailylog-removed:${logId}`);
+    const poolDelta = applied.crewPoolPoints - state.crewPoolPoints;
+    patchState((current) => removeDailyLogEntry(current, logId), "Daily log deleted");
+    deleteRecord("daily_logs", logId)
+      .then(() => (reversal ? persistPoints([reversal]) : poolDelta !== 0 ? addToCrewPool(poolDelta) : Promise.resolve()))
+      .then(invalidateRemote)
+      .catch((err: Error) => notify(err.message));
   };
 
   /** What a vehicle should be carrying. Zero takes the line off the truck. */
@@ -1014,7 +1027,7 @@ export function App() {
         {tab === "loadin" && <LoadInTab state={state} role={currentUser.role} userId={currentUser.id} openSheet={setSheet} saveLoadIn={saveLoadIn} onToggle={toggleLoadInItem} onComplete={completeLoadIn} onReassign={reassignLoadInTo} onRemoveItem={removeLoadInItem} onEditItem={editLoadInItem} />}
         {tab === "home" && <Home state={state} role={currentUser.role} userId={currentUser.id} setTab={setTab} goToFocus={goToFocus} openGraph={setGraphModal} toggleLoadInItem={toggleLoadInItem} completeLoadIn={completeLoadIn} />}
         <React.Suspense fallback={<TabSkeleton />}>
-          {(["inventory", "tremco", "log", "tools", "trucks", "tasks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks" | "tasks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} addTruckFile={addTruckFile} removeTruckFile={removeTruckFile} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
+          {(["inventory", "tremco", "log", "tools", "trucks", "tasks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks" | "tasks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} addTruckFile={addTruckFile} removeTruckFile={removeTruckFile} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} editDailyLog={editDailyLog} removeDailyLog={removeDailyLog} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
           {tab === "jobs" && <LazyJobsTab state={state} role={currentUser.role} saveSite={saveSite} setJobArchived={(id, archived) => retireRecord("sites", id, !archived, { on: "Job brought back", off: "Job archived" })} openSheet={setSheet} />}
           {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} setState={setState} openSheet={setSheet} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
@@ -1240,7 +1253,7 @@ function Home({ state, role, userId, setTab, goToFocus, openGraph, toggleLoadInI
         crew the price list on the home screen. */}
     {canManage(role) && <section className="card"><div className="sec-h"><h2>Price changes</h2><button className="link" onClick={() => goToFocus("admin", "csv")}>Report</button></div>{priceChanges.slice(0, 4).map((material) => <div className="line-item" key={material.id}><b>{material.name}</b><span className={`pill ${material.cost > (material.previousCost ?? material.cost) ? "warn" : "good"}`}>{money(material.previousCost ?? 0)} to {money(material.cost)}</span></div>)}{priceChanges.length === 0 && <div className="empty-state"><span className="empty-icon">OK</span><div className="empty-msg">No material price changes flagged</div></div>}</section>}
     <section className="card card-interactive"><div className="sec-h"><h2>Today's truck tasks</h2><button className="link" onClick={() => setTab("tasks")}>Open</button></div><ProgressRing pct={progress.pct} /></section>
-    <section className="card card-interactive" onClick={() => openGraph("activity_trend")}><div className="sec-h"><div><h2>Recent activity</h2><p className="tiny muted">Last 6 only — full history is in Daily Log</p></div><button className="link" onClick={(e) => { e.stopPropagation(); setTab("log"); }}>View all →</button></div>{state.transactions.slice(0, 6).map((tx) => <Activity key={tx.id} state={state} tx={tx} />)}{state.transactions.length === 0 && <div className="empty-state"><span className="empty-icon">📋</span><div className="empty-msg">No activity logged yet</div></div>}</section>
+    <section className="card card-interactive" onClick={() => openGraph("activity_trend")}><div className="sec-h"><div><h2>Recent activity</h2><p className="tiny muted">Last 6 only — full history is in Reports</p></div><button className="link" onClick={(e) => { e.stopPropagation(); setTab("cfo"); }}>View all →</button></div>{state.transactions.slice(0, 6).map((tx) => <Activity key={tx.id} state={state} tx={tx} />)}{state.transactions.length === 0 && <div className="empty-state"><span className="empty-icon">📋</span><div className="empty-msg">No activity logged yet</div></div>}</section>
   </>;
 }
 

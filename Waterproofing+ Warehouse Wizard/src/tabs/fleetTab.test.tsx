@@ -61,7 +61,7 @@ function render(activeTab: "trucks" | "tasks", role: "admin" | "crew" = "admin")
       submitTransactions={noop} submitDailyLog={noop} saveSite={noop} saveTool={noop}
       saveTruck={noop} saveTruckRecord={noop} setTruckInventory={noop} addTruckFile={noop}
       removeTruckFile={noop} saveTask={noop} removeTask={noop} submitMaintenance={noop}
-      respondMaintenance={noop} editMaintenance={noop} onFocusHandled={noop}
+      respondMaintenance={noop} editMaintenance={noop} editDailyLog={noop} removeDailyLog={noop} onFocusHandled={noop}
     />);
   });
   const text = host.textContent ?? "";

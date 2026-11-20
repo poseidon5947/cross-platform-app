@@ -851,6 +851,47 @@ export function creditOrPool(state: AppState, userId: string, points: number, re
   return { ...state, pointsEvents: [event, ...state.pointsEvents] };
 }
 
+/**
+ * Take a daily log back out, points included.
+ *
+ * The client asked on 20 November to delete a log "if they are duplicates or
+ * contain incorrect information". A duplicate is the case that matters: there
+ * is a known one in production (David's 2 November entry, filed twice), and
+ * submitting a log awards 5 points, so deleting the row on its own leaves the
+ * crew paid twice for one day's work and a points event pointing at a log that
+ * no longer exists.
+ *
+ * The award is reversed rather than erased, because the CFO reconciles off
+ * this ledger and a line vanishing from it is worse than a line that says what
+ * happened. Guarded on its own ref so a retried delete cannot charge twice.
+ *
+ * If no award is found the points went to the crew pool instead - which is
+ * what `creditOrPool` does when the person had already left - so they come
+ * back out of the pool.
+ */
+export function removeDailyLogEntry(state: AppState, logId: string, now = new Date().toISOString()): AppState {
+  const log = state.dailyLogs.find((item) => item.id === logId);
+  if (!log) return state;
+  const dailyLogs = state.dailyLogs.filter((item) => item.id !== logId);
+  const reversalRef = `dailylog-removed:${logId}`;
+  if (state.pointsEvents.some((event) => event.ref === reversalRef)) return { ...state, dailyLogs };
+
+  const award = state.pointsEvents.find((event) => event.ref === `dailylog:${logId}`);
+  if (!award) {
+    return { ...state, dailyLogs, crewPoolPoints: Math.max(0, state.crewPoolPoints - DAILY_LOG_ENTRY_POINTS) };
+  }
+  const reversal: PointsEvent = {
+    id: id("pe"),
+    userId: award.userId,
+    type: "manual_adjust",
+    points: -award.points,
+    reason: "Daily log deleted",
+    ref: reversalRef,
+    ts: now,
+  };
+  return { ...state, dailyLogs, pointsEvents: [reversal, ...state.pointsEvents] };
+}
+
 export function submitDailyLog(
   state: AppState,
   submittedByUserId: string,

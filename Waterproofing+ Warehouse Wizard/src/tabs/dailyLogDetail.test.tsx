@@ -16,7 +16,7 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { DailyLogDetail } from "./OperationsTabBoundary";
+import { AllDailyLogPhotos, DailyLogDetail } from "./OperationsTabBoundary";
 import type { AppState, DailyLog } from "../types";
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -119,5 +119,116 @@ describe("opening a submitted daily log", () => {
       root.render(<DailyLogDetail state={{ ...state, transactions: [] } as unknown as AppState} log={log} role="admin" />);
     });
     expect(host.textContent).toContain("No material lines were recorded against this log.");
+  });
+});
+
+/**
+ * Editing and deleting, added 20 November. The one that matters is that a crew
+ * member is never offered either: `updateDailyLog` throws "only a manager can
+ * change a daily log" on an empty result, so a crew tap would patch the list
+ * on screen and then fail against the database.
+ */
+describe("editing and deleting a log", () => {
+  const noop = () => {};
+  const asRole = (role: "admin" | "crew") => {
+    act(() => {
+      root.render(<DailyLogDetail state={state} log={log} role={role}
+        editDailyLog={noop} removeDailyLog={noop} openSheet={noop} />);
+    });
+    return [...host.querySelectorAll("button")].map((node) => node.textContent);
+  };
+
+  it("offers both to a manager", () => {
+    const labels = asRole("admin");
+    expect(labels).toContain("Edit this log");
+    expect(labels).toContain("Delete this log");
+  });
+
+  it("offers neither to a crew member", () => {
+    const labels = asRole("crew");
+    expect(labels).not.toContain("Edit this log");
+    expect(labels).not.toContain("Delete this log");
+  });
+
+  it("asks before deleting, and says what else goes with it", () => {
+    const removed: string[] = [];
+    act(() => {
+      root.render(<DailyLogDetail state={state} log={log} role="admin"
+        removeDailyLog={(id) => removed.push(id)} openSheet={noop} />);
+    });
+    const del = [...host.querySelectorAll("button")].find((node) => node.textContent === "Delete this log")!;
+    act(() => { del.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(removed).toEqual([]);
+    expect(host.textContent).toContain("takes back the 5 points");
+    expect(host.textContent).toContain("deletes 1 photo attached to it");
+
+    const yes = [...host.querySelectorAll("button")].find((node) => node.textContent === "Yes, delete this log")!;
+    act(() => { yes.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(removed).toEqual(["log1"]);
+  });
+
+  it("can be backed out of", () => {
+    const removed: string[] = [];
+    act(() => {
+      root.render(<DailyLogDetail state={state} log={log} role="admin"
+        removeDailyLog={(id) => removed.push(id)} openSheet={noop} />);
+    });
+    const click = (label: string) => {
+      const node = [...host.querySelectorAll("button")].find((item) => item.textContent === label)!;
+      act(() => { node.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    };
+    click("Delete this log");
+    click("Keep it");
+    expect(host.textContent).not.toContain("takes back the 5 points");
+    expect(removed).toEqual([]);
+  });
+});
+
+/**
+ * Every photo in one place, asked for on 20 November: "access all pictures
+ * that have been submitted through the daily logs in one folder, without
+ * having to go through each individual daily log".
+ */
+describe("all daily log photos", () => {
+  const galleryState = {
+    ...state,
+    dailyLogs: [
+      { ...log, id: "log1", date: "2026-11-19" },
+      { ...log, id: "log2", date: "2026-11-20", siteId: "s1" },
+    ],
+    dailyLogMedia: [
+      { id: "m-old", dailyLogId: "log1", kind: "photo", storageKey: "a.jpg" },
+      { id: "m-new", dailyLogId: "log2", kind: "photo", storageKey: "b.jpg" },
+      { id: "m-orphan", dailyLogId: "gone", kind: "photo", storageKey: "c.jpg" },
+    ],
+  } as unknown as AppState;
+
+  const renderGallery = (over?: AppState) => {
+    act(() => { root.render(<AllDailyLogPhotos state={over ?? galleryState} />); });
+    return host.textContent ?? "";
+  };
+
+  it("counts the files and the logs they came from, ignoring a deleted log's leftovers", () => {
+    expect(renderGallery()).toContain("2 files across 2 logs");
+  });
+
+  it("labels each file with its job and date, so the list is searchable", () => {
+    const text = renderGallery();
+    expect(text).toContain("Knappett - 2550 Quadra");
+    expect(text).toContain("11/20/2026");
+    expect(text).toContain("11/19/2026");
+  });
+
+  it("puts the newest first", () => {
+    renderGallery();
+    const dates = [...host.querySelectorAll(".tiny.muted")]
+      .map((node) => node.textContent ?? "")
+      .filter((text) => text.includes("/2026"));
+    expect(dates[0]).toContain("11/20/2026");
+  });
+
+  it("says so when nothing has been attached anywhere", () => {
+    expect(renderGallery({ ...galleryState, dailyLogMedia: [] } as unknown as AppState))
+      .toContain("No photos have been attached to a daily log yet.");
   });
 });

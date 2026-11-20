@@ -110,7 +110,7 @@ function ImageFilePicker({ accept, value, onChange }: { accept?: string; value?:
   </div>;
 }
 
-export default function OperationsTabBoundary({ activeTab, state, role, currentUser, userId, toggleTask, openSheet, saveMaterial, setExactCount, setTab, submitTransactions, submitDailyLog, saveSite, saveTool, saveTruck, saveTruckRecord, setTruckInventory, addTruckFile, removeTruckFile, saveTask, removeTask, submitMaintenance, respondMaintenance, editMaintenance, focusTarget, onFocusHandled }: {
+export default function OperationsTabBoundary({ activeTab, state, role, currentUser, userId, toggleTask, openSheet, saveMaterial, setExactCount, setTab, submitTransactions, submitDailyLog, saveSite, saveTool, saveTruck, saveTruckRecord, setTruckInventory, addTruckFile, removeTruckFile, saveTask, removeTask, submitMaintenance, respondMaintenance, editMaintenance, editDailyLog, removeDailyLog, focusTarget, onFocusHandled }: {
   activeTab: Tab;
   state: AppState;
   role: Role;
@@ -134,12 +134,14 @@ export default function OperationsTabBoundary({ activeTab, state, role, currentU
   removeTask: (id: string) => void;
   submitMaintenance: (targetType: MaintenanceTargetType, targetId: string, targetLabel: string, description: string, deadlineAt?: string, chosenDate?: string) => void;
   respondMaintenance: (requestId: string, note: string) => void; editMaintenance: (id: string, description: string, deadlineAt?: string) => void;
+  editDailyLog: (log: DailyLog) => void;
+  removeDailyLog: (logId: string) => void;
   focusTarget?: string | null;
   onFocusHandled: () => void;
 }) {
   if (activeTab === "inventory") return <Inventory state={state} role={role} userId={userId} submitTransactions={submitTransactions} openSheet={openSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
   if (activeTab === "tremco") return <Tremco state={state} role={role} userId={userId} openSheet={openSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} />;
-  if (activeTab === "log") return <LogMaterials state={state} role={role} userId={userId} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} setTab={setTab} openSheet={openSheet} />;
+  if (activeTab === "log") return <LogMaterials state={state} role={role} userId={userId} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} setTab={setTab} openSheet={openSheet} editDailyLog={editDailyLog} removeDailyLog={removeDailyLog} />;
   if (activeTab === "tools") return <Tools state={state} role={role} userId={userId} openSheet={openSheet} saveTool={saveTool} />;
   if (activeTab === "trucks") return <FleetSection state={state} role={role} currentUser={currentUser} openSheet={openSheet} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} addTruckFile={addTruckFile} removeTruckFile={removeTruckFile} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
   return <Tasks state={state} role={role} currentUser={currentUser} toggleTask={toggleTask} openSheet={openSheet} saveTruck={saveTruck} saveTask={saveTask} removeTask={removeTask} focusTarget={focusTarget} onFocusHandled={onFocusHandled} />;
@@ -204,6 +206,81 @@ function printDailyLogs(state: AppState, list: DailyLog[]) {
 }
 
 /**
+ * Every photo and clip from every daily log, in one list.
+ *
+ * Asked for on 20 November: "is there a way that we can access all pictures
+ * that have been submitted through the daily logs in one folder? without
+ * having to go through each individual daily log to track down?"
+ *
+ * Each row names the job and the date it came from, because a wall of photos
+ * with no labels is harder to search than the logs were.
+ */
+export function AllDailyLogPhotos({ state }: { state: AppState }) {
+  const byLog = new Map(state.dailyLogs.map((log) => [log.id, log]));
+  // Newest first, and a photo whose log has been deleted is not shown rather
+  // than rendered as a mystery with no job and no date.
+  const items = state.dailyLogMedia
+    .filter((item) => byLog.has(item.dailyLogId))
+    .sort((a, b) => {
+      const left = byLog.get(a.dailyLogId)!;
+      const right = byLog.get(b.dailyLogId)!;
+      return right.date.localeCompare(left.date);
+    });
+  if (!items.length) return <p className="tiny muted">No photos have been attached to a daily log yet.</p>;
+  return <>
+    <p className="tiny muted">{items.length} {items.length === 1 ? "file" : "files"} across {new Set(items.map((item) => item.dailyLogId)).size} logs. Newest first.</p>
+    {items.map((item) => {
+      const log = byLog.get(item.dailyLogId)!;
+      return <div className="line-item" key={item.id}>
+        <div className="mid">
+          <b>{siteName(state, log.siteId)}</b>
+          <div className="tiny muted">{formatDate(log.date)} · {serviceName(state, log.serviceId)} · {userName(state, log.completedByUserId)}</div>
+          <DailyLogMediaLinks media={[item]} />
+        </div>
+      </div>;
+    })}
+  </>;
+}
+
+/** Correcting a log that was filed wrong - fields only, never the points. */
+function DailyLogEditForm({ state, log, editDailyLog, close }: { state: AppState; log: DailyLog; editDailyLog: (log: DailyLog) => void; close: () => void }) {
+  const [draft, setDraft] = useState<DailyLog>(log);
+  const set = <K extends keyof DailyLog>(key: K, value: DailyLog[K]) => setDraft((current) => ({ ...current, [key]: value }));
+  const canSave = Boolean(draft.siteId && draft.workCompleted.trim() && draft.toDoNextTime.trim() && draft.completedByUserId);
+  const activeUsers = state.users.filter((item) => item.status !== "Inactive");
+  return <>
+    <label className="fld">Date</label>
+    <input className="in" type="date" value={draft.date} max={todayKey()} onChange={(event) => set("date", event.target.value)} />
+    <label className="fld">Job site</label>
+    <select className="in" value={draft.siteId} onChange={(event) => set("siteId", event.target.value)}>
+      {jobChoices(state.sites, draft.siteId).sort((a, b) => a.name.localeCompare(b.name)).map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}
+    </select>
+    <label className="fld">Service</label>
+    <select className="in" value={draft.serviceId} onChange={(event) => set("serviceId", event.target.value as ServiceId)}>
+      {[...state.services].sort((a, b) => a.name.localeCompare(b.name)).map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
+    </select>
+    <label className="fld">Completed by</label>
+    <select className="in" value={draft.completedByUserId} onChange={(event) => set("completedByUserId", event.target.value)}>
+      {activeUsers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+    </select>
+    <label className="fld">Quantity of materials installed</label>
+    <textarea className="in" value={draft.materialsInstalled ?? ""} onChange={(event) => set("materialsInstalled", event.target.value)} />
+    <label className="fld">Work completed*</label>
+    <textarea className="in" value={draft.workCompleted} onChange={(event) => set("workCompleted", event.target.value)} />
+    <label className="fld">Challenges</label>
+    <textarea className="in" value={draft.challenges ?? ""} onChange={(event) => set("challenges", event.target.value)} />
+    <label className="fld">Weather</label>
+    <input className="in" value={draft.weather ?? ""} onChange={(event) => set("weather", event.target.value)} />
+    <label className="fld">To do next time*</label>
+    <textarea className="in" value={draft.toDoNextTime} onChange={(event) => set("toDoNextTime", event.target.value)} />
+    {/* Said out loud because re-tagging the person here does NOT move the 5
+        points the original submission awarded. */}
+    {draft.completedByUserId !== log.completedByUserId && <p className="tiny muted">Changing who completed this does not move the 5 points the original entry earned. Those stay with {userName(state, log.completedByUserId)}.</p>}
+    <button className="btn primary block" disabled={!canSave} onClick={() => { editDailyLog(draft); close(); }}>Save changes</button>
+  </>;
+}
+
+/**
  * One submitted daily log, in full.
  *
  * The client could see on 20 November that a log existed but not what was in
@@ -216,7 +293,8 @@ function printDailyLogs(state: AppState, list: DailyLog[]) {
  * complaint: she could not tell whether he had not written it or the app was
  * not showing it.
  */
-export function DailyLogDetail({ state, log, role }: { state: AppState; log: DailyLog; role: Role }) {
+export function DailyLogDetail({ state, log, role, editDailyLog, removeDailyLog, openSheet }: { state: AppState; log: DailyLog; role: Role; editDailyLog?: (log: DailyLog) => void; removeDailyLog?: (logId: string) => void; openSheet?: (sheet: { title: string; content: React.ReactNode } | null) => void }) {
+  const [confirming, setConfirming] = useState(false);
   const media = state.dailyLogMedia.filter((item) => item.dailyLogId === log.id);
   const lines = materialsUsedOnLog(state.transactions, log);
   const field = (label: string, value?: string) => (
@@ -253,10 +331,22 @@ export function DailyLogDetail({ state, log, role }: { state: AppState; log: Dai
       <div className="sec-h"><h3>Photos &amp; video</h3><Pill tone={media.length ? "neu" : "warn"}>{media.length}</Pill></div>
       {media.length ? <DailyLogMediaLinks media={media} /> : <p className="tiny muted">Nothing attached to this log.</p>}
     </section>
+    {canManage(role) && (editDailyLog || removeDailyLog) && <section className="card">
+      {editDailyLog && openSheet && <button className="btn line block" onClick={() => openSheet({ title: `Edit — ${siteName(state, log.siteId)}`, content: <DailyLogEditForm state={state} log={log} editDailyLog={editDailyLog} close={() => openSheet(null)} /> })}>Edit this log</button>}
+      {removeDailyLog && !confirming && <button className="btn line block" onClick={() => setConfirming(true)}>Delete this log</button>}
+      {/* The photo count is spelled out because deleting the row takes its
+          media with it - daily_log_media cascades - and that is not obvious
+          from a button that only says Delete. */}
+      {removeDailyLog && confirming && <>
+        <p className="tiny muted">Deleting removes the entry and takes back the 5 points it earned{media.length ? `, and deletes ${media.length} ${media.length === 1 ? "photo" : "photos"} attached to it` : ""}. This cannot be undone.</p>
+        <button className="btn line block" onClick={() => { removeDailyLog(log.id); openSheet?.(null); }}>Yes, delete this log</button>
+        <button className="btn line block" onClick={() => setConfirming(false)}>Keep it</button>
+      </>}
+    </section>}
   </>;
 }
 
-function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog, saveSite, setTab, openSheet }: { state: AppState; role: Role; userId: string; openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void; submitTransactions: (txs: Omit<Transaction, "id" | "ts">[], chosenDate?: string) => void; submitDailyLog: (input: Omit<DailyLog, "id" | "createdAt">, files?: File[]) => void; saveSite: (site: Site) => void; setTab: (tab: AppTab) => void }) {
+function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog, saveSite, setTab, openSheet, editDailyLog, removeDailyLog }: { state: AppState; role: Role; userId: string; openSheet: (sheet: { title: string; content: React.ReactNode } | null) => void; editDailyLog: (log: DailyLog) => void; removeDailyLog: (logId: string) => void; submitTransactions: (txs: Omit<Transaction, "id" | "ts">[], chosenDate?: string) => void; submitDailyLog: (input: Omit<DailyLog, "id" | "createdAt">, files?: File[]) => void; saveSite: (site: Site) => void; setTab: (tab: AppTab) => void }) {
   const [siteId, setSiteId] = useState(unarchivedJobs(state.sites)[0]?.id);
   const [serviceId, setServiceId] = useState<ServiceId>("wp");
   const [type, setType] = useState<TxType>("use");
@@ -323,7 +413,7 @@ function LogMaterials({ state, role, userId, submitTransactions, submitDailyLog,
     setSiteId(site.id);
     setNewSite("");
   };
-  const historySection = <section className="card" id="wz-daily-log-history"><div className="sec-h"><h3>{canManage(role) ? "All daily logs" : "Your recent daily logs"}</h3>{recentLogs.length > 0 && <button className="link" onClick={() => printDailyLogs(state, recentLogs)}>Export</button>}</div>{canManage(role) && <><label className="fld">{logMonth ? "Month" : "Month (showing all)"}</label><input className="in" type="month" value={logMonth} onChange={(event) => setLogMonth(event.target.value)} /></>}{recentLogs.length ? recentLogs.map((log) => <div className="line-item" key={log.id} style={{ cursor: "pointer" }} onClick={() => openSheet({ title: siteName(state, log.siteId), content: <DailyLogDetail state={state} log={log} role={role} /> })}><div className="mid"><b>{siteName(state, log.siteId)}</b><div className="tiny muted">{formatDate(log.date)} · {serviceName(state, log.serviceId)} · {userName(state, log.completedByUserId)}</div><div className="tiny muted">{log.workCompleted}</div><DailyLogMediaLinks media={state.dailyLogMedia.filter((item) => item.dailyLogId === log.id)} /></div><button className="btn line sm" onClick={(event) => { event.stopPropagation(); openSheet({ title: siteName(state, log.siteId), content: <DailyLogDetail state={state} log={log} role={role} /> }); }}>Open</button></div>) : <p className="tiny muted">{logMonth ? "Nothing logged for this month." : "No daily logs yet."}</p>}</section>;
+  const historySection = <section className="card" id="wz-daily-log-history"><div className="sec-h"><h3>{canManage(role) ? "All daily logs" : "Your recent daily logs"}</h3><div className="row-action">{state.dailyLogMedia.length > 0 && <button className="link" onClick={() => openSheet({ title: "All daily log photos", content: <AllDailyLogPhotos state={state} /> })}>All photos ({state.dailyLogMedia.length})</button>}{recentLogs.length > 0 && <button className="link" onClick={() => printDailyLogs(state, recentLogs)}>Export</button>}</div></div>{canManage(role) && <><label className="fld">{logMonth ? "Month" : "Month (showing all)"}</label><input className="in" type="month" value={logMonth} onChange={(event) => setLogMonth(event.target.value)} /></>}{recentLogs.length ? recentLogs.map((log) => <div className="line-item" key={log.id} style={{ cursor: "pointer" }} onClick={() => openSheet({ title: siteName(state, log.siteId), content: <DailyLogDetail state={state} log={log} role={role} editDailyLog={editDailyLog} removeDailyLog={removeDailyLog} openSheet={openSheet} /> })}><div className="mid"><b>{siteName(state, log.siteId)}</b><div className="tiny muted">{formatDate(log.date)} · {serviceName(state, log.serviceId)} · {userName(state, log.completedByUserId)}</div><div className="tiny muted">{log.workCompleted}</div><DailyLogMediaLinks media={state.dailyLogMedia.filter((item) => item.dailyLogId === log.id)} /></div><button className="btn line sm" onClick={(event) => { event.stopPropagation(); openSheet({ title: siteName(state, log.siteId), content: <DailyLogDetail state={state} log={log} role={role} editDailyLog={editDailyLog} removeDailyLog={removeDailyLog} openSheet={openSheet} /> }); }}>Open</button></div>) : <p className="tiny muted">{logMonth ? "Nothing logged for this month." : "No daily logs yet."}</p>}</section>;
   const entryForm = <>
     <section className="card"><label className="fld">Date</label><input className="in" type="date" value={logDate} max={todayKey()} onChange={(event) => setLogDate(event.target.value)} /><label className="fld">Job site</label><select className="in" value={siteId ?? ""} onChange={(event) => setSiteId(event.target.value)}>{!siteId && <option value="">Choose a job site</option>}{sortedSites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select><div className="row-action"><input className="in" value={newSite} onChange={(event) => setNewSite(event.target.value)} placeholder="+ Add job site" /><button className="btn line sm" onClick={addSite}>Add</button></div>{selectedSite?.driveFolderUrl && <a className="tiny" href={selectedSite.driveFolderUrl} target="_blank" rel="noreferrer">Job details / site plans →</a>}<label className="fld">Service</label><div className="selrow">{[...state.services].sort((a, b) => a.name.localeCompare(b.name)).map((service) => <button key={service.id} className={`sopt ${serviceId === service.id ? "on" : ""}`} onClick={() => setServiceId(service.id)}>{service.name}</button>)}</div></section>
     <section className="card"><h3>Daily log</h3><label className="fld">Quantity of materials installed</label><textarea className="in" value={materialsInstalled} onChange={(event) => setMaterialsInstalled(event.target.value)} placeholder="Square feet / linear feet, optional" /><label className="fld">Work completed*</label><textarea className="in" value={workCompleted} onChange={(event) => setWorkCompleted(event.target.value)} /><label className="fld">Challenges</label><textarea className="in" value={challenges} onChange={(event) => setChallenges(event.target.value)} placeholder="Optional" /><label className="fld">Weather</label><input className="in" value={weather} onChange={(event) => setWeather(event.target.value)} placeholder="Optional — e.g. rain all afternoon" /><label className="fld">To do next time*</label><textarea className="in" value={toDoNextTime} onChange={(event) => setToDoNextTime(event.target.value)} /><label className="fld">Completed by</label><select className="in" value={completedByUserId} onChange={(event) => setCompletedByUserId(event.target.value)}>{activeUsers.map((item) => <option key={item.id} value={item.id}>{item.name}{item.orgRole ? ` — ${item.orgRole}` : ""}</option>)}</select><label className="fld">Photos &amp; video</label><div className="file-picker"><input className="in" type="file" accept="image/*,video/*" multiple onChange={(event) => { setPhotos((current) => [...current, ...Array.from(event.target.files ?? [])]); event.target.value = ""; }} /><p className="tiny muted">Optional. Add as many as you like, up to 50MB each. They upload after you submit — stay on this screen until the banner at the top clears, or they will not be attached.</p>{photos.map((file, index) => <div className="line-item" key={`${file.name}-${index}`}><div className="mid"><b>{file.name}</b><div className="tiny muted">{(file.size / 1024 / 1024).toFixed(1)} MB</div></div><button className="btn line sm" onClick={() => setPhotos((current) => current.filter((_, i) => i !== index))}>Remove</button></div>)}</div></section>
