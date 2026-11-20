@@ -16,7 +16,7 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { AllDailyLogPhotos, DailyLogDetail } from "./OperationsTabBoundary";
+import { AllDailyLogPhotos, DailyLogDetail, DailyLogEditForm } from "./OperationsTabBoundary";
 import type { AppState, DailyLog } from "../types";
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -130,7 +130,7 @@ describe("opening a submitted daily log", () => {
  */
 describe("editing and deleting a log", () => {
   const noop = () => {};
-  const asRole = (role: "admin" | "crew") => {
+  const asRole = (role: "admin" | "manager" | "crew") => {
     act(() => {
       root.render(<DailyLogDetail state={state} log={log} role={role}
         editDailyLog={noop} removeDailyLog={noop} openSheet={noop} />);
@@ -138,10 +138,20 @@ describe("editing and deleting a log", () => {
     return [...host.querySelectorAll("button")].map((node) => node.textContent);
   };
 
-  it("offers both to a manager", () => {
+  it("offers both to an admin", () => {
     const labels = asRole("admin");
     expect(labels).toContain("Edit this log");
     expect(labels).toContain("Delete this log");
+  });
+
+  it("offers a manager the edit but not the delete", () => {
+    // Deleting reverses the 5 points through award-points, whose
+    // manual_adjust kind is admin-only and answers a manager with 403. A
+    // manager tapping Delete would get an error after the points call failed,
+    // so the button is not offered.
+    const labels = asRole("manager");
+    expect(labels).toContain("Edit this log");
+    expect(labels).not.toContain("Delete this log");
   });
 
   it("offers neither to a crew member", () => {
@@ -230,5 +240,58 @@ describe("all daily log photos", () => {
   it("says so when nothing has been attached anywhere", () => {
     expect(renderGallery({ ...galleryState, dailyLogMedia: [] } as unknown as AppState))
       .toContain("No photos have been attached to a daily log yet.");
+  });
+});
+
+/**
+ * The edit form, which deliberately will not touch date, job or service.
+ *
+ * Those three are how a log's material lines are found - there is no foreign
+ * key - and 81 of the 129 logs in production have lines attached. Letting a
+ * typo fix change the date would orphan them and the log would then claim no
+ * materials were recorded, which is the complaint this screen answers.
+ */
+describe("editing a log", () => {
+  const mount = (onSave: (log: DailyLog) => void = () => {}) => {
+    act(() => {
+      root.render(<DailyLogEditForm state={state} log={log} editDailyLog={onSave} close={() => {}} />);
+    });
+    const labels = [...host.querySelectorAll("label.fld")].map((node) => node.textContent);
+    return { labels, text: host.textContent ?? "" };
+  };
+
+  it("offers no input for date, job or service", () => {
+    const { labels } = mount();
+    expect(labels).not.toContain("Date");
+    expect(labels).not.toContain("Job site");
+    expect(labels).not.toContain("Service");
+    expect(labels).toContain("Date, job and service");
+    expect(host.querySelector('input[type="date"]')).toBeNull();
+    expect(host.querySelectorAll("select")).toHaveLength(1); // completed-by only
+  });
+
+  it("shows them read-only, and says why they are fixed", () => {
+    const { text } = mount();
+    expect(text).toContain("Knappett - 2550 Quadra");
+    expect(text).toContain("Waterproofing");
+    expect(text).toContain("These stay fixed.");
+  });
+
+  it("still edits every field the crew wrote", () => {
+    const { labels } = mount();
+    for (const field of ["Completed by", "Quantity of materials installed", "Work completed*", "Challenges", "Weather", "To do next time*"]) {
+      expect(labels).toContain(field);
+    }
+  });
+
+  it("saves the log unchanged in job, service and date", () => {
+    const saved: DailyLog[] = [];
+    mount((next) => saved.push(next));
+    const button = [...host.querySelectorAll("button")].find((node) => node.textContent === "Save changes")!;
+    act(() => { button.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(saved).toHaveLength(1);
+    expect(saved[0].date).toBe(log.date);
+    expect(saved[0].siteId).toBe(log.siteId);
+    expect(saved[0].serviceId).toBe(log.serviceId);
   });
 });

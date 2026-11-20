@@ -4,7 +4,7 @@ import { dailyLogMediaSignedUrl, receiptSignedUrl, toolPhotoSignedUrl, truckFile
 import { isSupabaseConfigured } from "../integrations/supabase";
 import { ALLOWED_MATERIAL_UNITS, batteryState, vehicleServiceDue, canResolveMaintenanceRequests, canSeeEverything, canSeePrices, countedInWarehouse, dailyProgress, formatDate, jobChoices, materialsForService, materialsUsedOnLog, id, isKmEntryTask, isTaskDone, money, onFleet, roundStep, serviceRequired, stepForMaterialUnit, stockStatus, todayKey, unarchivedJobs } from "../domain/business";
 import type { AppState, Category, DailyLog, DailyLogMedia, MaintenanceRequest, MaintenanceTargetType, Material, MaterialUnit, Role, ServiceId, Site, TaskFrequency, TaskSection, ToolCondition, ToolItem, Transaction, Truck, TruckLog, TruckTask, TxType, User, TruckFile } from "../types";
-import { BulkToolSheet, canManage, Kpi, Pill, ProgressRing, serviceName, siteName, userName } from "../App";
+import { BulkToolSheet, canAdmin, canManage, Kpi, Pill, ProgressRing, serviceName, siteName, userName } from "../App";
 import type { Tab as AppTab } from "../App";
 
 type Tab = "inventory" | "tremco" | "log" | "tools" | "trucks" | "tasks";
@@ -243,22 +243,23 @@ export function AllDailyLogPhotos({ state }: { state: AppState }) {
 }
 
 /** Correcting a log that was filed wrong - fields only, never the points. */
-function DailyLogEditForm({ state, log, editDailyLog, close }: { state: AppState; log: DailyLog; editDailyLog: (log: DailyLog) => void; close: () => void }) {
+export function DailyLogEditForm({ state, log, editDailyLog, close }: { state: AppState; log: DailyLog; editDailyLog: (log: DailyLog) => void; close: () => void }) {
   const [draft, setDraft] = useState<DailyLog>(log);
   const set = <K extends keyof DailyLog>(key: K, value: DailyLog[K]) => setDraft((current) => ({ ...current, [key]: value }));
   const canSave = Boolean(draft.siteId && draft.workCompleted.trim() && draft.toDoNextTime.trim() && draft.completedByUserId);
   const activeUsers = state.users.filter((item) => item.status !== "Inactive");
   return <>
-    <label className="fld">Date</label>
-    <input className="in" type="date" value={draft.date} max={todayKey()} onChange={(event) => set("date", event.target.value)} />
-    <label className="fld">Job site</label>
-    <select className="in" value={draft.siteId} onChange={(event) => set("siteId", event.target.value)}>
-      {jobChoices(state.sites, draft.siteId).sort((a, b) => a.name.localeCompare(b.name)).map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}
-    </select>
-    <label className="fld">Service</label>
-    <select className="in" value={draft.serviceId} onChange={(event) => set("serviceId", event.target.value as ServiceId)}>
-      {[...state.services].sort((a, b) => a.name.localeCompare(b.name)).map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
-    </select>
+    {/* Date, job and service are shown but not editable, and that is on
+        purpose. The material lines have no foreign key to this log - they are
+        found by job, service and date (materialsUsedOnLog) - so changing any
+        of the three silently orphans them, and 81 of the 129 logs in
+        production have lines attached. The log would then read "no material
+        lines were recorded", which is the very complaint this screen was
+        built to answer. Moving the lines too is an inventory change and needs
+        doing deliberately, not as a side effect of fixing a typo. */}
+    <label className="fld">Date, job and service</label>
+    <p style={{ margin: "0 0 4px" }}>{formatDate(draft.date)} · {siteName(state, draft.siteId)} · {serviceName(state, draft.serviceId)}</p>
+    <p className="tiny muted">These stay fixed. The materials recorded on this log are found by job, service and date, so changing one here would lose them. To move a log to another job or day, delete it and enter it again.</p>
     <label className="fld">Completed by</label>
     <select className="in" value={draft.completedByUserId} onChange={(event) => set("completedByUserId", event.target.value)}>
       {activeUsers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
@@ -331,13 +332,13 @@ export function DailyLogDetail({ state, log, role, editDailyLog, removeDailyLog,
       <div className="sec-h"><h3>Photos &amp; video</h3><Pill tone={media.length ? "neu" : "warn"}>{media.length}</Pill></div>
       {media.length ? <DailyLogMediaLinks media={media} /> : <p className="tiny muted">Nothing attached to this log.</p>}
     </section>
-    {canManage(role) && (editDailyLog || removeDailyLog) && <section className="card">
+    {canManage(role) && (editDailyLog || (removeDailyLog && canAdmin(role))) && <section className="card">
       {editDailyLog && openSheet && <button className="btn line block" onClick={() => openSheet({ title: `Edit — ${siteName(state, log.siteId)}`, content: <DailyLogEditForm state={state} log={log} editDailyLog={editDailyLog} close={() => openSheet(null)} /> })}>Edit this log</button>}
-      {removeDailyLog && !confirming && <button className="btn line block" onClick={() => setConfirming(true)}>Delete this log</button>}
+      {removeDailyLog && canAdmin(role) && !confirming && <button className="btn line block" onClick={() => setConfirming(true)}>Delete this log</button>}
       {/* The photo count is spelled out because deleting the row takes its
           media with it - daily_log_media cascades - and that is not obvious
           from a button that only says Delete. */}
-      {removeDailyLog && confirming && <>
+      {removeDailyLog && canAdmin(role) && confirming && <>
         <p className="tiny muted">Deleting removes the entry and takes back the 5 points it earned{media.length ? `, and deletes ${media.length} ${media.length === 1 ? "photo" : "photos"} attached to it` : ""}. This cannot be undone.</p>
         <button className="btn line block" onClick={() => { removeDailyLog(log.id); openSheet?.(null); }}>Yes, delete this log</button>
         <button className="btn line block" onClick={() => setConfirming(false)}>Keep it</button>

@@ -824,9 +824,15 @@ export function App() {
     if (applied === state) return notify("That daily log is no longer here.");
     const reversal = applied.pointsEvents.find((event) => event.ref === `dailylog-removed:${logId}`);
     const poolDelta = applied.crewPoolPoints - state.crewPoolPoints;
-    patchState((current) => removeDailyLogEntry(current, logId), "Daily log deleted");
-    deleteRecord("daily_logs", logId)
-      .then(() => (reversal ? persistPoints([reversal]) : poolDelta !== 0 ? addToCrewPool(poolDelta) : Promise.resolve()))
+    // The points come back BEFORE the row goes, and the screen only changes
+    // once both have. Deleting first meant a rejected reversal - the
+    // award-points function allows manual_adjust to admins only - left the log
+    // gone and the 5 points still paid, which is the exact state this was
+    // written to prevent. Reversal is idempotent on its ref, so a retry after
+    // a failed delete cannot charge twice.
+    (reversal ? persistPoints([reversal]) : poolDelta !== 0 ? addToCrewPool(poolDelta) : Promise.resolve())
+      .then(() => deleteRecord("daily_logs", logId))
+      .then(() => patchState((current) => removeDailyLogEntry(current, logId), "Daily log deleted"))
       .then(invalidateRemote)
       .catch((err: Error) => notify(err.message));
   };
