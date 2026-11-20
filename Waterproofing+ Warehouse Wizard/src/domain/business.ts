@@ -307,6 +307,25 @@ export function materialsUsedOnLog<T extends Pick<Transaction, "siteId" | "servi
     && tx.ts.slice(0, 10) === log.date);
 }
 
+/**
+ * The products still worth putting in front of someone.
+ *
+ * Third time this flag has been read but not honoured: jobs had it, the fleet
+ * had it, and now the catalogue. `active` was already on the row and already
+ * parsed by `materialFromRow`, and exactly one picker looked at it - so a
+ * retired product stayed on the Inventory tab with its quantity still
+ * counting. That surfaced on 21 November, when the client confirmed that
+ * "TREMPROOF 260 5 gallon pail" and "TremProof TP 260 55 Gallon Drum" are one
+ * lot of stock entered twice: retiring the duplicate would have changed
+ * nothing on the screen she was reading it off.
+ *
+ * Only an explicit false retires a product, so the rows that predate the
+ * column stay in the catalogue.
+ */
+export function stockedMaterials<T extends Pick<Material, "active">>(materials: T[]) {
+  return materials.filter((material) => material.active !== false);
+}
+
 export function countedInWarehouse(material: Pick<Material, "strictTracking">) {
   return material.strictTracking !== false;
 }
