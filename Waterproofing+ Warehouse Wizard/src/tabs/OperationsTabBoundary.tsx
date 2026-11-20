@@ -50,7 +50,9 @@ function ReceiveStockSheet({ state, userId, submitTransactions, close }: { state
   const [cart, setCart] = useState<Record<string, number>>({});
   const [supplier, setSupplier] = useState("");
   const [query, setQuery] = useState("");
-  const list = state.materials.filter((material) => !query || material.name.toLowerCase().includes(query.toLowerCase()));
+  // Receiving stock is a picker too: a retired product must not be orderable
+  // back onto the shelf.
+  const list = stockedMaterials(state.materials).filter((material) => !query || material.name.toLowerCase().includes(query.toLowerCase()));
   const lines = Object.entries(cart).filter(([, qty]) => qty > 0);
   const totalUnits = lines.reduce((sum, [, qty]) => sum + qty, 0);
   const add = (material: Material, sign = 1) =>
