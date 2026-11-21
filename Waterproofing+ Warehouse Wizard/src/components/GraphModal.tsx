@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { AppState, Material } from '../types';
+import { stockedMaterials } from '../domain/business';
 
 // ─── Types ────────────────────────────────────────────────
 export type GraphType =
@@ -200,20 +201,21 @@ function ActivityTrendGraph({ state }: { state: AppState }) {
 }
 
 function InventoryStockGraph({ state, showMoney = true }: { state: AppState; showMoney?: boolean }) {
-  const sorted = [...state.materials].sort((a, b) => {
+  const onShelf = stockedMaterials(state.materials);
+  const sorted = [...onShelf].sort((a, b) => {
     const pa = a.qty / Math.max(a.reorderPoint, 1);
     const pb = b.qty / Math.max(b.reorderPoint, 1);
     return pa - pb;
   }).slice(0, 12);
 
-  const totalValue = state.materials.reduce((s, m) => s + m.qty * m.cost, 0);
-  const belowReorder = state.materials.filter(m => m.qty <= m.reorderPoint).length;
-  const outOfStock  = state.materials.filter(m => m.qty === 0).length;
+  const totalValue = onShelf.reduce((s, m) => s + m.qty * m.cost, 0);
+  const belowReorder = onShelf.filter(m => m.qty <= m.reorderPoint).length;
+  const outOfStock  = onShelf.filter(m => m.qty === 0).length;
 
   return (
     <div className="gm-content">
       <div className="gm-stat-row">
-        <div className="gm-stat"><div className="gm-stat-val">{state.materials.length}</div><div className="gm-stat-lbl">SKUs tracked</div></div>
+        <div className="gm-stat"><div className="gm-stat-val">{onShelf.length}</div><div className="gm-stat-lbl">SKUs tracked</div></div>
         <div className="gm-stat"><div className="gm-stat-val" style={{ color: '#b87200' }}>{belowReorder}</div><div className="gm-stat-lbl">Below reorder</div></div>
         <div className="gm-stat"><div className="gm-stat-val" style={{ color: '#c53030' }}>{outOfStock}</div><div className="gm-stat-lbl">Out of stock</div></div>
       </div>
@@ -324,6 +326,8 @@ function CrewPointsGraph({ state }: { state: AppState }) {
   );
 }
 
+/** Reads every material, retired ones included, on purpose: a loss booked against a
+ *  product that was retired later is still a real loss, and still needs its cost. */
 function Losses30dGraph({ state, showMoney = true }: { state: AppState; showMoney?: boolean }) {
   const cutoff = Date.now() - 30 * 86400000;
   const losses = state.transactions.filter(t => t.type === 'loss' && new Date(t.ts).getTime() > cutoff);
@@ -370,7 +374,7 @@ function Losses30dGraph({ state, showMoney = true }: { state: AppState; showMone
 }
 
 function ReorderAlertGraph({ state, showMoney = true }: { state: AppState; showMoney?: boolean }) {
-  const lows = state.materials.filter(m => m.qty <= m.reorderPoint).sort((a, b) => (a.qty / Math.max(a.reorderPoint, 1)) - (b.qty / Math.max(b.reorderPoint, 1)));
+  const lows = stockedMaterials(state.materials).filter(m => m.qty <= m.reorderPoint).sort((a, b) => (a.qty / Math.max(a.reorderPoint, 1)) - (b.qty / Math.max(b.reorderPoint, 1)));
   const critical = lows.filter(m => m.qty === 0);
   const subtotal  = lows.reduce((s, m) => s + Math.max(0, m.reorderPoint - m.qty) * m.cost, 0);
 
