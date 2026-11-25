@@ -676,6 +676,10 @@ input[disabled], .in[disabled] { opacity: .6; background: var(--bg-3); cursor: n
    below it and never on Daily Log - asked for three rounds running. Stacked on
    a phone, in a row once there is width for it. */
 .inv-actions { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 12px; }
+/* Archive sits apart from the save actions above it: it is the last thing on
+   the card and should not read as one more field to fill in. */
+.archive-action { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line, #e2e8f1); }
+.archive-action p { margin-top: 6px; }
 .inv-actions .btn { margin: 0; }
 @media (min-width: 760px) {
   .inv-actions { flex-direction: row; }

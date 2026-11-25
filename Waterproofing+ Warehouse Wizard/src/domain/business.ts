@@ -16,6 +16,7 @@ import type {
   TruckLog,
   TruckTask,
   TxType,
+  ToolItem,
   User,
 } from "../types";
 import { canonicalWarehouseRef, legacyOrCanonicalRefs } from "./pointsAwardPolicy";
@@ -324,6 +325,20 @@ export function materialsUsedOnLog<T extends Pick<Transaction, "siteId" | "servi
  */
 export function stockedMaterials<T extends Pick<Material, "active">>(materials: T[]) {
   return materials.filter((material) => material.active !== false);
+}
+
+/**
+ * The tools still owned. Fourth list to need this: `ToolItem.active` has been
+ * on the row all along and nothing read it, so a tool sold or written off
+ * stayed on the list people check out from.
+ */
+export function inServiceTools<T extends Pick<ToolItem, "active">>(tools: T[]) {
+  return tools.filter((tool) => tool.active !== false);
+}
+
+/** The retired half of any of these lists - what an Archived tab shows. */
+export function retiredOnly<T extends { active?: boolean }>(rows: T[]) {
+  return rows.filter((row) => row.active === false);
 }
 
 export function countedInWarehouse(material: Pick<Material, "strictTracking">) {
