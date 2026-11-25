@@ -897,6 +897,12 @@ export function App() {
    * still need adding.
    */
   const attachDailyLogFiles = async (dailyLogId: string, files: File[]) => {
+    // Shown before the first request, not after it. Jesse reported on
+    // 24 November that there was "no upload progress bar on the screen": the
+    // uploads only began once the log row came back from the server, so on a
+    // weak signal there was a long silent gap where the app looked idle and he
+    // left the screen - which is exactly what kills the uploads.
+    setMediaUpload({ done: 0, total: files.length, failed: 0 });
     try {
       const { failures } = await uploadAllMedia(
         files,
@@ -910,6 +916,23 @@ export function App() {
       setMediaUpload(null);
     }
     invalidateRemote();
+  };
+
+  /**
+   * Attach photos to a log that already exists.
+   *
+   * Without this there was no way back from a failed upload for anyone, at any
+   * access level - the edit form has no photo field - so "add them again once
+   * you are back on signal" was advice nobody could follow, and re-submitting
+   * the whole log to carry the photos is what put duplicate logs in the data.
+   * The database already allowed it: daily_log_media's insert policy is
+   * `uploaded_by = auth.uid()`, so the person who did the work can attach to
+   * their own log. Only the screen was missing.
+   */
+  const addDailyLogPhotos = (dailyLogId: string, files: File[]) => {
+    if (!files.length) return;
+    if (!remoteMode || !navigator.onLine) return notify("Photos need a connection. Try again once you are back on signal.");
+    void attachDailyLogFiles(dailyLogId, files);
   };
 
   const submitDailyLog = (input: Omit<DailyLog, "id" | "createdAt">, files: File[] = []) => {
@@ -954,12 +977,18 @@ export function App() {
             .catch((err) => notify(`Daily log points sync failed: ${err.message}`));
         },
         () => {
-          notify("Daily log saved offline. It will sync when connection returns.");
+          // The queue is JSON in localStorage and a File will not survive it,
+          // so the photos genuinely cannot be carried. Saying so is the whole
+          // fix: before this they vanished without a word, and the crew found
+          // out when the log came back empty.
+          notify(files.length
+            ? `Daily log saved offline. ${files.length === 1 ? "The photo" : `All ${files.length} photos`} still needs adding - open the log once you are back on signal and use Add photos.`
+            : "Daily log saved offline. It will sync when connection returns.");
           setState((latest) => ({ ...latest, offlineQueue: [...latest.offlineQueue, queueItem] }));
         },
       );
     } else if (files.length) {
-      notify("The log saved, but photos need a connection. Add them again once you are back on signal.");
+      notify(`The log saved, but photos need a connection. Open the log once you are back on signal and use Add photos to attach ${files.length === 1 ? "it" : "them"}.`);
     }
     setSheet(null);
   };
@@ -1033,7 +1062,7 @@ export function App() {
         {tab === "loadin" && <LoadInTab state={state} role={currentUser.role} userId={currentUser.id} openSheet={setSheet} saveLoadIn={saveLoadIn} onToggle={toggleLoadInItem} onComplete={completeLoadIn} onReassign={reassignLoadInTo} onRemoveItem={removeLoadInItem} onEditItem={editLoadInItem} />}
         {tab === "home" && <Home state={state} role={currentUser.role} userId={currentUser.id} setTab={setTab} goToFocus={goToFocus} openGraph={setGraphModal} toggleLoadInItem={toggleLoadInItem} completeLoadIn={completeLoadIn} />}
         <React.Suspense fallback={<TabSkeleton />}>
-          {(["inventory", "tremco", "log", "tools", "trucks", "tasks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks" | "tasks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} addTruckFile={addTruckFile} removeTruckFile={removeTruckFile} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} editDailyLog={editDailyLog} removeDailyLog={removeDailyLog} retireRecord={retireRecord} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
+          {(["inventory", "tremco", "log", "tools", "trucks", "tasks"] as Tab[]).includes(tab) && <LazyOperationsTabs activeTab={tab as "inventory" | "tremco" | "log" | "tools" | "trucks" | "tasks"} state={state} role={currentUser.role} currentUser={currentUser} userId={currentUser.id} toggleTask={toggleTask} openSheet={setSheet} saveMaterial={saveMaterial} setExactCount={setExactCount} setTab={setTab} submitTransactions={submitTransactions} submitDailyLog={submitDailyLog} saveSite={saveSite} saveTool={saveTool} saveTruck={saveTruck} saveTruckRecord={saveTruckRecord} setTruckInventory={setTruckInventory} addTruckFile={addTruckFile} removeTruckFile={removeTruckFile} saveTask={saveTask} removeTask={removeTask} submitMaintenance={submitMaintenance} respondMaintenance={respondMaintenance} editMaintenance={editMaintenance} editDailyLog={editDailyLog} removeDailyLog={removeDailyLog} addDailyLogPhotos={addDailyLogPhotos} retireRecord={retireRecord} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
           {tab === "crew" && <LazyPeopleTab state={state} role={currentUser.role} setState={setState} openSheet={setSheet} />}
           {tab === "jobs" && <LazyJobsTab state={state} role={currentUser.role} saveSite={saveSite} setJobArchived={(id, archived) => retireRecord("sites", id, !archived, { on: "Job brought back", off: "Job archived" })} openSheet={setSheet} />}
           {tab === "admin" && <LazyAdminTab state={state} role={currentUser.role} notify={notify} remoteMode={remoteMode} saveMaterial={saveMaterial} currentTheme={currentTheme} onThemeChange={(theme) => { setCurrentTheme(theme); applyTheme(theme); saveTheme(theme); }} openThemeEditor={() => setShowAppearance(true)} setState={setState} openSheet={setSheet} focusTarget={focusTarget} onFocusHandled={() => setFocusTarget(null)} />}
